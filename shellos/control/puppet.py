@@ -15,7 +15,13 @@ class Puppet(Controller):
         super().__init__()
         self.params = {"scale": [scale, 0.0, 4.0]}   # 摇杆推到底 = 多少 Nm
         self.sticks = [0.0, 0.0]                      # (left_y, right_y)，上为正
+        self.out = [0.0, 0.0]
+        self.ramp = 0.07                              # Nm/拍 @100 Hz ≈ 7 Nm/s：2 Nm 用 300 ms 爬到（调研建议 ≥300 ms）
 
     def step(self, frame, gait=None):
         s = self.p("scale")
-        return s * self.sticks[0], s * self.sticks[1]
+        for i in range(2):
+            want = s * self.sticks[i]
+            d = max(-self.ramp, min(self.ramp, want - self.out[i]))
+            self.out[i] += d
+        return self.out[0], self.out[1]

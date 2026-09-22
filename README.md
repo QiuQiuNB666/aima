@@ -8,6 +8,9 @@ EvoTavern 进化酒馆黑客松 · 深圳站（2026-09-21~24）· 01 具身与�
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/pytest -q                                   # 安全层 + DOFC 单元测试
 
+# 感知校准（蒙眼二选一，ShellOS 跑着 --ctl terrain 时）
+.venv/bin/python scripts/afc.py --trials 10
+
 # 第一次插上外骨骼（开机、进入工作态、插 Type-C）
 .venv/bin/python scripts/probe.py                     # PING → VERSION → ENABLE → 看 3 秒数据 → DISABLE
 .venv/bin/python scripts/probe.py --torque 0.5        # 再发 0.5 Nm 两秒，记下正值是伸展还是屈曲
@@ -34,7 +37,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | 想干什么 | 读这个 |
 |---|---|
 | 荣耀 Robot Phone 实机摸底（adb） | [docs/荣耀手机-adb摸底.md](docs/荣耀手机-adb摸底.md) |
-| **ShellOS 控制栈架构：分层、线程、安全层、44 h 建法** | [docs/架构.md](docs/架构.md) |
+| **架构 v2（调研后的最佳方案）：山的记忆 = 腿部地形力反馈 + 经验继承；口径、数字、展位脚本、验证清单** | [docs/架构-v2-最佳方案.md](docs/架构-v2-最佳方案.md) |
+| ShellOS 控制栈架构 v1：分层、线程、安全层 | [docs/架构.md](docs/架构.md) |
 | **Hypershell 想做什么、怎么说对口、什么踩雷** | [docs/Hypershell想做什么.md](docs/Hypershell想做什么.md) |
 | **外骨骼能往哪做：六个方向 + 建议组合** | [docs/外骨骼开发方向.md](docs/外骨骼开发方向.md) |
 | **8 件设备各能做什么、怎么接** | [docs/技术可行清单.md](docs/技术可行清单.md) |

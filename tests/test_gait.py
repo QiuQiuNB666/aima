@@ -125,6 +125,12 @@ def test_terrain_and_puppet():
     assert t.pos > 0 and "stairs_up" in seen and "flat" in seen
     assert max(seen["flat"]) == 0.0                     # 平地不给力
     assert max(seen["stairs_up"]) > 0.5                 # 台阶有脉冲
-    assert all(v <= 2.0 + 1e-9 for vs in seen.values() for v in vs)
+    assert all(v <= 2.4 + 1e-9 for vs in seen.values() for v in vs)   # 台阶 = 1.2 × strength
+    t.force = "up"; assert t.segment_at(99) == "up"      # 强制路段
     p = Puppet(scale=2.0); p.sticks = [0.5, -1.0]
-    assert p.step(None) == (1.0, -2.0)
+    out = None
+    for _ in range(40):                                  # 缓升：40 拍 ≈ 400 ms 才到位
+        out = p.step(None)
+    assert abs(out[0] - 1.0) < 1e-9 and abs(out[1] + 2.0) < 1e-9
+    p.sticks = [0.0, 0.0]; out = p.step(None)
+    assert abs(out[0] - 0.93) < 1e-9                    # 松开也是缓降，不是断崖

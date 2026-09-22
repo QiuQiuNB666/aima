@@ -181,6 +181,11 @@ class Dashboard:
         if path == "/terrain":
             a.set_terrain(body.get("preset", "山的记忆"))
             return {"ok": True}
+        if path == "/terrain/force":
+            if hasattr(a.ctl, "force"):
+                a.ctl.force = body.get("kind") or None
+                a.log(f"地形强制：{a.ctl.force or '自动'}")
+            return {"force": getattr(a.ctl, "force", None)}
         if path == "/demo/reset":
             a.demo_reset()
             return {"ok": True}
