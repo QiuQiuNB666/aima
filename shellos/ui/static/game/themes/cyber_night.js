@@ -1,5 +1,6 @@
 // 赛博东京·夜行 —— 基础版：夜空渐变 + 紫雾 + 暗地面 + 远处楼群剪影（少量霓虹条）。
 // 精细地图（霓虹招牌、自动售货机、鸟居、雨）下一轮只改这个文件。
+import { ROAD_W } from '../path.js';
 export function build(scene, ctx) {
   const { THREE, theme, kit, lights, route } = ctx;
   kit.sky(scene, theme.sky[0], theme.sky[1]);
@@ -23,5 +24,24 @@ export function build(scene, ctx) {
   }
   neon.instanceColor.needsUpdate = true;
   scene.add(blocks, neon);
+
+  const M = ctx.meshes;
+  if (M.camp) M.camp.visible = false;          // 城市里没有帐篷
+  // 台阶在紫色低光下和平坡一样黑：踏面提亮 + 微弱自发光 + 每级台阶边缘一条霓虹亮条（台阶 = 腿上脉冲，得让评委看出来）
+  const st = M.stairs, idx = M.stairIndex || [];
+  if (st && idx.length) {
+    st.material.emissive = acc[2].clone().multiplyScalar(0.08);
+    const col = new THREE.Color(), white = new THREE.Color('#ffffff');
+    for (let k = 0; k < idx.length; k++) { st.getColorAt(k, col); st.setColorAt(k, col.lerp(white, 0.3)); }
+    st.instanceColor.needsUpdate = true;
+    const nose = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: acc[2] }), idx.length);
+    idx.forEach((i, k) => {
+      const S = route.steps[i], up = S.kind === 'stairs_up';
+      const e = up ? route.P[i] : route.P[i + 1], y = Math.max(S.h0, S.h1);   // 上台阶：立面在步起点；下台阶：落差在步终点
+      p.set(e.x, y + 0.012, e.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -route.H[i]); s.set(0.05, 0.03, ROAD_W);
+      nose.setMatrixAt(k, m4.compose(p, q, s));
+    });
+    nose.name = 'stairNose'; scene.add(nose);
+  }
 }
 export function update(dt, st) {}

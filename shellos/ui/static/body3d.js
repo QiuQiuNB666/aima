@@ -19,6 +19,7 @@ export function initBody(container) {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // 省 GPU：控制循环和游戏屏同机
   renderer.setSize(W, H);
+  renderer.domElement.style.display = 'block';
   container.appendChild(renderer.domElement);
   controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 0.9, 0);
@@ -38,13 +39,16 @@ export function initBody(container) {
 
   const loop = () => { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); };
   loop();
-  window.addEventListener('resize', () => { const w = container.clientWidth, h = container.clientHeight || 300; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); });
+  // 跟容器走而不是跟窗口走：栅格在 init 之后才定宽，只听 window resize 会让画布比容器宽、人被裁掉一半
+  const fit = () => { const w = container.clientWidth, h = container.clientHeight || 300; if (!w) return; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); };
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(container); else window.addEventListener('resize', fit);
 }
 
 let hipL, hipR, kneeL, kneeR, pelvis;
 function pickBones() {
   // 9/22 在浏览器里验过：leg_joint_*_1 = 髋（y≈0.62）、_2 = 膝（0.36）、_3 = 踝、_5 = 趾；
-  // 髋绕局部 X 轴正转 = 大腿前抬（屈曲）；Skeleton_torso_joint_1 = 骨盆根，转它整个下半身跟着转
+  // 腿骨局部 Y 轴 = 人体左右轴：髋绕 Y 负转 = 大腿前抬、膝绕 Y 正转 = 小腿后屈（9/23 实测，原来写的 X 轴是侧向开合；
+  // 和 game/avatar.js 同一套映射）；Skeleton_torso_joint_1 = 骨盆根，转它整个下半身跟着转
   hipL = bones['leg_joint_L_1'] || null;  hipR = bones['leg_joint_R_1'] || null;
   kneeL = bones['leg_joint_L_2'] || null; kneeR = bones['leg_joint_R_2'] || null;
   pelvis = bones['Skeleton_torso_joint_1'] || null;
@@ -52,7 +56,7 @@ function pickBones() {
   console.log('bones', Object.keys(bones), { hipL: hipL && hipL.name, pelvis: pelvis && pelvis.name });
 }
 
-const qTmp = new THREE.Quaternion(), axisX = new THREE.Vector3(1, 0, 0), axisZ = new THREE.Vector3(0, 0, 1);
+const qTmp = new THREE.Quaternion(), axisX = new THREE.Vector3(1, 0, 0), axisY = new THREE.Vector3(0, 1, 0);
 function setJoint(bone, ax, angleDeg) {
   if (!bone) return;
   bone.quaternion.copy(rest[bone.uuid]).multiply(qTmp.setFromAxisAngle(ax, angleDeg * d2r));
@@ -61,12 +65,13 @@ function setJoint(bone, ax, angleDeg) {
 export function updateBody(f) {
   if (!ready || !f || window.__pause) return;
   const fl = CONVENTION.flexSign * f.l, fr = CONVENTION.flexSign * f.r;
-  setJoint(hipL, axisX, fl);  setJoint(hipR, axisX, fr);
+  setJoint(hipL, axisY, -fl);  setJoint(hipR, axisY, -fr);
   // 膝角没有传感器：屈髋时让膝跟着弯一点，看起来像走路而不是踢腿
-  setJoint(kneeL, axisX, -Math.max(0, fl) * 0.6);  setJoint(kneeR, axisX, -Math.max(0, fr) * 0.6);
+  setJoint(kneeL, axisY, Math.max(0, fl) * 0.6);  setJoint(kneeR, axisY, Math.max(0, fr) * 0.6);
   if (pelvis) {
     pelvis.quaternion.copy(rest[pelvis.uuid])
-      .multiply(qTmp.setFromAxisAngle(axisX, CONVENTION.pitchSign * f.pitch * d2r))
-      .multiply(new THREE.Quaternion().setFromAxisAngle(axisZ, CONVENTION.rollSign * f.roll * d2r));
+      // 骨盆同腿骨：局部 Y = 前后俯仰（正转头往前）、局部 X = 左右侧倾、Z 是扭转（9/23 实测）
+      .multiply(qTmp.setFromAxisAngle(axisY, CONVENTION.pitchSign * f.pitch * d2r))
+      .multiply(new THREE.Quaternion().setFromAxisAngle(axisX, CONVENTION.rollSign * f.roll * d2r));
   }
 }

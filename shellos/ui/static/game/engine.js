@@ -16,6 +16,8 @@ const PREVIEW = Q.get('preview');
 const POLL_MS = 100, LAG = 0.13;             // 髋角插值：落后最新样本 130 ms，两帧之间线性插
 const AV_LAT = 0.35, GH_LAT = -0.6;          // 化身靠左（离镜头近），影子靠右
 const SUMMIT_HOLD = 6.0;
+const SUMMIT_BREAK = 3;                      // 登顶卡期间 pos 到这一步或碰到红灯 → 提前收起（第 2 圈起东京 4 步就是红灯）
+const GH_FADE = [1.5, 2.5];                  // 影子落后化身 1.5 步开始变淡、2.5 步全隐藏：再往后它就在镜头和化身之间，贴脸一个大头（按镜头距离分不开：台阶上并排的影子离镜头也才 ~4）
 const post = (p, b) => fetch(p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json()).catch(() => null);
 const getState = () => fetch('/state', { cache: 'no-store' }).then(r => r.json());
 
@@ -45,7 +47,7 @@ async function waitForTerrain(hud) {
   for (;;) {
     let S = null;
     try { S = await getState(); } catch (e) { hud.banner('连不上 ShellOS（/state）——确认 python -m shellos.main 在跑'); }
-    if (S && S.terrain) { hud.banner(''); return S; }
+    if (S && (S.terrain || isPuppet(S))) { hud.banner(''); return S; }   // puppet：共驾画面，不是报错
     if (S) {
       hud.banner(`当前控制律是 <b>${S.ctl ? S.ctl.name : '?'}</b>，不是地形。<br><button id="toTerrain">切到地形（terrain）</button> <a href="/worlds" style="color:#fff">或先选一座山</a>`);
       const b = document.getElementById('toTerrain'); if (b) b.onclick = () => post('/ctl', { name: 'terrain' });
@@ -53,6 +55,8 @@ async function waitForTerrain(hud) {
     await new Promise(r => setTimeout(r, 1000));
   }
 }
+
+const isPuppet = S => !!(S && !S.terrain && S.ctl && S.ctl.name === 'puppet');
 
 async function main() {
   const worlds = await fetch('/worlds.json').then(r => r.json()).catch(() => []);
@@ -66,8 +70,10 @@ async function main() {
           gait: { moving: false }, frame: { l: -26, r: 12 }, memory: null };
   } else {
     S = await waitForTerrain(bannerOnly);
-    world = worlds.find(w => w.id === S.terrain.preset);
-    if (!world) world = { ...S.terrain.world, alt: [0, 0], route: routeFromStatus(S.terrain) };
+    world = S.terrain ? worlds.find(w => w.id === S.terrain.preset) : (worlds.find(w => w.id === 'tokyo_night') || worlds[0]);
+    if (!world && S.terrain) world = { ...S.terrain.world, alt: [0, 0], route: routeFromStatus(S.terrain) };
+    if (!world) { bannerOnly.banner('没有世界数据（/worlds.json）'); return; }
+    if (!S.terrain) S = { ...S, terrain: null, _T: statusFor(world, 0, null, '') };   // 共驾开场：先摆默认世界，切回 terrain 时同一个世界接着走
   }
   const theme = world.theme || {};
   const hud = makeHud(world);
@@ -95,7 +101,8 @@ async function main() {
   try { themeMod = await import(`./themes/${theme.style || 'grid'}.js`); } catch (e) { console.warn('theme load failed, fallback grid', e); themeMod = await import('./themes/grid.js'); }
   themeMod.build(scene, ctx);
 
-  const [av, gh] = await Promise.all([loadAvatar(), loadAvatar({ ghost: true, color: theme.ghost || '#bff3ff', opacity: theme.ghostOpacity || 0.4 })]);
+  const ghOp = theme.ghostOpacity || 0.4;
+  const [av, gh] = await Promise.all([loadAvatar(), loadAvatar({ ghost: true, color: theme.ghost || '#bff3ff', opacity: ghOp })]);
   scene.add(av.group, gh.group);
   const ghost = makeGhost(gh, hud);
   const cam = makeCamera(camera);
@@ -103,7 +110,7 @@ async function main() {
   const me = makeStepper();
 
   // ---------- 状态 ----------
-  let T = S.terrain, lastLaps = T.laps, lastPos = T.pos, summitUntil = 0, flashUntil = [0, 0], prevSent = [0, 0];
+  let T = S.terrain || S._T, lastLaps = T.laps, lastPos = T.pos, summitUntil = 0, flashUntil = [0, 0], prevSent = [0, 0];
   const hip = [];                            // [{t, fl, fr}] 髋角样本
   const now0 = () => performance.now() / 1000;
   me.set(T.pos, now0(), true);
@@ -118,22 +125,11 @@ async function main() {
     hud.update(S, false, false, true);
   }
 
+  hud.puppet(isPuppet(S));
   function onState(ns) {
     const t = now0();
     S = ns;
     const nt = ns.terrain;
-    if (!nt) { hud.banner('控制律已切走（不是 terrain）——游戏暂停'); return; }
-    hud.banner('');
-    if (nt.preset !== T.preset) { location.reload(); return; }
-    if (nt.laps > lastLaps) {                // 登顶：化身留在山顶，镜头环绕，彩带
-      summitUntil = t + SUMMIT_HOLD;
-      fx.summit(route.at(route.N + 1.2).pos);
-      hud.summit(true, nt, T.best);
-    } else if (nt.pos < lastPos && t > summitUntil) me.set(nt.pos, t, true);   // 复位（R / 换人）
-    lastLaps = nt.laps; lastPos = nt.pos; T = nt;
-    if (t > summitUntil) me.set(nt.pos, t);
-    ghost.onState(nt, t);
-    updateSignals(meshes, nt.pos);
     const [fl, fr] = flexFromFrame(ns.frame); hip.push({ t, fl, fr }); while (hip.length > 8) hip.shift();
     const sent = (ns.safety && ns.safety.sent) || [0, 0];
     for (let k = 0; k < 2; k++) {            // 脉冲：|T| 上升沿过 0.25 Nm
@@ -141,6 +137,25 @@ async function main() {
       if (a > 0.25 && Math.abs(prevSent[k]) <= 0.25) { flashUntil[k] = t + 0.3; fx.pulse(av.group.position, Math.min(route.N - 1, Math.floor(me.s)), a / 1.5); }
       prevSent[k] = sent[k];
     }
+    if (!nt) {                               // puppet = 共驾画面（力矩条 + 化身照常动）；其它控制律才是调试横幅
+      const pup = isPuppet(ns);
+      hud.puppet(pup); hud.banner(pup ? '' : '控制律已切走（不是 terrain）——游戏暂停');
+      ghost.onState(null, t);
+      hud.update(ns, t < flashUntil[0], t < flashUntil[1], false);
+      return;
+    }
+    hud.puppet(false); hud.banner('');
+    if (nt.preset !== T.preset) { location.reload(); return; }
+    if (nt.laps > lastLaps) {                // 登顶：化身留在山顶，镜头环绕，彩带
+      summitUntil = t + SUMMIT_HOLD;
+      fx.summit(route.at(route.N + 1.2).pos);
+      hud.summit(true, nt, T.best);
+    } else if (t < summitUntil && (nt.pos >= SUMMIT_BREAK || nt.segment === 'wait')) summitUntil = t;   // 接着走了：收起登顶，frame() 里把化身放回当前步
+    else if (nt.pos < lastPos && t > summitUntil) me.set(nt.pos, t, true);   // 复位（R / 换人）
+    lastLaps = nt.laps; lastPos = nt.pos; T = nt;
+    if (t > summitUntil) me.set(nt.pos, t);
+    ghost.onState(nt, t);
+    updateSignals(meshes, nt.pos);
     hud.update(ns, t < flashUntil[0], t < flashUntil[1], t < summitUntil);
   }
   async function poll() {
@@ -171,7 +186,7 @@ async function main() {
     const nowMs = performance.now(), dt = Math.min(0.1, (nowMs - last) / 1000), t = nowMs / 1000; last = nowMs;
     const summit = t < summitUntil;
     if (!summit && summitUntil) { summitUntil = 0; hud.summit(false); me.set(T.pos, t, true); }
-    const moving = !!(S.gait && S.gait.moving) && T.segment !== 'wait';
+    const moving = !!(S.gait && S.gait.moving) && !!S.terrain && T.segment !== 'wait';
     const s = summit ? Math.min(route.N + 1.2, me.s + dt * 2) : (PREVIEW ? me.s : me.frame(dt, t, moving));
     if (summit) me.jump(s);
     route.at(s, AV_LAT, A);
@@ -181,7 +196,7 @@ async function main() {
     const [fl, fr] = PREVIEW ? flexFromFrame(S.frame) : hipAt(t);
     av.pose(fl, fr);
 
-    const g = PREVIEW ? { s: ghost.stepper.s, rel: '' } : ghost.frame(dt, t, route.N);
+    const g = PREVIEW ? (ghost.visible ? { s: ghost.stepper.s, rel: '' } : null) : ghost.frame(dt, t, route.N);
     if (PREVIEW && ghost.visible) gh.pose(-8, 22);
     if (g) {
       route.at(g.s, GH_LAT, G);
@@ -194,11 +209,15 @@ async function main() {
     themeMod.update(dt, { t, dt, s, progress: Math.max(0, Math.min(1, s / route.N)), pos: T.pos, total: T.total, avatar: A.pos, terrain: T, summit, camera });
     renderer.render(scene, camera);
 
-    if (g) {                                   // 影子头顶标签：投影到屏幕
-      gh.headWorld(head); head.y += 0.35; head.project(camera);
-      const vis = head.z < 1 && Math.abs(head.x) < 1.1 && Math.abs(head.y) < 1.1;
+    if (g) {                                   // 影子头顶标签：投影到屏幕；出画/贴镜头时钉在下缘
+      gh.headWorld(head);
+      const fade = Math.max(0, Math.min(1, (GH_FADE[1] - (s - g.s)) / (GH_FADE[1] - GH_FADE[0])));
+      for (const m of gh.mats) m.opacity = ghOp * fade;
+      gh.group.visible = fade > 0;
+      head.y += 0.35; head.project(camera);
+      const vis = fade >= 1 && head.z < 1 && Math.abs(head.x) < 1.1 && Math.abs(head.y) < 1.1;
       const rel = PREVIEW ? relText(T) : g.rel;
-      hud.ghostTag((head.x + 1) / 2 * innerWidth, (1 - head.y) / 2 * innerHeight, vis, `上一位：${T.ghost_who || '无名'}`, rel);
+      hud.ghostTag((head.x + 1) / 2 * innerWidth, (1 - head.y) / 2 * innerHeight, true, T.ghost_who || '无名', rel, !vis);
     } else hud.ghostTag(0, 0, false);
     frames++;
     if (nowMs - fpsT > 1000) { window.__fps = frames * 1000 / (nowMs - fpsT); if (!PREVIEW) hud.fps(window.__fps, S.loop_ms != null ? ` · loop ${S.loop_ms} ms` : ''); frames = 0; fpsT = nowMs; }

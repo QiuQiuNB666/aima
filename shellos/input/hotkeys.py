@@ -1,5 +1,8 @@
-"""键盘备份：按住空格 = deadman 1.0，Esc = 急停，R = 重新上膛。需要 pynput 和 macOS 辅助功能权限。
+"""键盘备份：按住空格 = deadman 1.0，Esc = 急停。需要 pynput 和 macOS 辅助功能权限。
 没权限就静默失效——手柄仍是主路径。
+
+全局监听（任何窗口里的按键都算，包括游戏页的「空格走」），所以默认不起，main --hotkeys 才打开。
+不再有 R = 重新上膛：游戏页 R 是「回山脚」，全局 R 会顺手把急停清掉。重新上膛用手柄 ○ 或网页按钮。
 """
 from __future__ import annotations
 import threading
@@ -22,8 +25,6 @@ class Hotkeys:
                 self.guard.set_deadman(1.0, "keyboard")
             elif k == keyboard.Key.esc:
                 self.guard.trigger_estop("keyboard esc")
-            elif getattr(k, "char", None) in ("r", "R"):
-                self.guard.rearm()
 
         def on_release(k):
             if k == keyboard.Key.space:

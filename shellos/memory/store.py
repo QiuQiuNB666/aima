@@ -4,7 +4,8 @@
  "trigger": {"cadence": [95, 110]}, "delta": {"t_ext": -5}, "quote": "早一点",
  "confidence": 0.8, "hits": 2, "enabled": true, "source": "llm|rule"}
 
-检索规则（故意简单、可解释）：同一控制律 + 步频落在 trigger 区间 + enabled。命中的 delta 相加。
+检索规则（故意简单、可解释）：同一控制律 + 步频落在 trigger 区间 + enabled。命中的 delta 按参数取平均
+（不相加：三位评委都说过「太陡了」，第四位不能一上来强度就归零；合并结果不超过单张卡的幅度）。
 """
 from __future__ import annotations
 import json
@@ -68,8 +69,8 @@ class Store:
             self._flush()
 
     def merged_delta(self, hits):
-        d: dict = {}
+        vals: dict = {}
         for it in hits:
             for k, v in it["delta"].items():
-                d[k] = d.get(k, 0.0) + float(v)
-        return d
+                vals.setdefault(k, []).append(float(v))
+        return {k: sum(v) / len(v) for k, v in vals.items()}

@@ -17,9 +17,11 @@ class Clock:
         return self.t
 
 
-def gait(strides=0, moving=True, phase=0.0):
-    leg = NS(phase=phase, n_strides=strides)
-    return NS(l=leg, r=NS(phase=(phase + 0.5) % 1.0, n_strides=0), moving=moving)
+def gait(strides=0, moving=True, phase=0.0, dps=None):
+    """dps：两腿角速度；缺省 走着 90°/s、站着 5°/s。"""
+    w = (90.0 if moving else 5.0) if dps is None else dps
+    leg = NS(phase=phase, n_strides=strides, omega_f=w)
+    return NS(l=leg, r=NS(phase=(phase + 0.5) % 1.0, n_strides=0, omega_f=-w), moving=moving)
 
 
 def rig(monkeypatch, world="tokyo_night"):
@@ -82,20 +84,20 @@ def test_red_light_wait(monkeypatch):
     ph = (T.HS_PHASE + ctl.p("t_brake") / 100) % 1.0
     tl, _ = ctl.step(None, gait(s, moving=True, phase=ph))
     assert tl < 0 and ctl.pos == first_wait
-    # 站住 1.9 s 不放；中途冒出一步（置信度掉了但还在出步）要重新计时
+    # 站住 1.4 s 不放；中途冒出一步要重新计时
     ctl.step(None, gait(s, moving=False))
-    clk.t += 1.9
+    clk.t += 1.4
     ctl.step(None, gait(s, moving=False))
-    assert ctl.pos == first_wait and ctl.status()["wait_still"] == 1.9
+    assert ctl.pos == first_wait and ctl.status()["wait_still"] == 1.4 and ctl.status()["wait_need"] == T.WAIT_STILL_S
     s += 1
     ctl.step(None, gait(s, moving=False))          # 这一拍出了一步 → 计时清零
     clk.t += 0.01
     ctl.step(None, gait(s, moving=False))          # 下一拍重新开始计
-    clk.t += 1.9
+    clk.t += 1.4
     ctl.step(None, gait(s, moving=False))
     assert ctl.pos == first_wait
     clk.t += 0.2
-    ctl.step(None, gait(s, moving=False))          # 站定满 2 s → 放行
+    ctl.step(None, gait(s, moving=False))          # 静满 1.5 s → 放行
     assert ctl.pos == first_wait + n_wait and ctl.segment_at(ctl.pos) != "wait"
     # 放行后继续计步
     s += 1
@@ -122,3 +124,48 @@ def test_lap_and_ghost(monkeypatch):
         ctl.step(None, gait(s))
     assert ctl.laps == 1 and ctl.pos == 0 and ctl.ghost_who == "球球"
     assert len(ctl.ghost) == ctl.total and ctl.best == ctl.last_lap
+
+
+def at_red_light(monkeypatch):
+    ctl, clk = rig(monkeypatch)
+    first_wait = next(i for i, p in enumerate(ctl.profile()) if p["kind"] == "wait")
+    for s in range(first_wait + 1):
+        clk.t += 0.55
+        ctl.step(None, gait(s))
+    assert ctl.segment_at(ctl.pos) == "wait"
+    return ctl, clk, first_wait, s
+
+
+def test_red_light_ignores_stuck_moving_flag(monkeypatch):
+    """9/22 真机：停步后相图不塌缩，gait.moving 能一直是真。放行只看「没出步 + 腿静」，不看 moving。"""
+    ctl, clk, first_wait, s = at_red_light(monkeypatch)
+    for _ in range(17):                            # moving 卡在 True，但腿只剩 8°/s 的晃动
+        clk.t += 0.1
+        ctl.step(None, gait(s, moving=True, dps=8.0))
+    assert ctl.pos > first_wait
+
+
+def test_red_light_swinging_legs_hold_then_cap(monkeypatch):
+    """腿还在摆（没被接受成步）不算站定；但距上一步 WAIT_CAP_S 秒兜底放行，演示不卡死。"""
+    ctl, clk, first_wait, s = at_red_light(monkeypatch)
+    ctl.step(None, gait(s, dps=60.0))
+    for _ in range(int(T.WAIT_CAP_S / 0.1) - 2):
+        clk.t += 0.1
+        ctl.step(None, gait(s, moving=False, dps=60.0))
+    assert ctl.pos == first_wait and ctl.status()["wait_still"] is None
+    clk.t += 0.3
+    ctl.step(None, gait(s, moving=False, dps=60.0))
+    assert ctl.pos > first_wait
+
+
+def test_switching_worlds_keeps_each_worlds_memory():
+    """评委点「换一座山」再回来：每座山的影子和最佳用时各自留着。"""
+    ctl = T.Terrain("tokyo_night")
+    ctl.ghost, ctl.ghost_who, ctl.best = [1.0, 2.0], "球球", 30.0
+    ctl.set_preset("taishan_18pan")
+    assert ctl.ghost == [] and ctl.best is None    # 泰山还没人爬过
+    ctl.ghost, ctl.ghost_who, ctl.best = [5.0], "评委-A", 99.0
+    ctl.set_preset("tokyo_night")
+    assert (ctl.ghost, ctl.ghost_who, ctl.best) == ([1.0, 2.0], "球球", 30.0)
+    ctl.set_preset("taishan_18pan")
+    assert (ctl.ghost, ctl.ghost_who, ctl.best) == ([5.0], "评委-A", 99.0)

@@ -5,7 +5,7 @@
   down        早支撑制动脉冲——"腿被拖住"（推断）
   stairs_up   早支撑伸展 + 摆动期屈曲——"抬腿、蹬上去"
   stairs_down 制动
-  wait        红灯：走着会被轻轻拉住、位置不前进；站定 2 s 放行
+  wait        红灯：走着会被轻轻拉住、位置不前进；两腿静下来 1.5 s 放行（从停步算起中位约 2 s），最多 6 s
   flat        0
 脉冲式而不是持续顶：发热小、电量省、人对变化更敏感。正 = 伸展（9/22 数据推断，待穿上验证）。
 
@@ -15,13 +15,20 @@
 脉冲宽 10–20% 周期、梯形；时序 JND ≈2.8% 周期、力矩 Weber 分数 12–19%。下坡用制动脉冲是推断。
 """
 from __future__ import annotations
+import math
 import time
 
 from .base import Controller
 from .. import worlds as W
 
 HS_PHASE = 0.5   # 脚跟着地在估计器相位里的位置，现场校准后改
-WAIT_STILL_S = 2.0
+# 红灯放行：没有新接受的步 + 两腿角速度 RMS < STILL_DPS 连续 WAIT_STILL_S 秒；不看 gait.moving ——
+# 真人停步后相图不塌缩，moving 能一直真着（9/22 录制按 moving 判要 2–11 s，中位 5 s）。
+# 按本规则回放 181327 停步 11 次：1.8–4.2 s，中位 2.2 s；走动中 0 次误放行（scratchpad/judge/redlight2.py）。
+# 兜底：距上一步（或进红灯）WAIT_CAP_S 秒无论如何放行，演示不会卡死在路口。
+WAIT_STILL_S = 1.5
+STILL_DPS = 20.0
+WAIT_CAP_S = 6.0
 CAP = 3.0        # 控制律自己也不出软限（Guard 仍按 --cap 再裁一次）
 MULT = {"up": 1.0, "down": -0.8, "stairs_up": 1.2, "stairs_down": -1.0, "wait": -0.5}   # 主脉冲峰值 = MULT × strength
 LEGACY = {"台阶": "train_stairs", "长坡": "train_slope", "山的记忆": "taishan_18pan"}
@@ -55,11 +62,15 @@ class Terrain(Controller):
         }
         self.force = None                         # 强制路段（2AFC / 演示）
         self.wearer = "anon"
+        self.memory: dict = {}                    # 世界 id → (影子, 谁, 最佳)：换世界再换回来，「山的记忆」还在
+        self.preset, self.ghost, self.ghost_who, self.best = None, [], "", None
         self.set_preset(preset)
         self._strides = None                      # None = 下一拍以步态当前计数为基准（新建/复位时步态可能早已走了几百步）
 
     # ---- 世界 ----
     def set_preset(self, preset):
+        if self.ghost or self.best is not None:   # 先把当前世界的记忆存起来（空的不存，免得盖掉别处带进来的）
+            self.memory[self.preset] = (self.ghost, self.ghost_who, self.best)
         wid = LEGACY.get(preset, preset)
         self.world = W.get(wid)
         self.preset = self.world["id"]
@@ -71,11 +82,9 @@ class Terrain(Controller):
         self.lap_t0 = None
         self.lap_steps: list = []
         self.last_lap = None
-        self._still_since = None
-        # 换世界：影子和最佳成绩只在同一个世界里有意义
-        self.ghost: list = []                     # 上一位的每一步时刻 ——「山的记忆」
-        self.ghost_who = ""
-        self.best = None
+        self._still_since = self._wait_t0 = None
+        # 影子（上一位的每一步时刻）和最佳成绩按世界存：取出目标世界的
+        self.ghost, self.ghost_who, self.best = self.memory.get(self.preset, ([], "", None))
 
     def reset(self):
         """换人/演示复位：回到起点。上一圈留作影子。"""
@@ -83,7 +92,7 @@ class Terrain(Controller):
         self._strides = None
         self.lap_t0 = None
         self.lap_steps = []
-        self._still_since = None
+        self._still_since = self._wait_t0 = None
 
     def seg_index(self, pos):
         p = pos % self.total
@@ -135,15 +144,18 @@ class Terrain(Controller):
             self._strides = strides
         new = strides - self._strides
         self._strides = strides
-        if kind == "wait" and not self.force:           # 红灯：走着不前进，站定 2 s 放行
-            if gait.moving or new > 0:                  # 还在出步就不算站定
+        if kind == "wait" and not self.force:           # 红灯：走着不前进；腿静下来才放行
+            if new > 0 or self._wait_t0 is None:
+                self._wait_t0 = now
+            rms = math.sqrt((gait.l.omega_f ** 2 + gait.r.omega_f ** 2) / 2)
+            if new > 0 or rms >= STILL_DPS:             # 还在出步 / 腿还在摆就不算站定
                 self._still_since = None
             else:
                 self._still_since = self._still_since or now
-                if now - self._still_since >= WAIT_STILL_S:
-                    i, off = self.seg_index(self.pos)
-                    self._advance(self.segments[i][1] - off, now)
-                    self._still_since = None
+            if (self._still_since and now - self._still_since >= WAIT_STILL_S) or now - self._wait_t0 >= WAIT_CAP_S:
+                i, off = self.seg_index(self.pos)
+                self._advance(self.segments[i][1] - off, now)
+                self._still_since = self._wait_t0 = None
         elif new > 0:
             self._advance(new, now)
         kind = self.segment_at(self.pos)
@@ -184,6 +196,7 @@ class Terrain(Controller):
                 "pos": self.pos, "total": self.total, "laps": self.laps,
                 "segment": self.segment_at(self.pos), "label": seg["label"], "next": nxt,
                 "wait_still": round(now - self._still_since, 1) if (seg["kind"] == "wait" and self._still_since) else None,
+                "wait_need": WAIT_STILL_S,
                 "altitude": round(a0 + (a1 - a0) * (h_now / hmax)),
                 "force": self.force, "profile": prof, "segments": self.segments,
                 "presets": list(W.WORLDS), "hs_phase": HS_PHASE,

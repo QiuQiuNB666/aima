@@ -4,6 +4,7 @@ import { KIND_NAME } from './path.js';
 export const KC = { flat: '#8a95a3', up: '#3ddc84', down: '#4fc3f7', stairs_up: '#ffd54f', stairs_down: '#ff8a65', wait: '#ff2e88' };
 const $ = id => document.getElementById(id);
 const fmt = s => s == null ? '—' : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+const PEAK_S = 1.5;          // 力矩条 = 最近 1.5 s（≥ 一个步态周期）的峰值保持：/state 10 Hz 采样落在脉冲哪里是随机的，瞬时值看不出强弱
 const SAFE = { ACTIVE: ['#3ddc84', '有力'], ARMED: ['#ffc53d', '待命（死人开关松开）'], CONNECTED: ['#ffc53d', '已连接'], PREVIEW: ['#8a95a3', '离线预览'] };
 
 export function makeHud(world) {
@@ -11,6 +12,7 @@ export function makeHud(world) {
   const acc = (world.theme && world.theme.accent) || [];
   if (acc[1]) document.documentElement.style.setProperty('--acc', acc[1]);
   let lastCard = null, lastApplied = '';
+  const hist = [[], []];      // 每条腿 [{t, v}]
   const cards = $('cards');
   function card(kind, quote, detail) {
     const d = document.createElement('div'); d.className = 'card panel';
@@ -38,21 +40,27 @@ export function makeHud(world) {
         $('prog').firstElementChild.style.width = `${(T.pos / Math.max(1, T.total)) * 100}%`;
         $('time').textContent = fmt(T.elapsed); $('best').textContent = fmt(T.best); $('laps').textContent = `${T.laps} 次`;
         const w = $('wait');
-        if (T.segment === 'wait' && !T.force && !summit) {
+        if (T.segment === 'wait' && !T.force) {        // 红灯永远优先（登顶卡期间也要显示）
           w.style.display = 'block';
-          const ws = T.wait_still || 0;
-          $('waitT').textContent = ws > 0 ? `站定 ${ws.toFixed(1)} / 2.0 s` : (S.gait && S.gait.moving ? '停下！站定 2 秒放行' : '站定 2 秒放行');
-          $('waitB').style.width = `${Math.min(1, ws / 2) * 100}%`;
+          const ws = T.wait_still || 0, need = T.wait_need || 1.5;
+          $('waitT').textContent = ws > 0 ? `站定 ${ws.toFixed(1)} / ${need.toFixed(1)} s` : (S.gait && S.gait.moving ? '停下！站稳就放行' : '站稳就放行');
+          $('waitB').style.width = `${Math.min(1, ws / need) * 100}%`;
         } else w.style.display = 'none';
       }
       const sent = (S.safety && S.safety.sent) || [0, 0], cap = (S.safety && S.safety.cap) || 3;
-      for (const [id, v, fl] of [['L', sent[0], flashL], ['R', sent[1], flashR]]) {
+      const now = performance.now() / 1000;
+      for (const [k, id, fl] of [[0, 'L', flashL], [1, 'R', flashR]]) {
+        const h = hist[k]; h.push({ t: now, v: sent[k] }); while (h.length && now - h[0].t > PEAK_S) h.shift();
+        const v = h.reduce((m, x) => Math.abs(x.v) > Math.abs(m) ? x.v : m, 0);
         const bar = $('bar' + id), i = bar.firstElementChild, f = Math.min(1, Math.abs(v) / cap) * 50;
         i.style.width = f + '%'; i.style.left = v >= 0 ? '50%' : (50 - f) + '%';
         i.style.background = v >= 0 ? 'var(--acc)' : '#ff8a65';
         bar.classList.toggle('flash', fl);
         $('val' + id).textContent = `${v >= 0 ? '+' : ''}${v.toFixed(1)} Nm`;
       }
+      const P = (S.ctl && S.ctl.params) || {};
+      $('str').innerHTML = P.strength ? `强度 <b>${(+P.strength[0]).toFixed(1)}</b> Nm · 力矩条 = 近 ${PEAK_S} s 峰值`
+        : P.scale ? `摇杆推满 = <b>${(+P.scale[0]).toFixed(1)}</b> Nm · 力矩条 = 近 ${PEAK_S} s 峰值` : '';
       const st = (S.safety && S.safety.state) || '—';
       let [c, t] = SAFE[st] || ['#ff4d4f', st === 'DISARMED' ? '已断开（急停/看门狗）' : st];
       if (st === 'ACTIVE' && S.safety.reason && S.safety.reason !== 'ok') [c, t] = ['#ffc53d', '归零'];   // 低置信/断流：腿上是 0 Nm
@@ -76,13 +84,18 @@ export function makeHud(world) {
         }
       }
     },
-    ghostTag(x, y, show, text, rel) {
+    // off = 影子不在画面里（或贴着镜头）：标签钉在画面下缘，带 ↓；右下统计面板里的「影子」一行不依赖投影
+    ghostTag(x, y, show, who, rel, off) {
       const g = $('ghostTag');
       g.style.display = show ? 'block' : 'none';
+      $('ghostK').style.display = $('ghostV').style.display = show ? '' : 'none';
       if (!show) return;
+      if (off) { x = innerWidth / 2; y = innerHeight * 0.84; } else y = Math.min(y, innerHeight * 0.76);   // 别压到右下统计面板
       g.style.left = x + 'px'; g.style.top = y + 'px';
-      if (g.dataset.t !== text + rel) { g.dataset.t = text + rel; g.innerHTML = `${esc(text)}<small>${rel}</small>`; }
+      const key = `${who}|${rel}|${off ? 1 : 0}`;
+      if (g.dataset.t !== key) { g.dataset.t = key; g.innerHTML = `${off ? '↓ ' : ''}上一位：${esc(who)}<small>${esc(rel)}</small>`; $('ghostV').textContent = `${rel || '—'} · ${who}`; }
     },
+    puppet(on) { document.body.classList.toggle('puppet', !!on); },
     summit(show, T, prevBest) {
       const s = $('summit');
       if (show && T) {

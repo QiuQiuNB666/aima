@@ -39,10 +39,11 @@ export function terrain(ctx, o = {}) {
   const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
   const p = g.attributes.position, col = new Float32Array(p.count * 3), base = new THREE.Color(o.color || ctx.theme.ground || '#445');
   const uv = g.attributes.uv, us = o.uvScale || 1;
-  const inner = ROAD_W / 2 + 0.25;
+  // 路沿外至少空出一整格网格再抬高，否则三角形插值会在转弯内侧把地面顶出路面；贴路一格内的顶点压到路面下
+  const cell = size / seg, under = ROAD_W / 2 + cell, inner = under + 0.3;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i) + c.x, z = p.getZ(i) + c.z, n = nearest(route, x, z);
-    let y = n.y - 0.06;
+    let y = n.y - (n.d < under ? 0.08 : 0.06);
     if (n.d > inner) {
       const t = smooth(inner, inner + (o.reach || 14), n.d), nz = fbm(x * 0.07 + seed, z * 0.07 - seed);
       if (o.flatTo !== undefined) y = y + (o.flatTo - y) * t - 0.02;

@@ -48,7 +48,7 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #wait .bar{margin-top:.6rem;height:.7rem}
 #wait .bar::after{display:none}
 #wait .bar i{left:0;background:#3ddc84}
-#summit{left:50%;bottom:6.5rem;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:1.6rem 3rem}
+#summit{left:50%;top:15%;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:1.6rem 3rem}
 #summit.show{opacity:1;transform:translate(-50%,0) scale(1)}
 #summit .t1{font-size:1.2rem;letter-spacing:.4em;color:var(--dim)}
 #summit .t2{font-size:3.6rem;font-weight:900;letter-spacing:.12em}
@@ -67,6 +67,13 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #banner{left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:1.3rem;display:none;pointer-events:auto}
 #banner button{margin-top:.8rem;font:inherit;font-weight:700;padding:.5rem 1.2rem;border-radius:.7rem;border:0;cursor:pointer}
 #fps{left:.5rem;bottom:.3rem;font-size:.75rem;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+#puppet{left:50%;top:1.2rem;transform:translateX(-50%);text-align:center;display:none;border-color:rgba(41,231,255,.5)}
+#puppet .t{font-size:2.6rem;font-weight:900;letter-spacing:.12em}
+#puppet .s{font-size:1.2rem;color:var(--dim);margin-top:.3rem}
+body.puppet #tc,body.puppet #tr,body.puppet #br,body.puppet #wait,body.puppet #summit,body.puppet #ghostTag,body.puppet #cards{display:none!important}
+body.puppet #puppet{display:block}
+#str{font-size:.95rem;color:var(--dim);font-variant-numeric:tabular-nums}
+#str b{color:var(--fg)}
 #tag{left:50%;top:50%;transform:translate(-50%,-50%);font-size:1.2rem;color:var(--dim)}
 </style></head><body>
 <canvas id="c"></canvas>
@@ -76,13 +83,15 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 <div class="hud panel" id="bl">
   <div class="leg"><span>左腿</span><div class="bar" id="barL"><i></i></div><span class="v" id="valL">0.0</span></div>
   <div class="leg"><span>右腿</span><div class="bar" id="barR"><i></i></div><span class="v" id="valR">0.0</span></div>
+  <div id="str"></div>
   <div id="safe"><span class="dot"></span><span id="safeT">—</span><small id="safeR"></small></div>
 </div>
-<div class="hud panel" id="br"><span>用时</span><b id="time">0.0 s</b><span>最佳</span><b id="best">—</b><span>登顶</span><b id="laps">0 次</b><span>穿戴者</span><b id="wearer">—</b></div>
+<div class="hud panel" id="br"><span>用时</span><b id="time">0.0 s</b><span>最佳</span><b id="best">—</b><span>登顶</span><b id="laps">0 次</b><span>穿戴者</span><b id="wearer">—</b><span id="ghostK" style="display:none">影子</span><b id="ghostV" style="display:none">—</b></div>
 <div class="hud panel" id="hint">模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 慢/中/快 · <kbd>R</kbd> 回山脚 <span id="hintS"></span></div>
 <div class="hud panel" id="wait"><div class="big">● 红灯</div><div class="sub" id="waitT">站定 2 秒放行</div><div class="bar"><i id="waitB"></i></div></div>
 <div class="hud panel" id="summit"><div class="t1">登顶</div><div class="t2" id="sName"></div><div class="t3" id="sText"></div><div class="t4" id="sTime"></div><div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div></div>
 <div class="hud" id="cards"></div>
+<div class="hud panel" id="puppet"><div class="t">共驾：Ghost 操控 Shell</div><div class="s">手柄摇杆直接推两条腿 · 按住 R2 才有力</div></div>
 <div class="hud" id="ghostTag"></div>
 <div class="hud panel" id="banner"></div>
 <div class="hud" id="fps"></div>

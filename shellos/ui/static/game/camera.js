@@ -12,7 +12,7 @@ export function makeCamera(camera) {
         orbitA += dt * 1.0;                                  // SUMMIT_HOLD 6 s ≈ 一整圈
         const r = 5.2, base = Math.atan2(-a.dir.z, -a.dir.x) + orbitA;
         want.set(a.pos.x + Math.cos(base) * r, a.pos.y + 2.3, a.pos.z + Math.sin(base) * r);
-        wantLook.copy(a.pos).setY(a.pos.y + 1.0);
+        wantLook.copy(a.pos).setY(a.pos.y + 1.9);            // 看点抬高 → 化身落在画面下半，登顶卡片在上面不挡人
       } else {
         orbitA = 0;
         const back = stairs ? 3.7 : 4.6, side = stairs ? 1.2 : 1.4, h = 2.1 + (up ? 0.45 : 0) + (stairs ? 0.25 : 0);

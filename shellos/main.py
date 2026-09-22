@@ -5,7 +5,7 @@
   python -m shellos.main --replay data/recordings/xxx.csv --ctl phase --force-deadman
 仪表盘 http://localhost:8765 。
 手柄：按住 R2 才有力（按多深力多大）· × 急停 · ○ 重新上膛 · 方向键上下=第 1 个参数± 左右=第 2 个参数± · L1/R1 切换控制律 · △ 打标记
-键盘：空格 / Esc / R；网页：大按钮 / 急停 / 重新上膛。
+网页（只认本机）：大按钮 / 急停 / 重新上膛。键盘默认不起（--hotkeys 打开：空格 = 死人开关、Esc = 急停）。
 """
 from __future__ import annotations
 import argparse
@@ -62,9 +62,35 @@ class App:
         from .memory.store import Store
         self.store = Store()
         self.wearer = "anon"
-        self.applied: list = []      # 本次穿戴已经套用的经验 id
-        self.recalled = False        # 本次穿戴是否已做过检索
         self.min_strides = 6
+
+    # 已套用的经验 id / 是否检索过，挂在控制律实例上：差值就改在这个实例的参数里。
+    # 切到新实例（缺省参数）自然清零；切回缓存的 terrain 仍记得；开场 puppet 的检索不占掉 terrain 的。
+    @property
+    def applied(self):
+        return self.ctl.__dict__.setdefault("applied", [])
+
+    @applied.setter
+    def applied(self, v):
+        self.ctl.applied = v
+
+    @property
+    def recalled(self):
+        return self.ctl.__dict__.get("recalled", False)
+
+    @recalled.setter
+    def recalled(self, v):
+        self.ctl.recalled = v
+
+    def tick(self, f, sticks=None):
+        """每拍：步态 → 控制律 → Guard。按相位出力的控制律带步态置信度（站着不动 → 归零）。"""
+        st = self.gait.update(f)
+        ctl = self.ctl
+        if isinstance(ctl, Puppet) and sticks is not None:
+            ctl.sticks = sticks
+        tl, tr = ctl.step(f, st)
+        self.guard.submit(tl, tr, confidence=st.conf if isinstance(ctl, (PhaseProfile, Terrain)) else 1.0)
+        return st
 
     # ---- 记忆层 ----
     def ctl_key(self):
@@ -86,13 +112,17 @@ class App:
         old = self.ctl
         self.ctl = CTLS[self.ctl_key()]()
         if hasattr(old, "ghost") and hasattr(self.ctl, "ghost"):   # 换人/复位不丢「山的记忆」
+            self.ctl.memory = old.memory                                  # 各世界的影子/最佳（修复 B）
             self.ctl.set_preset(old.preset)                               # 参数回缺省（经验卡检索再套用）
             self.ctl.ghost, self.ctl.ghost_who, self.ctl.best = old.ghost, old.ghost_who, old.best
             if old.lap_steps and not old.ghost:                        # 上一位没爬完也留作影子
                 self.ctl.ghost, self.ctl.ghost_who = old.lap_steps, old.wearer
             self.ctl.wearer = self.wearer
+        if self._terrain is not None:            # 缓存着的 terrain（当前在 puppet 等）也回缺省，否则切回来还是上一位的强度
+            self._terrain.params = Terrain().params
+            self._terrain.wearer = self.wearer
+            self._terrain.applied, self._terrain.recalled = [], False
         self.gait = GaitEstimator(stepping=self.stepping)
-        self.applied, self.recalled = [], False
         if not keep_wearer:
             self.log("演示复位：参数回缺省、步态重新估计，经验库不动")
 
@@ -102,15 +132,16 @@ class App:
         if self.recalled or (st.l.n_strides + st.r.n_strides) < self.min_strides or st.cadence <= 0:
             return
         self.recalled = True
-        hits = self.store.retrieve(self.ctl_key(), st.cadence)
+        hits = [h for h in self.store.retrieve(self.ctl_key(), st.cadence) if h["id"] not in self.applied]   # 刚说的那张已经生效了
         if not hits:
             self.log(f"检索经验：步频 {st.cadence:.0f}，0 命中，用缺省参数")
             return
         delta = self.store.merged_delta(hits)
         out = self.ctl.set_params(delta)
-        self.applied = [h["id"] for h in hits]
-        self.store.bump(self.applied)
-        self.log(f"命中经验 {', '.join('#%d' % i for i in self.applied)}（步频 {st.cadence:.0f}）→ {out}")
+        ids = [h["id"] for h in hits]
+        self.applied += ids
+        self.store.bump(ids)
+        self.log(f"命中经验 {', '.join('#%d' % i for i in ids)}（步频 {st.cadence:.0f}）→ {out}")
 
     def feedback(self, quote):
         """评委一句话 → 参数差值 → 立即生效 → 存成经验卡。"""
@@ -121,8 +152,11 @@ class App:
         if self.ctl_key() == "transparent":
             self.log(f"评委：「{quote}」——当前是透明模式，没有参数可调，先切到 dofc 或 phase")
             return None
+        if self.gait.state.cadence <= 0:          # 没步频就没法写检索区间（以前写成 0–999，对谁都命中）
+            self.log(f"评委：「{quote}」——还没估出步频，先走几步再说一次，参数不变")
+            return None
         r = interpret(quote, self.ctl_key(), self.ctl.params, self.gait.state.cadence, self.profile())
-        if not r or not any(float(v) for v in r["delta"].values()):   # 差值为 0（如「不明显」正负抵消）不存卡
+        if not r or not any(float(v) for v in r["delta"].values()):   # 差值为 0 不存卡
             self.log(f"评委：「{quote}」——没听懂，参数不变")
             return None
         out = self.ctl.set_params(r["delta"])
@@ -137,6 +171,9 @@ class App:
         delta = {k: float(v) for k, v in (delta or {}).items() if k in self.ctl.params and float(v)}
         if not delta:
             return None
+        if self.gait.state.cadence <= 0:
+            self.log(f"没写经验卡（{source}：{quote}）：还没估出步频")
+            return None
         it = self.store.add(self.wearer, self.ctl_key(), {"cadence": _band(self.gait.state.cadence)},
                             delta, quote or source, 1.0, source)
         self.applied.append(it["id"])
@@ -147,12 +184,13 @@ class App:
         it = self.store.set_enabled(int(id_), False)
         if not it:
             return None
-        if it["id"] in self.applied:
-            out = self.ctl.set_params({k: -float(v) for k, v in it["delta"].items()})
-            self.applied.remove(it["id"])
-            self.log(f"删除经验卡 #{it['id']} → 参数回退 {out}")
-        else:
-            self.log(f"停用经验卡 #{it['id']}")
+        for c in (self.ctl, self._terrain):       # 套在缓存 terrain 上的卡也要回退
+            if c is not None and it["id"] in c.__dict__.get("applied", []):
+                out = c.set_params({k: -float(v) for k, v in it["delta"].items()})
+                c.applied.remove(it["id"])
+                self.log(f"删除经验卡 #{it['id']} → 参数回退 {out}")
+                return it
+        self.log(f"停用经验卡 #{it['id']}")
         return it
 
     def set_terrain(self, preset):
@@ -205,7 +243,8 @@ class App:
             return
         k = names[index]
         _, lo, hi = self.ctl.params[k]
-        out = self.ctl.set_params({k: sign * self._step(lo, hi)})
+        keys = [k] + (["t_step", "t_brake"] if k == "t_push" else [])   # terrain：台阶/下坡的时机一起挪
+        out = self.ctl.set_params({x: sign * self._step(lo, hi) for x in keys})
         self.log(f"手柄 {k} {'+' if sign > 0 else '-'} → {out[k]:g}")
 
     def cycle_ctl(self, d):
@@ -246,7 +285,9 @@ def main():
     ap.add_argument("--cap", type=float, default=3.0, help="软限 Nm")
     ap.add_argument("--wearer", default="anon")
     ap.add_argument("--no-record", action="store_true")
-    ap.add_argument("--no-input", action="store_true", help="不起手柄/键盘线程（诊断用）")
+    ap.add_argument("--no-input", action="store_true", help="不起手柄线程（诊断用）")
+    ap.add_argument("--hotkeys", action="store_true",
+                    help="起全局键盘备份（空格 = 死人开关、Esc = 急停）。全局监听：任何窗口里的空格都算，默认关")
     ap.add_argument("--http", type=int, default=8765, help="仪表盘端口，0 = 不起")
     ap.add_argument("--stepping", action="store_true", help="原地踏步模式：小摆幅也计步（展位没走廊时用）")
     ap.add_argument("--force-deadman", action="store_true",
@@ -279,9 +320,10 @@ def main():
     pad = None
     if not a.no_input:
         from .input.gamepad import Gamepad
-        from .input.hotkeys import Hotkeys
         pad = Gamepad(guard, on_button=app.on_button)
         app.pad = pad
+    if a.hotkeys:
+        from .input.hotkeys import Hotkeys
         Hotkeys(guard)
     if a.force_deadman:
         guard.set_deadman(1.0, "forced")
@@ -315,12 +357,7 @@ def main():
         prev_t = now0
         f = link.latest()
         if f is not None:
-            st = app.gait.update(f)
-            ctl = app.ctl
-            if ctl.name == "puppet" and pad is not None:
-                ctl.sticks = pad.sticks
-            tl, tr = ctl.step(f, st)
-            guard.submit(tl, tr, confidence=st.conf if ctl.name in ("phase", "terrain") else 1.0)
+            st = app.tick(f, pad.sticks if pad is not None else None)
         now = time.monotonic()
         recover_tick(link, guard, now, rs, app.log)
         if now - last_print > 0.5:

@@ -99,7 +99,7 @@ input,select{font:inherit;background:#0b0f13;color:var(--fg);border:1px solid #3
   <canvas id="c1" height="240"></canvas></div>
  <div class="row" style="margin-top:12px">
   <div class="panel" style="flex:1;min-width:190px"><h2>相位</h2><canvas id="c2" height="190"></canvas></div>
-  <div class="panel" style="flex:1.4;min-width:230px"><h2>腿部 3D <small>拖动旋转 · 滚轮缩放</small> <span id="c3info" class="h2x" style="float:right"></span></h2><div id="c3" style="height:300px;border-radius:8px;background:#0b0f13;overflow:hidden"></div></div>
+  <div class="panel" style="flex:1.4;min-width:230px"><h2>腿部 3D <small>拖动旋转 · 滚轮缩放</small> <span id="c3info" class="h2x" style="float:right"></span></h2><div id="c3" style="clear:both;height:300px;border-radius:8px;background:#0b0f13;overflow:hidden"></div></div>
   <div class="panel" style="flex:2;min-width:280px"><h2>步态签名</h2>
    <div class="row">
     <div class="kv"><div class="k">步频 步/分</div><div class="v" id="cad">–</div></div>
@@ -229,7 +229,7 @@ function drawTerrain(t,sent){
  $('trlap').textContent=`第 ${t.laps+1} 圈 · ${(t.elapsed||0).toFixed(0)} s`+(t.best?` · 最佳 ${t.best.toFixed(0)} s`:'')+(t.last_lap?` · 上圈 ${t.last_lap.toFixed(0)} s`:'');
  if(t.ghost_pos==null){$('trghost').textContent='暂无';$('trghost2').textContent='爬完一圈后出现'}
  else{const d=t.pos-t.ghost_pos;$('trghost').textContent=d===0?'并排':d>0?`领先 ${d} 步`:`落后 ${-d} 步`;$('trghost2').textContent=`${t.ghost_who||'上一位'} · 第 ${Math.min(t.ghost_pos+1,t.total)} 步`}
- $('trnote').innerHTML=t.segment==='wait'?`<span class="w">红灯：站定 ${WAIT_S} s 放行</span>`+(t.wait_still!=null?` · 已站 ${t.wait_still.toFixed(1)} s`:' · 还在动'):'';
+ $('trnote').innerHTML=t.segment==='wait'?`<span class="w">红灯：站定 ${t.wait_need||1.5} s 放行</span>`+(t.wait_still!=null?` · 已站 ${t.wait_still.toFixed(1)} s`:' · 还在动'):'';
  // 剖面
  const [ctx,W,H]=sizeCanvas($('c4'),160);if(!p.length)return;
  const hs=p.map(x=>x.h),hmin=Math.min(...hs),hmax=Math.max(...hs,hmin+1),bw=W/n;
@@ -252,7 +252,6 @@ function drawTerrain(t,sent){
  if(pulse){ctx.strokeStyle='#ffd54f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(px,py,11+4*Math.sin(performance.now()/80),0,Math.PI*2);ctx.stroke()}
  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(px,py,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#000';ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);ctx.fill();
 }
-const WAIT_S=2;
 function drawPhase(g){
  const [ctx,W,H]=sizeCanvas($('c2'),190),cx=W/2,cy=H/2,R=72;
  ctx.strokeStyle='#27303b';ctx.lineWidth=8;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.stroke();

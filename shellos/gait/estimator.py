@@ -2,10 +2,13 @@
 
 相位（每条腿）：φ = atan2(k·ω, θ − θ̄) ∈ [0, 1)，k 自适应到让相图接近圆。
 置信度：相图半径 / 参考半径，站着不动半径塌缩 → 置信度 0 → Guard 把力矩归零。
-事件：φ 绕回一圈 = 一个步态周期(stride)；步频 = 2 × 60 / stride 时间（一个周期两步）。
+事件：φ 绕回一圈 = 一个步态周期(stride)；步频 = 2 × 60 / 最近周期时长的中位数（一个周期两步）。
+相位停滞：最近 prog_s 秒相位净推进 < prog_min（腿停住 / 坐着晃）→ 这条腿 stalled，走动中直接为假；
+两腿同相（相位差 < inphase_tol，坐下/站起/弯腰）走动中也为假。
 """
 from __future__ import annotations
 import math
+import statistics
 from collections import deque
 from dataclasses import dataclass, field
 
@@ -22,7 +25,9 @@ class LegState:
     rom: float = 0.0          # 最近一个周期的活动度 °
     stride_s: float = 0.0     # 最近一个周期时长 s
     strides: deque = field(default_factory=lambda: deque(maxlen=12))
+    roms: deque = field(default_factory=lambda: deque(maxlen=12))   # 最近接受周期的活动度（对称比用）
     n_strides: int = 0
+    stalled: bool = True      # 相位停滞（见 _Leg.prog_s）
 
 
 @dataclass
@@ -30,7 +35,7 @@ class GaitState:
     l: LegState = field(default_factory=LegState)
     r: LegState = field(default_factory=LegState)
     cadence: float = 0.0      # 步/分
-    symmetry: float = 1.0     # 左周期 / 右周期
+    symmetry: float = 1.0     # 左活动度 / 右活动度（最近周期均值；1 = 对称，跛行时明显偏离）
     variability: float = 0.0  # 周期时长变异系数
     moving: bool = False
 
@@ -53,9 +58,17 @@ STEPPING = dict(rom_min=8.0, r_ref=4.0)
 class _Leg:
     def __init__(self, ema=0.3, mean_ema=0.005, r_ref=8.0, stride_min=DEFAULTS["stride_min"],
                  stride_max=DEFAULTS["stride_max"], cycle_conf=DEFAULTS["cycle_conf"],
-                 rom_min=DEFAULTS["rom_min"], sync_tol=DEFAULTS["sync_tol"], latch=True, trace=False):
+                 rom_min=DEFAULTS["rom_min"], sync_tol=DEFAULTS["sync_tol"], latch=True, trace=False,
+                 prog_s=0.3, prog_min=0.05):
         self.s = LegState()
         self.ema, self.mean_ema, self.r_ref = ema, mean_ema, r_ref
+        # 相位停滞：停步/坐下后 θ 停在离慢均值（τ≈2 s）很远的地方，相图半径 = |θ−θ̄| 撑着 conf≥0.5，
+        # 相位钉在 0.5（坐着晃腿时在 0.4–0.6 来回抖），地形脉冲变成持续力矩（9/22 回放 175524 连续 1.8 Nm 1.3 s、
+        # 开头坐着 width=20 时 5 s）。停滞只拦「走动中」、不改 conf：真人走路相位不匀速，也会短暂停滞，
+        # 改 conf 会让走动中的 0.3 s 保持时间反复重来（实测走路段走动中占比 0.45 → 0.07）
+        self.prog_s, self.prog_min = prog_s, prog_min
+        self._unwrap = 0.0                 # 展开相位（累计圈数）
+        self._hist = deque()               # (t, 展开相位)，最近 prog_s 秒
         self.stride_min, self.stride_max = stride_min, stride_max
         self.cycle_conf, self.rom_min = cycle_conf, rom_min
         # 双腿不同相：本腿绕回时，另一条腿的相位差离 0 至少 sync_tol、且置信度 >0.5。坐下/站起/弯腰两腿同相（差≈0），
@@ -89,6 +102,13 @@ class _Leg:
         r = math.hypot(d, k * s.omega_f)
         s.conf = max(0.0, min(1.0, r / self.r_ref))
         phase = (math.atan2(-k * s.omega_f, d) / (2 * math.pi)) % 1.0   # 负号让相位随时间递增
+        if self._prev_phase is not None:
+            self._unwrap += (phase - self._prev_phase + 0.5) % 1.0 - 0.5
+        h = self._hist
+        h.append((t, self._unwrap))
+        while len(h) > 1 and t - h[1][0] >= self.prog_s:
+            h.popleft()
+        s.stalled = t - h[0][0] < self.prog_s or self._unwrap - h[0][1] < self.prog_min
         self._min_conf_cycle = min(self._min_conf_cycle, s.conf)
         # 事件：绕回。只有「时长像人走路 + 活动度像人走路 + 两腿不同相」才算一步（门限见 DEFAULTS）
         if 0.35 <= phase <= 0.65:
@@ -108,6 +128,7 @@ class _Leg:
                 if ok:
                     s.stride_s = stride
                     s.strides.append(stride)
+                    s.roms.append(rom)
                     s.n_strides += 1
                     s.rom = rom
                     self.t_accept = t
@@ -126,9 +147,11 @@ class _Leg:
 
 class GaitEstimator:
     """kw 传给每条腿（门限见 DEFAULTS）；stepping=True 用踏步模式门限；moving_hold 是走动中要求的连续高置信时长；
-    recent_s：走动中还要求最近 recent_s 秒内至少接受过一个周期（None = 不要求）。"""
+    recent_s：走动中还要求最近 recent_s 秒内至少接受过一个周期（None = 不要求）；
+    inphase_tol：两腿相位差小于它 = 同相动作（坐下/站起），不算走动中（None = 不查）。"""
 
-    def __init__(self, stepping=False, moving_conf=0.5, moving_hold=0.3, recent_s=None, **kw):
+    def __init__(self, stepping=False, moving_conf=0.5, moving_hold=0.3, recent_s=None, inphase_tol=0.1, **kw):
+        self.inphase_tol = inphase_tol
         if stepping:
             kw = {**STEPPING, **kw}
         self.stepping = stepping
@@ -147,14 +170,16 @@ class GaitEstimator:
         self._r.update(f.r_deg, f.r_dps, f.t_host, st.l)
         strides = list(st.l.strides) + list(st.r.strides)
         if strides:
-            mean = sum(strides) / len(strides)
-            st.cadence = 120.0 / mean
+            # 中位数：停停走走时跨停顿的周期（停顿 + 一个周期，≤2.2 s 也会被接受）不把步频拉低
+            st.cadence = 120.0 / statistics.median(strides)
             if len(strides) > 2:
+                mean = sum(strides) / len(strides)
                 var = sum((x - mean) ** 2 for x in strides) / (len(strides) - 1)
                 st.variability = math.sqrt(var) / mean
-        if st.l.strides and st.r.strides:
-            ml = sum(st.l.strides) / len(st.l.strides)
-            mr = sum(st.r.strides) / len(st.r.strides)
+        if st.l.roms and st.r.roms:
+            # 活动度比，不是周期比：两条腿的周期都是同一个步态周期，周期比天然 ≈1，跛行也测不出来
+            ml = sum(st.l.roms) / len(st.l.roms)
+            mr = sum(st.r.roms) / len(st.r.roms)
             st.symmetry = ml / mr if mr else 1.0
         # 走动中：连续 moving_hold 秒高置信度才成立，站起/坐下的瞬态不算
         if st.conf > self.moving_conf:
@@ -167,6 +192,14 @@ class GaitEstimator:
         else:
             self._conf_since = None
             st.moving = False
+        # 下面两条不重置保持计时，条件一消失走动中立刻回来。9/22 回放（地形强制 stairs_up）：
+        # 175524 最长连续出力 1.34 s → 0.23 s（width=20：4.95 s → 0.29 s），174946 0.82 → 0.12 s（width=20：2.96 → 0.24 s）；
+        # 非走路段误判走动中 163 s → 3 s；代价：181327 走路段脉冲数 301 → 267
+        dphi = abs(st.l.phase - st.r.phase) % 1.0
+        if st.l.stalled or st.r.stalled:     # 相位不走 = 不知道在周期哪儿，不给脉冲
+            st.moving = False
+        elif self.inphase_tol is not None and min(dphi, 1.0 - dphi) < self.inphase_tol:
+            st.moving = False                # 两腿同相 = 坐下/站起的慢动作，相位在走但不是走路
         return st
 
     @property

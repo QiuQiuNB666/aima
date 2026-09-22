@@ -123,12 +123,12 @@ def region(t, walk, table):
 # ---------- 跑估计器 ----------
 def run(frames, walk=(), table=False, hz=100.0, **kw):
     """门全开跑一遍。候选周期 (leg, t_end, stride, min_conf, rom, dphi, o_conf, region)，
-    每拍 (t, conf, φL, φR, az, θL, θR)。kw 里的非门限参数（r_ref、latch、stepping…）照常生效。"""
+    每拍 (t, conf, φL, φR, az, θL, θR, 任一腿相位停滞)。kw 里的非门限参数（r_ref、latch、stepping…）照常生效。"""
     g = GaitEstimator(**{**kw, **OPEN, "trace": True})
     series = []
     for f in ticks(frames, hz):
         st = g.update(f)
-        series.append((f.t_host, st.conf, st.l.phase, st.r.phase, f.az, f.l_deg, f.r_deg))
+        series.append((f.t_host, st.conf, st.l.phase, st.r.phase, f.az, f.l_deg, f.r_deg, st.l.stalled or st.r.stalled))
     cands = []
     for leg, cyc in (("l", g._l.cycles), ("r", g._r.cycles)):
         for t, stride, mc, rom, _ok, dphi, oc in cyc:
@@ -175,13 +175,13 @@ def pct(xs, p):
     return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
 
 
-def moving_stats(rec, hold, recent, cfg, conf_th=0.5):
-    """用每拍置信度 + 接受周期时刻复算"走动中"（与 GaitEstimator.update 的规则一致）。"""
+def moving_stats(rec, hold, recent, cfg, conf_th=0.5, inphase_tol=0.1):
+    """用每拍置信度 + 接受周期时刻复算"走动中"（与 GaitEstimator.update 的规则一致：相位停滞 / 两腿同相 → 假，不重置保持计时）。"""
     acc_t = sorted(c[1] for c in rec["cands"] if accept(c, cfg))
     false_s = walk_s = 0.0
     episodes, since, prev_t, prev_m = 0, None, None, False
     first = {}
-    for t, conf, *_ in rec["series"]:
+    for t, conf, pl, pr, *rest in rec["series"]:
         if conf > conf_th:
             since = t if since is None else since
             m = t - since >= hold
@@ -190,6 +190,9 @@ def moving_stats(rec, hold, recent, cfg, conf_th=0.5):
                 m = i > 0 and t - acc_t[i - 1] <= recent
         else:
             since, m = None, False
+        d = abs(pl - pr) % 1.0
+        if rest[-1] or (inphase_tol is not None and min(d, 1.0 - d) < inphase_tol):
+            m = False
         where = region(t, rec["walk"], rec["table"])
         if prev_t is not None and m:
             if where in ("still", "table"):

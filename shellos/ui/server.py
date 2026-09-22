@@ -8,6 +8,9 @@ POST /rearm       重新上膛
 POST /param       {"name":..., "delta":...}
 POST /ctl         {"name":"dofc"}
 POST /log         {"text":...}   往事件流里写一条（评委原话先手工输入，Agent 层接上后由它改参）
+
+所有 POST 只认本机（127.0.0.1 / ::1），局域网来的一律 403：死人开关、强度、控制律只有操作员这台机器能动。
+GET（/state、/game、/worlds）仍对局域网开放，游戏屏可以放在另一台设备上看。
 """
 from __future__ import annotations
 import json
@@ -17,6 +20,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOLD_TTL = 0.3
+LOCAL = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
 
 class Dashboard:
@@ -86,6 +90,8 @@ class Dashboard:
                 self.wfile.write(data)
 
             def do_POST(self):
+                if self.client_address[0] not in LOCAL:
+                    return self._json({"error": "POST 只认本机"}, 403)
                 n = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(n) or b"{}") if n else {}
                 try:

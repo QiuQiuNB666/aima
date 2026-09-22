@@ -5,6 +5,7 @@ import * as THREE from 'three';
 export const STEP = 0.5;
 export const RISE = { flat: 0, up: 0.08, down: -0.08, stairs_up: 0.12, stairs_down: -0.12, wait: 0 };
 export const ROAD_W = 2.2;
+export const STAIR_EDGE = 0.08;
 export const APRON = 8;          // 起点前 / 山顶后的平地（单位），给营地和登顶平台
 export const KIND_NAME = { flat: '平地', up: '上坡', down: '下坡', stairs_up: '上台阶', stairs_down: '下台阶', wait: '红灯' };
 
@@ -46,8 +47,9 @@ export function makeRoute(route, seed = 1) {
     if (s <= 0) return 0;
     if (s >= N) return P[N].y;
     const i = Math.floor(s), f = s - i, st = steps[i];
-    if (st.kind === 'stairs_up') return f < 0.3 ? st.h0 + (st.h1 - st.h0) * (f / 0.3) : st.h1;
-    if (st.kind === 'stairs_down') return f > 0.7 ? st.h0 + (st.h1 - st.h0) * ((f - 0.7) / 0.3) : st.h0;
+    // 台阶方块 i 覆盖整步、顶面 = max(h0,h1)：高度只在台阶边缘 8% 里变，宁可边缘悬空一瞬也不穿进踏面
+    if (st.kind === 'stairs_up') return f < STAIR_EDGE ? st.h0 + (st.h1 - st.h0) * (f / STAIR_EDGE) : st.h1;
+    if (st.kind === 'stairs_down') return f > 1 - STAIR_EDGE ? st.h0 + (st.h1 - st.h0) * ((f - 1 + STAIR_EDGE) / STAIR_EDGE) : st.h0;
     return st.h0 + (st.h1 - st.h0) * f;
   }
   function headingAt(s) {                      // 步中点之间线性插值，拐弯处平滑
@@ -113,7 +115,8 @@ export function buildPathMeshes(scene, route, theme) {
   }
   const rg = new THREE.BufferGeometry();
   rg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); rg.setIndex(idx); rg.computeVertexNormals();
-  out.road = new THREE.Mesh(rg, new THREE.MeshLambertMaterial({ color: roadCol, side: THREE.DoubleSide }));
+  // polygonOffset：转弯内侧地面顶点偶尔取到相邻（更高）一段路的高度，差几厘米，让路面在深度上赢
+  out.road = new THREE.Mesh(rg, new THREE.MeshLambertMaterial({ color: roadCol, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   out.road.name = 'road'; group.add(out.road);
 
   // 2) 台阶方块
@@ -181,9 +184,9 @@ export function buildPathMeshes(scene, route, theme) {
   }
 
   // 5) 起点营地（小帐篷 + 起点线）与山顶旗
-  const a0 = at(0.5, -3.6);
+  const a0 = at(0.5, -5);                  // 离镜头远一点；城市主题自己隐藏（cyber_night）
   const camp = new THREE.Group(); camp.name = 'camp';
-  const tent = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.75, 4), new THREE.MeshLambertMaterial({ color: acc[1] }));
+  const tent = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.75, 4), new THREE.MeshLambertMaterial({ color: new THREE.Color(theme.ground || '#556').offsetHSL(0, 0, 0.15) }));
   tent.position.y = 0.37; tent.rotation.y = Math.PI / 4; camp.add(tent);
   camp.position.copy(a0.pos); group.add(camp); out.camp = camp;
   const startLine = new THREE.Mesh(new THREE.PlaneGeometry(0.18, ROAD_W), new THREE.MeshBasicMaterial({ color: acc[1] }));

@@ -46,13 +46,16 @@ def test_standing_confidence_collapses():
 
 
 def test_phase_profile_peaks_where_told():
+    from shellos.control.terrain import HS_PHASE    # 峰时按文献相位（脚跟着地 = 0%），估计器相位要加 HS_PHASE
     c = PhaseProfile(peak_ext=2.0, t_ext=30, peak_flex=1.0, t_flex=75, width=10)
-    assert abs(c.torque_at(0.30) - 2.0) < 1e-6
-    assert abs(c.torque_at(0.75) + 1.0) < 1e-6
-    assert abs(c.torque_at(0.52)) < 0.1              # 两峰之间接近 0
+    assert abs(c.torque_at((HS_PHASE + 0.30) % 1) - 2.0) < 1e-6
+    assert abs(c.torque_at((HS_PHASE + 0.75) % 1) + 1.0) < 1e-6
+    assert abs(c.torque_at((HS_PHASE + 0.52) % 1)) < 0.1     # 两峰之间接近 0
     c.set_params({"t_ext": -5})                      # "早一点"
     assert c.p("t_ext") == 25
-    assert abs(c.torque_at(0.25) - 2.0) < 1e-6
+    assert abs(c.torque_at((HS_PHASE + 0.25) % 1) - 2.0) < 1e-6
+    d = PhaseProfile()                               # 缺省和 terrain 同口径：早支撑伸展、摆动期屈曲
+    assert d.torque_at((HS_PHASE + 0.11) % 1) > 1.4 and d.torque_at((HS_PHASE + 0.68) % 1) < -0.9
     assert c.set_params({"peak_ext": 100})["peak_ext"] == 4.0
 
 
@@ -70,7 +73,7 @@ def test_gamepad_nudge_and_cycle():
     from shellos.safety.guard import Guard
     app = App(L(), Guard(L()), "phase")
     app.on_button(BTN["up"]);    assert app.ctl.p("peak_ext") == 2.0      # 1.5 + 0.5
-    app.on_button(BTN["left"]);  assert app.ctl.p("t_ext") == 20.0        # 25 - 5
+    app.on_button(BTN["left"]);  assert app.ctl.p("t_ext") == 6.0         # 11 - 5
     app.on_button(BTN["r1"]);    assert app.ctl.name == "terrain"         # phase → terrain
     app.on_button(BTN["l1"]);    assert app.ctl.name == "phase_profile"
     app.on_button(BTN["l1"]);    assert app.ctl.name == "dofc"
@@ -99,16 +102,16 @@ def test_memory_loop(tmp_path, monkeypatch):
         app.gait.update(fr)
     assert app.gait.state.cadence > 80
     card = app.feedback("早一点")
-    assert card and card["delta"] == {"t_ext": -5} and app.ctl.p("t_ext") == 20
+    assert card and card["delta"] == {"t_ext": -5} and app.ctl.p("t_ext") == 6
     app.delete_exp(card["id"])
-    assert app.ctl.p("t_ext") == 25            # 回退
+    assert app.ctl.p("t_ext") == 11            # 回退
     app.enable_exp(card["id"])
     app.set_wearer("judge-02")                 # 换人：参数回缺省
-    assert app.ctl.p("t_ext") == 25 and not app.recalled
+    assert app.ctl.p("t_ext") == 11 and not app.recalled
     for fr in walk(6.0):
         app.gait.update(fr)
     app.auto_recall()
-    assert app.recalled and app.applied == [card["id"]] and app.ctl.p("t_ext") == 20   # 步频相近 → 命中
+    assert app.recalled and app.applied == [card["id"]] and app.ctl.p("t_ext") == 6   # 步频相近 → 命中
     assert app.store.items[0]["hits"] == 1
 
 
@@ -272,3 +275,55 @@ def test_audit_reference_and_hs_detector():
     cands, series = A.run(one, walk)
     m, why = A.hs_verdict(A.hs_analysis({"cands": cands, "series": series, "walk": walk, "walk_s": 30.0, "table": False}))
     assert m is None, why
+
+
+def test_posture_change_stops_moving_fast():
+    """走路（均值 +10°）后停在比均值更屈的姿态：慢均值撑着 conf，旧版相位钉在 0.5、走动中 6 s+ → 地形持续出力。
+    现在相位停滞 → 0.3 s 内走动中为假；两腿同相的慢动作（坐下/站起）也不算走动中。"""
+    w = 2 * math.pi * 110 / 120.0
+
+    def leg(shift):
+        def f(t):
+            if t < 8.0:
+                return 10 + 20 * math.sin(w * t + shift), 20 * w * math.cos(w * t + shift)
+            return -60.0, 0.0                           # 8 s 起坐着不动
+        return f
+    g = GaitEstimator()
+    last_moving = None
+    for fr in _frames(leg(0.0), leg(math.pi), seconds=12.0):
+        st = g.update(fr)
+        if st.moving:
+            last_moving = fr.t_host
+    assert 7.5 < last_moving < 8.3, last_moving
+    slow = lambda t: (-40 + 30 * math.sin(2 * math.pi * 0.4 * t), 30 * 2 * math.pi * 0.4 * math.cos(2 * math.pi * 0.4 * t))
+    g = GaitEstimator()
+    assert not any(g.update(fr).moving for fr in _frames(slow, slow, seconds=10.0))
+    g = GaitEstimator(inphase_tol=None)
+    assert any(g.update(fr).moving for fr in _frames(slow, slow, seconds=10.0))   # 证明是同相检查拦下的
+
+
+def test_cadence_median_ignores_stop_go_strides():
+    """走 4 s 停 1.2 s：跨停顿的周期（≈1.7–2.2 s）也会被接受，均值会把 110 估成 100，中位数不会。"""
+    w = 2 * math.pi * 110 / 120.0
+
+    def leg(shift):
+        def f(t):
+            a = 20.0 if (t % 5.2) < 4.0 else 0.0
+            return a * math.sin(w * t + shift), a * w * math.cos(w * t + shift)
+        return f
+    g = GaitEstimator()
+    for fr in _frames(leg(0.0), leg(math.pi), seconds=31.2):
+        st = g.update(fr)
+    assert max(st.l.strides) > 1.5                     # 确实混进了跨停顿的周期
+    assert abs(st.cadence - 110) < 3, st.cadence
+
+
+def test_symmetry_is_rom_ratio():
+    """跛行（左 ±20° / 右 ±9°）：周期比恒 ≈1，活动度比 ≈2.2。"""
+    w = 2 * math.pi * 110 / 120.0
+    g = GaitEstimator()
+    for fr in _frames(lambda t: (20 * math.sin(w * t), 20 * w * math.cos(w * t)),
+                      lambda t: (9 * math.sin(w * t + math.pi), 9 * w * math.cos(w * t + math.pi))):
+        st = g.update(fr)
+    assert st.l.n_strides > 10 and st.r.n_strides > 10
+    assert 1.9 < st.symmetry < 2.5, st.symmetry

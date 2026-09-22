@@ -35,7 +35,7 @@ export function makeGhost(avatar, hud) {
   return {
     stepper: st,
     onState(T, now) {
-      visible = T && T.ghost_pos != null;
+      visible = !!(T && T.ghost_pos != null);    // 必须是布尔：three.js 只在 visible === false 时跳过渲染
       avatar.group.visible = visible;
       if (!visible) return;
       st.set(Math.min(T.ghost_pos, T.total), now);
