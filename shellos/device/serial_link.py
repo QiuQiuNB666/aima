@@ -51,9 +51,12 @@ class SerialLink:
         while self._alive:
             try:
                 raw = self.ser.readline()
-            except serial.SerialException:
-                self.replies.put("ERR,SERIAL_LOST")
-                return
+            except (serial.SerialException, OSError):
+                self.enabled = False
+                self.replies_seen["SERIAL_LOST"] = self.replies_seen.get("SERIAL_LOST", 0) + 1
+                if not self._reconnect():
+                    return
+                continue
             if not raw:
                 continue
             t = time.monotonic()
@@ -87,6 +90,25 @@ class SerialLink:
             self.frames.append(f)
             if self.on_frame:
                 self.on_frame(f)
+
+    def _reconnect(self) -> bool:
+        """线被拔了：每秒试着重开串口，最多等 60 s。重连后需要上层重新 ENABLE（needs_recovery 会为真）。"""
+        try:
+            self.ser.close()
+        except Exception:
+            pass
+        for _ in range(60):
+            if not self._alive:
+                return False
+            time.sleep(1.0)
+            try:
+                self.port = find_port()
+                self.ser = serial.Serial(self.port, BAUD, timeout=0.05)
+                self.replies_seen["SERIAL_RECONNECT"] = self.replies_seen.get("SERIAL_RECONNECT", 0) + 1
+                return True
+            except Exception:
+                continue
+        return False
 
     def latest(self) -> Frame | None:
         return self.frames[-1] if self.frames else None

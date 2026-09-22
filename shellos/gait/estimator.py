@@ -48,6 +48,8 @@ class _Leg:
         self._prev_phase = None
         self._t_wrap = None
         self._mn = self._mx = None
+        self._min_conf_cycle = 1.0      # 本周期内的最低置信度：整周期都要可信才算一步
+        self.rejected = 0               # 被拒掉的假周期计数（诊断用）
 
     def update(self, theta: float, omega: float, t: float) -> LegState:
         s = self.s
@@ -63,18 +65,22 @@ class _Leg:
         r = math.hypot(d, k * s.omega_f)
         s.conf = max(0.0, min(1.0, r / self.r_ref))
         phase = (math.atan2(-k * s.omega_f, d) / (2 * math.pi)) % 1.0   # 负号让相位随时间递增
-        # 事件：绕回
-        if self._prev_phase is not None and phase < 0.25 and self._prev_phase > 0.75 and s.conf > 0.5:
+        self._min_conf_cycle = min(self._min_conf_cycle, s.conf)
+        # 事件：绕回。只有「整个周期置信度都高 + 时长像人走路 + 活动度像人走路」才算一步
+        if self._prev_phase is not None and phase < 0.25 and self._prev_phase > 0.75:
             if self._t_wrap is not None:
                 stride = t - self._t_wrap
-                if 0.4 < stride < 3.0:
+                rom = (self._mx - self._mn) if self._mn is not None else 0.0
+                if 0.7 <= stride <= 2.0 and self._min_conf_cycle > 0.6 and rom >= 15.0:
                     s.stride_s = stride
                     s.strides.append(stride)
                     s.n_strides += 1
-                    if self._mn is not None:
-                        s.rom = self._mx - self._mn
+                    s.rom = rom
+                else:
+                    self.rejected += 1
             self._t_wrap = t
             self._mn = self._mx = s.theta_f
+            self._min_conf_cycle = s.conf
         if self._mn is not None:
             self._mn = min(self._mn, s.theta_f)
             self._mx = max(self._mx, s.theta_f)
@@ -88,6 +94,7 @@ class GaitEstimator:
         self._l, self._r = _Leg(**kw), _Leg(**kw)
         self.state = GaitState(l=self._l.s, r=self._r.s)
         self._last_ms = None
+        self._conf_since = None          # 连续高置信度的起始时刻
 
     def update(self, f: Frame) -> GaitState:
         st = self.state
@@ -107,5 +114,15 @@ class GaitEstimator:
             ml = sum(st.l.strides) / len(st.l.strides)
             mr = sum(st.r.strides) / len(st.r.strides)
             st.symmetry = ml / mr if mr else 1.0
-        st.moving = st.conf > 0.5
+        # 走动中：连续 0.3 s 高置信度才成立，站起/坐下的瞬态不算
+        if st.conf > 0.5:
+            self._conf_since = self._conf_since or f.t_host
+            st.moving = (f.t_host - self._conf_since) >= 0.3
+        else:
+            self._conf_since = None
+            st.moving = False
         return st
+
+    @property
+    def rejected(self):
+        return self._l.rejected + self._r.rejected
