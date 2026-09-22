@@ -36,6 +36,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 | 想干什么 | 读这个 |
 |---|---|
+| **完整架构 v3 + 今晚 6 条并行线 + 明天真机清单** | [docs/架构-v3-完整版.md](docs/架构-v3-完整版.md) · [docs/指挥板.md](docs/指挥板.md) |
 | 荣耀 Robot Phone 实机摸底（adb） | [docs/荣耀手机-adb摸底.md](docs/荣耀手机-adb摸底.md) |
 | **架构 v2（调研后的最佳方案）：山的记忆 = 腿部地形力反馈 + 经验继承；口径、数字、展位脚本、验证清单** | [docs/架构-v2-最佳方案.md](docs/架构-v2-最佳方案.md) |
 | ShellOS 控制栈架构 v1：分层、线程、安全层 | [docs/架构.md](docs/架构.md) |
