@@ -54,3 +54,24 @@ def test_phase_profile_peaks_where_told():
     assert c.p("t_ext") == 25
     assert abs(c.torque_at(0.25) - 2.0) < 1e-6
     assert c.set_params({"peak_ext": 100})["peak_ext"] == 4.0
+
+
+def test_gamepad_nudge_and_cycle():
+    from shellos.main import App
+    from shellos.input.gamepad import BTN
+
+    class L:  # 最小假链路
+        port = "x"; n_frames = 0; n_bad = 0
+        def latest(self): return None
+        def stream_age(self): return 0.0
+        def send(self, c): pass
+        def send_torque(self, a, b): pass
+        def disable(self): pass
+    from shellos.safety.guard import Guard
+    app = App(L(), Guard(L()), "phase")
+    app.on_button(BTN["up"]);    assert app.ctl.p("peak_ext") == 2.0      # 1.5 + 0.5
+    app.on_button(BTN["left"]);  assert app.ctl.p("t_ext") == 20.0        # 25 - 5
+    app.on_button(BTN["r1"]);    assert app.ctl.name == "transparent"     # phase → 绕回第一个
+    app.on_button(BTN["l1"]);    assert app.ctl.name == "phase_profile"
+    app.on_button(BTN["l1"]);    assert app.ctl.name == "dofc"
+    app.on_button(BTN["right"]); assert app.ctl.p("delay_s") == 0.16      # 0.15 + 0.01

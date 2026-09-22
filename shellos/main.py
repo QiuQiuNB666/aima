@@ -3,7 +3,9 @@
   python -m shellos.main                       # 串口，transparent，只读数据
   python -m shellos.main --ctl dofc --cap 2    # DOFC，软限 2 Nm
   python -m shellos.main --replay data/recordings/xxx.csv --ctl phase --force-deadman
-仪表盘 http://localhost:8765 。按住 R2 / 空格 / 网页大按钮才有力；× / Esc / 网页急停；○ / R / 网页重新上膛。
+仪表盘 http://localhost:8765 。
+手柄：按住 R2 才有力（按多深力多大）· × 急停 · ○ 重新上膛 · 方向键上下=第 1 个参数± 左右=第 2 个参数± · L1/R1 切换控制律 · △ 打标记
+键盘：空格 / Esc / R；网页：大按钮 / 急停 / 重新上膛。
 """
 from __future__ import annotations
 import argparse
@@ -36,6 +38,38 @@ class App:
 
     def set_ctl(self, name):
         self.ctl = CTLS[name]()          # 新控制律从 0 起，Guard 的斜率限负责平滑
+
+    @staticmethod
+    def _step(lo, hi):
+        r = hi - lo
+        return 5 if r >= 50 else 0.5 if r >= 5 else 0.1 if r >= 1 else 0.01
+
+    def nudge(self, index, sign):
+        """调第 index 个参数一档。手柄：上下调第 0 个（一般是峰值/增益），左右调第 1 个（峰时/延迟）。"""
+        names = list(self.ctl.params)
+        if index >= len(names):
+            return
+        k = names[index]
+        _, lo, hi = self.ctl.params[k]
+        out = self.ctl.set_params({k: sign * self._step(lo, hi)})
+        self.log(f"手柄 {k} {'+' if sign > 0 else '-'} → {out[k]:g}")
+
+    def cycle_ctl(self, d):
+        keys = list(CTLS)
+        cur = next((i for i, c in enumerate(CTLS.values()) if isinstance(self.ctl, c)), 0)
+        name = keys[(cur + d) % len(keys)]
+        self.set_ctl(name)
+        self.log(f"手柄切换控制律 → {name}")
+
+    def on_button(self, b):
+        from .input.gamepad import BTN
+        if b == BTN["up"]:      self.nudge(0, +1)
+        elif b == BTN["down"]:  self.nudge(0, -1)
+        elif b == BTN["right"]: self.nudge(1, +1)
+        elif b == BTN["left"]:  self.nudge(1, -1)
+        elif b == BTN["r1"]:    self.cycle_ctl(+1)
+        elif b == BTN["l1"]:    self.cycle_ctl(-1)
+        elif b == BTN["triangle"]: self.log("△ 标记：评委反馈点")
 
     def log(self, text):
         self.events.append({"t": datetime.now().strftime("%H:%M:%S"), "text": text})
@@ -80,7 +114,7 @@ def main():
     if not a.no_input:
         from .input.gamepad import Gamepad
         from .input.hotkeys import Hotkeys
-        pad = Gamepad(guard)
+        pad = Gamepad(guard, on_button=app.on_button)
         Hotkeys(guard)
     if a.force_deadman:
         guard.set_deadman(1.0, "forced")

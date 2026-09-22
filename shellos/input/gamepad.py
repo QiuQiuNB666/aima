@@ -9,6 +9,9 @@ import threading
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 R2_AXIS, BTN_CROSS, BTN_CIRCLE = 5, 0, 1
+# 9/22 在 MacBook 上实测：R2=轴5、×=0；其余按 SDL 对 DualSense 的标准映射（未逐个验证）
+BTN = {"cross": 0, "circle": 1, "square": 2, "triangle": 3, "share": 4, "ps": 5, "options": 6,
+       "l3": 7, "r3": 8, "l1": 9, "r1": 10, "up": 11, "down": 12, "left": 13, "right": 14, "touchpad": 15}
 
 
 class Gamepad:
