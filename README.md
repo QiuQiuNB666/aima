@@ -20,10 +20,14 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m shellos.main --replay data/recordings/synthetic-walk.csv --ctl dofc --force-deadman
 ```
 
-已做：设备层（串口 / 回放 / 录制）、安全层（软限、斜率限、扳机死人开关、看门狗、退出必 DISABLE）、透明 + DOFC 控制律、手柄与键盘输入。
-没做：步态估计、相位控制律、网页仪表盘、经验库与大模型改参、EvoMap。分层与建法见 [docs/架构.md](docs/架构.md)。
+已做（第 0–5 层）：设备层（串口 / 回放 / 录制 + 标签）、安全层（软限、斜率限、死人开关多来源、看门狗、复位自动重新 ENABLE）、控制律（透明 / 恒定 / DOFC / 相位曲线）、步态估计（相位、步频、对称、活动度、置信度门控）、网页仪表盘（曲线、真人 3D、参数热改、网页版按住助力、手柄面板、眼镜面板）、**记忆层：评委一句话 → 参数差值 → 经验卡 → 按步频检索命中 → 删除回退 → 换人复位**（大模型优先，规则表兜底）。
+没做：EvoMap 发布/继承（第 6 层）。分层与建法见 [docs/架构.md](docs/架构.md)。
 
-**真机第一次跑要确认的**：`probe.py` 报 200 Hz 左右；`--torque 0.5` 时力的方向（正值 = 伸展还是屈曲，决定 DOFC 的 gain 取正还是负）；手柄在 pygame 里 R2 是不是 axis 5（不是就改 `shellos/input/gamepad.py` 顶部常量）。
+大模型（可选，三个环境变量都要）：`SHELLOS_LLM_BASE`（OpenAI 兼容端点）、`SHELLOS_LLM_KEY`、`SHELLOS_LLM_MODEL`。没配就走规则表（早/晚/轻/重/左腿/右腿）。
+
+真机录制（9/22 现场，1 小时多）在私有仓库 evotavern-shenzhen 的 `外骨骼录制/`，gunzip 后 `--replay` 即可。
+
+**9/22 真机已确认**：串口 `/dev/cu.usbserial-*`（CP2102N），183 Hz；手柄 R2 = axis 5、× = 0。**从数据推断、待穿上验证**：正力矩 = 髋伸展；髋角负 = 屈曲；右腿原始读数镜像（`convention.py` 已取反）。
 
 ## 资料
 
