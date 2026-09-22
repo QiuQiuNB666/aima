@@ -13,6 +13,7 @@ from collections import deque
 import serial
 
 from .frame import Frame, parse_line
+from .convention import R_SIGN
 
 BAUD = 3_000_000
 
@@ -81,7 +82,7 @@ class SerialLink:
             self.ser.write((cmd + "\n").encode("ascii"))
 
     def send_torque(self, tl: float, tr: float):
-        self.send(f"T,{tl:.3f},{tr:.3f}")
+        self.send(f"T,{tl:.3f},{tr * R_SIGN:.3f}")
 
     def disable(self):
         try:

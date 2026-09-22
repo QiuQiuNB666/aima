@@ -27,8 +27,10 @@ def armed_guard(**kw):
 
 
 def test_parse_frame():
+    from shellos.device.convention import R_SIGN
     f = parse_line("S:1234,1.5,-0.2,90,0,0,0,0,0,1,101.3,10.5,-3.2,50,-40", 0.0)
-    assert f and f.l_deg == 10.5 and f.r_dps == -40
+    assert f and f.l_deg == 10.5 and f.r_deg == -3.2 * R_SIGN and f.r_dps == -40 * R_SIGN
+    assert f.l_dps == 50
     assert parse_line("OK,ENABLE", 0.0) is None
     assert parse_line("S:1,2,3", 0.0) is None
 
@@ -96,11 +98,10 @@ def test_watchdog_disables_dead_loop():
 def test_dofc_shape_and_delay():
     c = DOFC(gain=0.1, delay_s=0.05, ema=1.0)
     # 前 10 帧 L-R = 20°，之后 = 0；延迟 0.05 s = 10 帧
-    for i in range(10):
-        c.step(Frame(0, i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0))
-    out = c.step(Frame(0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0))
+    for i in range(11):
+        out = c.step(Frame(i * 0.005, i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0))
     assert out == (-1.0, 1.0)             # 0.1 Nm/deg × 10° (差/2)，左右反号
     for i in range(11, 30):
-        out = c.step(Frame(0, i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        out = c.step(Frame(i * 0.005, i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     assert out == (0.0, 0.0)              # 延迟窗口过去后归零
     assert c.set_params({"gain": 5.0}) == {"gain": 0.15}   # 裁剪到上限

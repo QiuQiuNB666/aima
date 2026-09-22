@@ -6,6 +6,7 @@ import time
 from collections import deque
 
 from .frame import Frame, FIELDS
+from .convention import R_SIGN
 
 
 class ReplayLink:
@@ -59,7 +60,7 @@ class ReplayLink:
         self.sent.append(cmd)
 
     def send_torque(self, tl, tr):
-        self.send(f"T,{tl:.3f},{tr:.3f}")
+        self.send(f"T,{tl:.3f},{tr * R_SIGN:.3f}")
 
     def disable(self):
         self.send("DISABLE")

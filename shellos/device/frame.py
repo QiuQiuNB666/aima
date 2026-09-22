@@ -2,6 +2,8 @@
 from __future__ import annotations
 from dataclasses import dataclass, fields
 
+from .convention import R_SIGN
+
 FIELDS = ("ms", "pitch", "roll", "yaw", "gx", "gy", "gz", "ax", "ay", "az",
           "kpa", "l_deg", "r_deg", "l_dps", "r_dps")
 
@@ -32,6 +34,9 @@ def parse_line(line: str, t_host: float) -> Frame | None:
     if len(parts) != len(FIELDS):
         return None
     try:
-        return Frame(t_host, *map(float, parts))
+        v = list(map(float, parts))
     except ValueError:
         return None
+    v[12] *= R_SIGN   # r_deg → 物理约定（与左腿同向为正）
+    v[14] *= R_SIGN   # r_dps
+    return Frame(t_host, *v)

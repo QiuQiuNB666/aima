@@ -10,7 +10,6 @@ from collections import deque
 
 from .base import Controller
 
-RATE = 200  # 数据流频率，用来把 delay_s 换成样本数
 
 
 class DOFC(Controller):
@@ -23,7 +22,7 @@ class DOFC(Controller):
             "delay_s": [delay_s,  0.05, 0.40],
             "ema":     [ema,      0.05, 1.0],
         }
-        self.hist: deque[float] = deque(maxlen=RATE)   # 最多 1 s 历史
+        self.hist: deque = deque(maxlen=400)   # (t, s)，够 1 s 以上
         self.s = 0.0
         self._last_ms = None
 
@@ -33,13 +32,19 @@ class DOFC(Controller):
         self._last_ms = frame.ms
         a = self.p("ema")
         self.s = (1 - a) * self.s + a * (frame.l_deg - frame.r_deg) / 2.0
-        self.hist.append(self.s)
+        self.hist.append((frame.t_host, self.s))
         return self._out()
 
     def _out(self):
-        n = int(self.p("delay_s") * RATE)
-        if len(self.hist) <= n:
+        if not self.hist:
             return 0.0, 0.0
-        sd = self.hist[-1 - n]
+        t_want = self.hist[-1][0] - self.p("delay_s")
+        if self.hist[0][0] > t_want:
+            return 0.0, 0.0                       # 历史还不够长
+        sd = self.hist[0][1]
+        for t, v in reversed(self.hist):          # 从新往旧找第一个不晚于 t_want 的样本
+            if t <= t_want:
+                sd = v
+                break
         g = self.p("gain")
         return -g * sd, g * sd
