@@ -31,10 +31,12 @@ class ReplayLink:
 
     def _play(self):
         period = 0.005 / self.speed
+        next_t = time.monotonic()
         while self._alive:
             for row in self.rows:
                 if not self._alive:
                     return
+                next_t += period
                 t = time.monotonic()
                 f = Frame(t, *row)
                 self.frames.append(f)
@@ -42,7 +44,7 @@ class ReplayLink:
                 self.last_frame_t = t
                 if self.on_frame:
                     self.on_frame(f)
-                time.sleep(period)
+                time.sleep(max(0.0, next_t - time.monotonic()))
             if not self.loop:
                 return
 
