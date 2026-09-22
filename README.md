@@ -19,12 +19,15 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m shellos.main --ctl transparent    # 先透明模式，只录数据
 .venv/bin/python -m shellos.main --ctl dofc --cap 2   # DOFC 助力，软限 2 Nm
 
+# 没设备：模拟外骨骼（按住空格 / 网页按钮走路）
+.venv/bin/python -m shellos.main --sim --ctl terrain --force-deadman
+
 # 没设备：对着录制数据跑
 .venv/bin/python -m shellos.main --replay data/recordings/synthetic-walk.csv --ctl dofc --force-deadman
 ```
 
 已做（第 0–5 层）：设备层（串口 / 回放 / 录制 + 标签）、安全层（软限、斜率限、死人开关多来源、看门狗、复位自动重新 ENABLE）、控制律（透明 / 恒定 / DOFC / 相位曲线）、步态估计（相位、步频、对称、活动度、置信度门控）、网页仪表盘（曲线、真人 3D、参数热改、网页版按住助力、手柄面板、眼镜面板）、**记忆层：评委一句话 → 参数差值 → 经验卡 → 按步频检索命中 → 删除回退 → 换人复位**（大模型优先，规则表兜底）。
-没做：EvoMap 发布/继承（第 6 层）。分层与建法见 [docs/架构.md](docs/架构.md)。
+不做：EvoMap（已移除）。进行中：登山游戏屏 `/game`（见架构 v3 第 2.6 节）。分层与建法见 [docs/架构.md](docs/架构.md)。
 
 大模型（可选，三个环境变量都要）：`SHELLOS_LLM_BASE`（OpenAI 兼容端点）、`SHELLOS_LLM_KEY`、`SHELLOS_LLM_MODEL`。没配就走规则表（早/晚/轻/重/左腿/右腿）。
 
