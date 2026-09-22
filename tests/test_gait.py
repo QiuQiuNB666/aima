@@ -173,3 +173,102 @@ def test_worlds_and_red_light():
     assert t.pos == stuck
     s = t.status()
     assert s["label"] == "十字路口·红灯" and s["next"]["label"] == "斑马线"
+
+
+# ---------- A 线：步态鲁棒（门限依据见 docs/报告/步态审计.md） ----------
+def _audit():
+    import importlib.util
+    import os
+    p = os.path.join(os.path.dirname(__file__), "..", "scripts", "gait_audit.py")
+    spec = importlib.util.spec_from_file_location("gait_audit", p)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _frames(fl, fr, seconds=20.0, rate=200, noise=0.3, seed=1):
+    """fl/fr: t → (角度, 角速度)。加噪声的双腿帧。"""
+    import random
+    rnd = random.Random(seed)
+    for i in range(int(seconds * rate)):
+        t = i / rate
+        (l, ld), (r, rd) = fl(t), fr(t)
+        yield Frame(t, i * 5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 101, l + rnd.gauss(0, noise), r + rnd.gauss(0, noise),
+                    ld + rnd.gauss(0, noise), rd + rnd.gauss(0, noise))
+
+
+def _plateau_leg(shift, f=110 / 120.0, amp=15.0):
+    """真人那种：伸展端有平台（髋角停住、角速度≈0），没有锁存时相位会在 0/1 分界抖出假绕回。"""
+    def leg(t):
+        w = 2 * math.pi * f
+        s = math.sin(w * t + shift)
+        if s > 0.5:
+            return amp * 0.5, 0.0
+        return amp * s, amp * w * math.cos(w * t + shift)
+    return leg
+
+
+def test_latch_stops_double_count_on_plateau():
+    counts = {}
+    for latch in (True, False):
+        g = GaitEstimator(latch=latch, trace=True)
+        for fr in _frames(_plateau_leg(0.0), _plateau_leg(math.pi)):
+            g.update(fr)
+        counts[latch] = len(g._l.cycles)
+    expect = 20.0 * 110 / 120.0                        # ≈18 个周期
+    assert abs(counts[True] - expect) <= 3, counts      # 锁存：一步一个候选
+    assert counts[False] > counts[True] + 5, counts     # 无锁存：平台上抖出一堆假绕回
+
+
+def test_in_phase_and_single_leg_rejected():
+    """坐下站起 / 弯腰（两腿同相）、单腿晃（另一条腿不动）都不算步。旧门限（无同相检查）会算。"""
+    w = 2 * math.pi * 0.8
+    swing = lambda t: (20 * math.sin(w * t), 20 * w * math.cos(w * t))
+    still = lambda t: (-5.0, 0.0)
+    for fl, fr in ((swing, swing), (swing, still)):
+        g = GaitEstimator()
+        old = GaitEstimator(sync_tol=None, cycle_conf=0.6, stride_min=0.7, stride_max=2.0)
+        for f in _frames(fl, fr):
+            g.update(f)
+            old.update(f)
+        assert g.state.l.n_strides + g.state.r.n_strides == 0
+        assert old.state.l.n_strides > 5                 # 证明是同相检查拦下的，不是别的门限
+
+
+def test_stepping_mode_accepts_small_steps():
+    """原地踏步 ±6°（活动度 ≈12°）：默认门限全拒（rom≥15），踏步模式接得住；正常走路两种模式都接。"""
+    A = _audit()
+    small = A.synth(105, 6.0, 30.0, seed=3)
+    d, s = A.sim_run(small), A.sim_run(small, stepping=True)
+    expect = 27.0 * 105 / 120.0 * 2
+    assert d["acc"] == 0
+    assert s["acc"] >= 0.85 * expect and s["moving"] > 0.9 and abs(s["cad"] - 105) < 5
+    walk_ = A.synth(110, 20.0, 30.0, seed=4)
+    assert A.sim_run(walk_)["acc"] >= 0.9 * 27.0 * 110 / 120.0 * 2
+    g = GaitEstimator(stepping=True)
+    assert g._l.rom_min == 8.0 and g._l.r_ref == 4.0
+    assert GaitEstimator(stepping=True, rom_min=10.0)._l.rom_min == 10.0   # 显式参数优先
+
+
+def test_audit_reference_and_hs_detector():
+    """审计脚本自检：反相 = 走路、同相 ≠ 走路；az 冲击放在已知相位，--hs 能找回来；只有一条腿有冲击时判"证据不够"。"""
+    A = _audit()
+    fr = A.synth(110, 20.0, 30.0, seed=5, hs_phase=0.6)
+    walk = A.reference(fr)
+    assert walk and sum(b - a for a, b in walk) > 25
+    w = 2 * math.pi * 0.8
+    same = list(_frames(lambda t: (20 * math.sin(w * t), 0.0), lambda t: (20 * math.sin(w * t), 0.0)))
+    assert A.reference(same) == []
+    cands, series = A.run(fr, walk)
+    rec = {"cands": cands, "series": series, "walk": walk, "walk_s": 30.0, "table": False}
+    m, why = A.hs_verdict(A.hs_analysis(rec))
+    assert m is not None and abs(m - 0.6) < 0.06, (m, why)
+    # 只在左腿相位 0.6 放冲击（= 右腿相位 0.1）：左右对不上 → 不给数
+    one = []
+    for f in fr:
+        ph = (f.ms / 1000.0 * 110 / 120.0) % 1.0
+        az = 1.0 + 0.3 * math.exp(-((((ph - 0.25 - 0.6) + 0.5) % 1.0 - 0.5) / 0.02) ** 2)
+        one.append(Frame(f.t_host, f.ms, 0, 0, 0, 0, 0, 0, 0, 0, az, 101, f.l_deg, f.r_deg, f.l_dps, f.r_dps))
+    cands, series = A.run(one, walk)
+    m, why = A.hs_verdict(A.hs_analysis({"cands": cands, "series": series, "walk": walk, "walk_s": 30.0, "table": False}))
+    assert m is None, why

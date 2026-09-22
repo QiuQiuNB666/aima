@@ -50,7 +50,7 @@ class Dashboard:
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "worlds.html"), "text/html; charset=utf-8")
                 if self.path.split("?")[0] in ("/game", "/game.html"):
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "game.html"), "text/html; charset=utf-8")
-                if self.path.startswith("/vendor/") or self.path.startswith("/models/") or self.path.startswith("/body3d.js"):
+                if self.path.startswith(("/vendor/", "/models/", "/body3d.js", "/game/")):
                     return self._static(self.path.split("?")[0])
                 if self.path.startswith("/shots/"):
                     return self._file(os.path.join(dash.app.glasses.shots_dir, os.path.basename(self.path.split("?")[0])), "image/jpeg")
@@ -181,6 +181,8 @@ class Dashboard:
         if path == "/feedback":
             it = a.feedback(body.get("text", ""))
             return {"card": it}
+        if path == "/memory/add":               # {"delta":{"strength":x},"quote":...}，强度阶梯写卡
+            return {"card": a.add_exp(body.get("delta"), body.get("quote", ""), body.get("source", "ladder"))}
         if path == "/memory/delete":
             return {"card": a.delete_exp(body["id"])}
         if path == "/memory/enable":

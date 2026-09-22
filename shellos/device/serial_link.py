@@ -41,7 +41,7 @@ class SerialLink:
         self.last_err = ""
         self.enabled = False                  # 收到 OK,ENABLE 为真；看到开机日志或 ERR,NOT_ENABLED 为假
         self.reboots = 0
-        self._wlock = threading.Lock()
+        self._wlock = threading.RLock()       # 信号处理里的 disable() 可能打断正在 send() 的主线程
         self._alive = True
         self._thr = threading.Thread(target=self._reader, name="serial-read", daemon=True)
         self._thr.start()
@@ -79,7 +79,7 @@ class SerialLink:
                     elif line.startswith("OK,DISABLE"):
                         self.enabled = False
                     elif "[initImpl]" in line or line.startswith("Total PSRAM"):
-                        if self.enabled or self.n_frames:      # 开机日志 = 设备刚复位
+                        if self.enabled:                       # 开机日志 = 设备刚复位；一次复位有两行，只数第一行
                             self.reboots += 1
                         self.enabled = False
                     if self.replies.qsize() < 50:

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>山的记忆</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
+<style>
+:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.58);--line:rgba(255,255,255,.12);--acc:#29e7ff;--acc0:#ff2e88}
+html{font-size:clamp(13px,1.04vw,44px)}
+*{box-sizing:border-box}
+body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;user-select:none}
+#c{position:fixed;inset:0;display:block;width:100vw;height:100vh}
+.hud{position:fixed;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:.8rem 1.1rem;backdrop-filter:blur(6px)}
+#tl{left:1.4rem;top:1.2rem;display:flex;flex-direction:column;gap:.5rem;max-width:30rem}
+#back{pointer-events:auto;align-self:flex-start;color:var(--fg);text-decoration:none;font-size:1rem;padding:.45rem .9rem;border-radius:.7rem;background:var(--panel);border:1px solid var(--line)}
+#back:hover{border-color:#fff}
+#wname{font-size:1.7rem;font-weight:800;letter-spacing:.1em}
+#wsub{font-size:.9rem;color:var(--dim)}
+#tc{left:50%;top:1.2rem;transform:translateX(-50%);text-align:center;min-width:26rem}
+#seg{font-size:2.3rem;font-weight:800;letter-spacing:.08em;line-height:1.15}
+.chip{display:inline-block;font-size:.95rem;font-weight:700;padding:.12rem .6rem;border-radius:.45rem;color:#000;vertical-align:.35rem;margin-left:.5rem}
+#next{margin-top:.35rem;font-size:1.25rem;color:#fff}
+#next b{color:var(--acc);font-size:1.5rem}
+#tr{right:1.4rem;top:1.2rem;text-align:right;min-width:15rem}
+#alt{font-size:3.4rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+#alt small{font-size:1.3rem;color:var(--dim);margin-left:.2rem}
+#step{font-size:1.25rem;margin-top:.3rem;font-variant-numeric:tabular-nums}
+#prog{height:.45rem;border-radius:.3rem;background:rgba(255,255,255,.15);margin-top:.5rem;overflow:hidden}
+#prog i{display:block;height:100%;width:0;background:var(--acc);transition:width .25s}
+#bl{left:1.4rem;bottom:1.4rem;width:23rem;display:flex;flex-direction:column;gap:.55rem}
+.leg{display:grid;grid-template-columns:2.8rem 1fr 4.6rem;align-items:center;gap:.5rem;font-size:1rem}
+.bar{position:relative;height:1.05rem;border-radius:.5rem;background:rgba(255,255,255,.12);overflow:hidden}
+.bar::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:rgba(255,255,255,.35)}
+.bar i{position:absolute;top:0;bottom:0;left:50%;width:0;background:var(--acc);border-radius:.3rem}
+.bar.flash{box-shadow:0 0 1.1rem var(--acc);background:rgba(41,231,255,.28)}
+.leg .v{text-align:right;font-variant-numeric:tabular-nums}
+#safe{display:flex;align-items:center;gap:.6rem;font-size:1rem}
+#safe .dot{width:1rem;height:1rem;border-radius:50%;background:#666;box-shadow:0 0 .6rem currentColor}
+#safe small{color:var(--dim)}
+#br{right:1.4rem;bottom:1.4rem;text-align:right;display:grid;grid-template-columns:auto auto;gap:.2rem 1.2rem;font-size:1.15rem;font-variant-numeric:tabular-nums}
+#br span{color:var(--dim)}
+#br b{font-weight:700}
+#hint{left:50%;bottom:1.4rem;transform:translateX(-50%);font-size:1rem;color:var(--dim);display:none}
+#hint kbd{display:inline-block;padding:.05rem .45rem;margin:0 .15rem;border-radius:.35rem;border:1px solid rgba(255,255,255,.35);color:#fff;font:inherit}
+#hint .on{color:#3ddc84}
+#wait{left:50%;top:25%;transform:translate(-50%,-50%);text-align:center;display:none;border-color:rgba(255,46,136,.6)}
+#wait .big{font-size:2.6rem;font-weight:800;color:#ff4d6d}
+#wait .sub{font-size:1.2rem;margin-top:.2rem}
+#wait .bar{margin-top:.6rem;height:.7rem}
+#wait .bar::after{display:none}
+#wait .bar i{left:0;background:#3ddc84}
+#summit{left:50%;bottom:6.5rem;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:1.6rem 3rem}
+#summit.show{opacity:1;transform:translate(-50%,0) scale(1)}
+#summit .t1{font-size:1.2rem;letter-spacing:.4em;color:var(--dim)}
+#summit .t2{font-size:3.6rem;font-weight:900;letter-spacing:.12em}
+#summit .t3{font-size:1.4rem;margin-top:.3rem}
+#summit .t4{font-size:1.5rem;margin-top:.8rem;font-variant-numeric:tabular-nums}
+#summit .t5{font-size:1.25rem;margin-top:.9rem;color:var(--acc)}
+#cards{right:1.4rem;top:13rem;width:24rem;display:flex;flex-direction:column;gap:.6rem}
+.card{transform:translateX(120%);transition:transform .45s cubic-bezier(.2,.9,.3,1.2),opacity .6s;font-size:1rem}
+.card.in{transform:none}
+.card.out{opacity:0}
+.card .k{font-size:.85rem;color:var(--acc);letter-spacing:.15em}
+.card .q{font-size:1.2rem;margin:.2rem 0}
+.card .d{font-size:.9rem;color:var(--dim)}
+#ghostTag{transform:translate(-50%,-100%);font-size:1rem;white-space:nowrap;padding:.25rem .7rem;border-radius:.6rem;background:rgba(0,0,0,.45);border:1px solid rgba(159,232,255,.5);color:#cfefff;display:none}
+#ghostTag small{color:var(--dim);margin-left:.4rem}
+#banner{left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:1.3rem;display:none;pointer-events:auto}
+#banner button{margin-top:.8rem;font:inherit;font-weight:700;padding:.5rem 1.2rem;border-radius:.7rem;border:0;cursor:pointer}
+#fps{left:.5rem;bottom:.3rem;font-size:.75rem;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+#tag{left:50%;top:50%;transform:translate(-50%,-50%);font-size:1.2rem;color:var(--dim)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="hud" id="tl"><a id="back" href="/worlds">← 换一座山</a><div class="panel"><div id="wname">…</div><div id="wsub"></div></div></div>
+<div class="hud panel" id="tc"><div id="seg">…</div><div id="next"></div></div>
+<div class="hud panel" id="tr"><div id="alt">—<small></small></div><div id="step"></div><div id="prog"><i></i></div></div>
+<div class="hud panel" id="bl">
+  <div class="leg"><span>左腿</span><div class="bar" id="barL"><i></i></div><span class="v" id="valL">0.0</span></div>
+  <div class="leg"><span>右腿</span><div class="bar" id="barR"><i></i></div><span class="v" id="valR">0.0</span></div>
+  <div id="safe"><span class="dot"></span><span id="safeT">—</span><small id="safeR"></small></div>
+</div>
+<div class="hud panel" id="br"><span>用时</span><b id="time">0.0 s</b><span>最佳</span><b id="best">—</b><span>登顶</span><b id="laps">0 次</b><span>穿戴者</span><b id="wearer">—</b></div>
+<div class="hud panel" id="hint">模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 慢/中/快 · <kbd>R</kbd> 回山脚 <span id="hintS"></span></div>
+<div class="hud panel" id="wait"><div class="big">● 红灯</div><div class="sub" id="waitT">站定 2 秒放行</div><div class="bar"><i id="waitB"></i></div></div>
+<div class="hud panel" id="summit"><div class="t1">登顶</div><div class="t2" id="sName"></div><div class="t3" id="sText"></div><div class="t4" id="sTime"></div><div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div></div>
+<div class="hud" id="cards"></div>
+<div class="hud" id="ghostTag"></div>
+<div class="hud panel" id="banner"></div>
+<div class="hud" id="fps"></div>
+<div class="hud" id="tag">加载中…</div>
+<script type="module" src="/game/engine.js"></script>
+</body></html>

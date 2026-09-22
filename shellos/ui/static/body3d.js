@@ -17,7 +17,7 @@ export function initBody(container) {
   camera = new THREE.PerspectiveCamera(35, W / H, 0.1, 50);
   camera.position.set(2.2, 1.4, 2.6);
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // 省 GPU：控制循环和游戏屏同机
   renderer.setSize(W, H);
   container.appendChild(renderer.domElement);
   controls = new OrbitControls(camera, renderer.domElement);

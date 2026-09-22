@@ -8,7 +8,8 @@
 4. deadman 深度全局缩放          扳机按一半，力就一半
 5. 步态置信度 < min_conf        → 力矩归零（不 DISABLE）
 6. 看门狗：>100 ms 没 submit    → T,0,0；>1 s → DISABLE（固件自身 100 ms 无 T 即清零，DISABLE 只兜底）
-7. 进程退出/异常/断流           → DISABLE
+7. 断流 > stream_timeout        → 立即 T,0,0（不走斜率限；不 DISABLE，否则恢复不了）
+8. 进程退出/异常               → DISABLE
 """
 from __future__ import annotations
 import atexit
@@ -35,7 +36,7 @@ class Guard:
         self.last_sent = (0.0, 0.0)
         self.last_submit_t = time.monotonic()
         self.last_reason = "init"
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()     # 可重入：Ctrl-C / SIGTERM 的处理函数在主线程里调 shutdown，可能正打断 submit
         self._alive = True
         atexit.register(self.shutdown)
         threading.Thread(target=self._watchdog, name="guard-wd", daemon=True).start()
@@ -53,20 +54,27 @@ class Guard:
         self._disarm(reason)
 
     def arm(self):
-        """握手成功后调用。"""
+        """握手成功 / 设备复位重新 ENABLE 后调用。DISARMED（急停、看门狗）只能走 rearm()。"""
         with self._lock:
-            self.state = ARMED
-            self.last_sent = (0.0, 0.0)
-            self.last_reason = "armed"
+            if self.state == DISARMED or self.estop:
+                return False
+            self._arm_locked()
+            return True
+
+    def _arm_locked(self):
+        self.state = ARMED
+        self.last_sent = (0.0, 0.0)
+        self.last_reason = "armed"
 
     def rearm(self):
         """DISARMED 之后要重新 ENABLE 才能再给力。"""
-        self.estop = False
         try:
             self.link.send("ENABLE")
         except Exception:
             return False
-        self.arm()
+        with self._lock:
+            self.estop = False
+            self._arm_locked()
         return True
 
     # ---- 核心 ----
@@ -89,9 +97,14 @@ class Guard:
                 self.last_reason = "deadman released"
                 return self.last_sent
             if self.link.stream_age() > self.stream_timeout:
-                tl = tr = 0.0
+                self.link.send_torque(0.0, 0.0)              # 断流短路：立刻归零，不走斜率限
+                self.last_sent = (0.0, 0.0)
+                if self.on_sent:
+                    self.on_sent(0.0, 0.0)
+                self.state = ACTIVE
                 self.last_reason = "stream stale"
-            elif confidence < self.min_conf:
+                return self.last_sent
+            if confidence < self.min_conf:
                 tl = tr = 0.0
                 self.last_reason = "low confidence"
             else:
@@ -142,6 +155,8 @@ class Guard:
                     self.link.send_torque(0.0, 0.0)
                     self.last_sent = (0.0, 0.0)
                     self.last_reason = "watchdog: zeroed"
+                    if self.on_sent:
+                        self.on_sent(0.0, 0.0)
 
     def shutdown(self):
         if not self._alive:

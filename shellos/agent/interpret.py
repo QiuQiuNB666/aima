@@ -11,6 +11,7 @@ import re
 import urllib.request
 
 # 规则表：控制律 → (关键词, 参数, 差值)。差值方向以"正 = 更多/更晚"为准，和控制律里的参数定义一致。
+# 按顺序匹配，同一参数只取第一条命中的规则：否定说法（不明显 / 没感觉）要排在肯定说法（明显）前面。
 RULES = {
     "phase": [
         (r"早", "t_ext", -5), (r"晚|迟", "t_ext", +5),
@@ -25,7 +26,8 @@ RULES = {
         (r"反|顶|反了|相反", "gain", "flip"),
     ],
     "terrain": [
-        (r"陡|累|重|大|强|太猛|明显", "strength", -0.5), (r"没感觉|轻|小|弱|不明显|再来", "strength", +0.5),
+        (r"(轻|小|弱)一?点", "strength", -0.5), (r"(重|大|强)一?点", "strength", +0.5),    # 「轻一点」是要求，不是描述
+        (r"没感觉|不明显|轻|小|弱|再来", "strength", +0.5), (r"陡|累|重|大|强|太猛|明显", "strength", -0.5),
         (r"早", "t_push", -5), (r"晚|迟", "t_push", +5),
     ],
     "constant": [
@@ -47,12 +49,13 @@ def by_rule(quote, controller, params, cadence):
     d = {}
     hit = []
     for pat, k, v in RULES.get(controller, []):
-        if re.search(pat, quote) and k in params:
+        if re.search(pat, quote) and k in params and k not in d:
             if v == "flip":
                 d[k] = -2 * params[k][0]          # 增益取反
             else:
-                d[k] = d.get(k, 0) + v
+                d[k] = v
             hit.append(pat)
+    d = {k: v for k, v in d.items() if v}
     if not d:
         return None
     return {"delta": d, "trigger": {"cadence": _band(cadence)}, "confidence": 0.6, "source": "rule",

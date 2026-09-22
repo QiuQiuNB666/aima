@@ -28,14 +28,32 @@ CTLS = {"transparent": Transparent, "constant": Constant, "dofc": DOFC, "phase":
 LOOP_HZ = 100
 
 
+def recover_tick(link, guard, now, rs, log=print):
+    """断流 / 未使能 / 设备复位 → 重新 ENABLE。主循环每拍调；rs = {"last": 0.0, "reboots": 0}。
+    正常每 2 s 至多试一次；刚检测到设备复位时立刻试（不等 2 s 节拍）。DISARMED / 急停时不动。"""
+    reboot = link.reboots != rs["reboots"]
+    if not ((now - rs["last"] > 2.0 or reboot) and guard.state in ("ARMED", "ACTIVE") and link.needs_recovery()):
+        return None
+    rs["last"] = now
+    if reboot:
+        rs["reboots"] = link.reboots
+        log(f"设备复位了（第 {link.reboots} 次）——重新 ENABLE")
+    ok = link.recover()
+    armed = guard.arm()                  # 力矩从 0 重新爬；DISARMED 时 arm() 拒绝，返回 False
+    log("重新 ENABLE " + ("成功" if ok and armed is not False else "失败，2 秒后再试"))
+    return ok
+
+
 class App:
     """仪表盘和 Agent 层看到的东西都挂在这上面。"""
 
-    def __init__(self, link, guard, ctl_name, rec=None):
+    def __init__(self, link, guard, ctl_name, rec=None, stepping=False):
         self.link, self.guard, self.rec = link, guard, rec
         self.ctls = CTLS
         self.ctl = CTLS[ctl_name]()
-        self.gait = GaitEstimator()
+        self.stepping = stepping     # 原地踏步模式（A 线）：rom≥8、r_ref=4，默认关
+        self.gait = GaitEstimator(stepping=stepping)
+        self._terrain = None         # 切到别的控制律时暂存 terrain：影子、最佳、世界不丢
         self.events: list = []
         self.loop_ms = 0
         from .glasses.luma import Glasses
@@ -68,13 +86,12 @@ class App:
         old = self.ctl
         self.ctl = CTLS[self.ctl_key()]()
         if hasattr(old, "ghost") and hasattr(self.ctl, "ghost"):   # 换人/复位不丢「山的记忆」
-            self.ctl.set_preset(old.preset)
-            self.ctl.params = old.params                                 # 强度等参数也保留（经验卡另算）
+            self.ctl.set_preset(old.preset)                               # 参数回缺省（经验卡检索再套用）
             self.ctl.ghost, self.ctl.ghost_who, self.ctl.best = old.ghost, old.ghost_who, old.best
             if old.lap_steps and not old.ghost:                        # 上一位没爬完也留作影子
                 self.ctl.ghost, self.ctl.ghost_who = old.lap_steps, old.wearer
             self.ctl.wearer = self.wearer
-        self.gait = GaitEstimator()
+        self.gait = GaitEstimator(stepping=self.stepping)
         self.applied, self.recalled = [], False
         if not keep_wearer:
             self.log("演示复位：参数回缺省、步态重新估计，经验库不动")
@@ -105,13 +122,25 @@ class App:
             self.log(f"评委：「{quote}」——当前是透明模式，没有参数可调，先切到 dofc 或 phase")
             return None
         r = interpret(quote, self.ctl_key(), self.ctl.params, self.gait.state.cadence, self.profile())
-        if not r:
+        if not r or not any(float(v) for v in r["delta"].values()):   # 差值为 0（如「不明显」正负抵消）不存卡
             self.log(f"评委：「{quote}」——没听懂，参数不变")
             return None
         out = self.ctl.set_params(r["delta"])
         it = self.store.add(self.wearer, self.ctl_key(), r["trigger"], r["delta"], quote, r["confidence"], r["source"])
         self.applied.append(it["id"])
         self.log(f"评委：「{quote}」→ 经验卡 #{it['id']} {r['delta']}（{r['source']}，{r.get('why', '')}）→ 现在 {out}")
+        return it
+
+    def add_exp(self, delta, quote, source="ladder"):
+        """直接写一张经验卡（强度阶梯等脚本用）。差值相对缺省参数；调用方已经用 /set 生效，这里只记为已套用。"""
+        from .agent.interpret import _band
+        delta = {k: float(v) for k, v in (delta or {}).items() if k in self.ctl.params and float(v)}
+        if not delta:
+            return None
+        it = self.store.add(self.wearer, self.ctl_key(), {"cadence": _band(self.gait.state.cadence)},
+                            delta, quote or source, 1.0, source)
+        self.applied.append(it["id"])
+        self.log(f"写入经验卡 #{it['id']} {delta}（{source}：{quote}）")
         return it
 
     def delete_exp(self, id_):
@@ -128,8 +157,8 @@ class App:
 
     def set_terrain(self, preset):
         if self.ctl_key() != "terrain":
-            self.ctl = Terrain(preset)
-        else:
+            self.set_ctl("terrain")
+        if self.ctl.preset != preset:
             self.ctl.set_preset(preset)
         self.ctl.reset()
         self.log(f"世界：{self.ctl.world['name']}（{self.ctl.total} 步）")
@@ -154,7 +183,15 @@ class App:
         return self.glasses.photo(then=then)
 
     def set_ctl(self, name):
-        self.ctl = CTLS[name]()          # 新控制律从 0 起，Guard 的斜率限负责平滑
+        """新控制律从 0 起，Guard 的斜率限负责平滑。terrain 例外：切走再切回沿用原实例（影子、最佳、世界）。"""
+        if isinstance(self.ctl, Terrain):
+            self._terrain = self.ctl
+        if name == "terrain" and self._terrain is not None:
+            self.ctl, self._terrain = self._terrain, None
+            self.ctl.wearer = self.wearer
+            self.ctl.reset()
+        else:
+            self.ctl = CTLS[name]()
 
     @staticmethod
     def _step(lo, hi):
@@ -211,6 +248,7 @@ def main():
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--no-input", action="store_true", help="不起手柄/键盘线程（诊断用）")
     ap.add_argument("--http", type=int, default=8765, help="仪表盘端口，0 = 不起")
+    ap.add_argument("--stepping", action="store_true", help="原地踏步模式：小摆幅也计步（展位没走廊时用）")
     ap.add_argument("--force-deadman", action="store_true",
                     help="回放时没手柄也给力（只允许配合 --replay）")
     a = ap.parse_args()
@@ -235,7 +273,7 @@ def main():
     guard.arm()
     print(f"[handshake] firmware {ver}  state {guard.state}  cap {guard.soft_cap} Nm")
 
-    app = App(link, guard, a.ctl, rec)
+    app = App(link, guard, a.ctl, rec, stepping=a.stepping)
     app.log(f"启动：{link.port} 固件 {ver}，控制律 {a.ctl}，软限 {a.cap} Nm")
 
     pad = None
@@ -266,8 +304,7 @@ def main():
     period = 1.0 / LOOP_HZ
     next_t = time.monotonic()
     last_print = 0.0
-    last_recover = 0.0
-    seen_reboots = 0
+    rs = {"last": 0.0, "reboots": 0}
     st = None
     max_gap = 0.0
     prev_t = time.monotonic()
@@ -285,15 +322,7 @@ def main():
             tl, tr = ctl.step(f, st)
             guard.submit(tl, tr, confidence=st.conf if ctl.name in ("phase", "terrain") else 1.0)
         now = time.monotonic()
-        if (not a.replay and now - last_recover > 2.0 and guard.state in ("ARMED", "ACTIVE")
-                and link.needs_recovery()):
-            last_recover = now
-            if link.reboots != seen_reboots:
-                seen_reboots = link.reboots
-                app.log(f"设备复位了（第 {link.reboots} 次）——重新 ENABLE")
-            ok = link.recover()
-            guard.arm()                      # 力矩从 0 重新爬
-            app.log("重新 ENABLE " + ("成功" if ok else "失败，2 秒后再试"))
+        recover_tick(link, guard, now, rs, app.log)
         if now - last_print > 0.5:
             last_print = now
             app.auto_recall()

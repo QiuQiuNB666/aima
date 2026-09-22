@@ -22,6 +22,8 @@ from .. import worlds as W
 
 HS_PHASE = 0.5   # 脚跟着地在估计器相位里的位置，现场校准后改
 WAIT_STILL_S = 2.0
+CAP = 3.0        # 控制律自己也不出软限（Guard 仍按 --cap 再裁一次）
+MULT = {"up": 1.0, "down": -0.8, "stairs_up": 1.2, "stairs_down": -1.0, "wait": -0.5}   # 主脉冲峰值 = MULT × strength
 LEGACY = {"台阶": "train_stairs", "长坡": "train_slope", "山的记忆": "taishan_18pan"}
 RISE = {"flat": 0.0, "up": 0.08, "down": -0.08, "stairs_up": 0.12, "stairs_down": -0.12, "wait": 0.0}
 PRESETS = {wid: [(s["kind"], s["steps"]) for s in w["route"]] for wid, w in W.WORLDS.items()}   # 兼容旧接口
@@ -45,15 +47,16 @@ class Terrain(Controller):
         super().__init__()
         self.params = {
             "strength": [strength, 0.0, 3.0],     # Nm，上坡脉冲峰值（下坡 ×0.8，台阶 ×1.2）
-            "t_push":   [11.0, 0.0, 100.0],       # 上坡伸展脉冲中心：早支撑 5–17%（脚跟着地=0%）
-            "t_brake":  [10.0, 0.0, 100.0],       # 制动脉冲中心：5–15%
-            "t_step":   [6.0, 0.0, 100.0],        # 台阶伸展脉冲：0–12%；摆动期屈曲脉冲固定在 68%
-            "width":    [12.0, 6.0, 20.0],        # 脉冲宽 % 周期（文献 10–20%）
+            # 中心限在 0–20%：宽 20% 时伸展脉冲也不会进 30–60%（摆动中段不抗屈，scripts/pulse_plot.py 核对）
+            "t_push":   [11.0, 0.0, 20.0],        # 上坡伸展脉冲中心：早支撑 5–17%（脚跟着地=0%）
+            "t_brake":  [10.0, 0.0, 20.0],        # 制动脉冲中心：5–15%
+            "t_step":   [6.0, 0.0, 20.0],         # 台阶伸展脉冲：0–12%；摆动期屈曲脉冲固定在 68%
+            "width":    [12.0, 10.0, 20.0],       # 脉冲底宽 % 周期（文献 10–20%）
         }
         self.force = None                         # 强制路段（2AFC / 演示）
         self.wearer = "anon"
         self.set_preset(preset)
-        self._strides = 0
+        self._strides = None                      # None = 下一拍以步态当前计数为基准（新建/复位时步态可能早已走了几百步）
 
     # ---- 世界 ----
     def set_preset(self, preset):
@@ -77,7 +80,7 @@ class Terrain(Controller):
     def reset(self):
         """换人/演示复位：回到起点。上一圈留作影子。"""
         self.pos = 0
-        self._strides = 0
+        self._strides = None
         self.lap_t0 = None
         self.lap_steps = []
         self._still_since = None
@@ -107,6 +110,7 @@ class Terrain(Controller):
     # ---- 前进 ----
     def _advance(self, n, now):
         for _ in range(n):
+            was_wait = self.segment_at(self.pos) == "wait"
             if self.lap_t0 is None:
                 self.lap_t0 = now
             self.lap_steps.append(now - self.lap_t0)
@@ -118,6 +122,8 @@ class Terrain(Controller):
                 self.best = self.last_lap if self.best is None else min(self.best, self.last_lap)
                 self.ghost, self.ghost_who = self.lap_steps, self.wearer
                 self.lap_steps, self.lap_t0 = [], None
+            if not was_wait and self.segment_at(self.pos) == "wait":
+                break                                  # 一拍来了好几步也停在红灯前
 
     def step(self, frame, gait=None):
         if gait is None:
@@ -125,12 +131,12 @@ class Terrain(Controller):
         now = time.monotonic()
         kind = self.segment_at(self.pos)
         strides = gait.l.n_strides + gait.r.n_strides
-        if strides < self._strides:                     # 步态估计被重置（换人）
+        if self._strides is None or strides < self._strides:   # 刚复位 / 步态估计被重置（换人）
             self._strides = strides
         new = strides - self._strides
         self._strides = strides
         if kind == "wait" and not self.force:           # 红灯：走着不前进，站定 2 s 放行
-            if gait.moving:
+            if gait.moving or new > 0:                  # 还在出步就不算站定
                 self._still_since = None
             else:
                 self._still_since = self._still_since or now
@@ -143,19 +149,19 @@ class Terrain(Controller):
         kind = self.segment_at(self.pos)
         if kind == "flat" or not gait.moving:
             return 0.0, 0.0
+        return self.pulse(kind, gait.l.phase), self.pulse(kind, gait.r.phase)
+
+    def pulse(self, kind, phase):
+        """某路段在估计器相位 phase(0..1) 的力矩。纯函数，scripts/pulse_plot.py 直接画它。"""
+        if kind not in MULT:
+            return 0.0
         s, w = self.p("strength"), self.p("width")
-        lit = lambda ph: ((ph - HS_PHASE) % 1.0) * 100.0     # 估计器相位 → 文献相位（脚跟着地=0%）
-        if kind == "up":
-            f = lambda ph: s * _bump(lit(ph), self.p("t_push"), w)
-        elif kind == "down":
-            f = lambda ph: -0.8 * s * _bump(lit(ph), self.p("t_brake"), w)
-        elif kind == "stairs_up":
-            f = lambda ph: 1.2 * s * _bump(lit(ph), self.p("t_step"), w) - 0.8 * s * _bump(lit(ph), 68.0, w)
-        elif kind == "stairs_down":
-            f = lambda ph: -1.0 * s * _bump(lit(ph), self.p("t_brake"), w)
-        else:                                            # wait：走着就轻轻拉住
-            f = lambda ph: -0.5 * s * _bump(lit(ph), self.p("t_brake"), w)
-        return f(gait.l.phase), f(gait.r.phase)
+        x = ((phase - HS_PHASE) % 1.0) * 100.0           # 估计器相位 → 文献相位（脚跟着地=0%）
+        center = self.p({"up": "t_push", "stairs_up": "t_step"}.get(kind, "t_brake"))   # wait：走着就轻轻拉住
+        t = MULT[kind] * s * _bump(x, center, w)
+        if kind == "stairs_up":
+            t -= 0.8 * s * _bump(x, 68.0, w)             # 摆动期屈曲：帮着抬腿
+        return max(-CAP, min(CAP, t))
 
     # ---- 给游戏 / 仪表盘 ----
     def status(self):
