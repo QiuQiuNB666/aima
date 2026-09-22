@@ -12,10 +12,12 @@ import time
 
 from .control.base import Transparent
 from .control.dofc import DOFC
+from .control.phase_profile import PhaseProfile
+from .gait.estimator import GaitEstimator
 from .device.recorder import Recorder
 from .safety.guard import Guard
 
-CTLS = {"transparent": Transparent, "dofc": DOFC}
+CTLS = {"transparent": Transparent, "dofc": DOFC, "phase": PhaseProfile}
 LOOP_HZ = 100
 
 
@@ -56,6 +58,7 @@ def main():
         guard.set_deadman(1.0)
 
     ctl = CTLS[a.ctl]()
+    gait = GaitEstimator()
     print(f"[ctl] {ctl.name} {ctl.values()}")
 
     def stop(*_):
@@ -72,18 +75,21 @@ def main():
     period = 1.0 / LOOP_HZ
     next_t = time.monotonic()
     last_print = 0.0
+    st = None
     while True:
         next_t += period
         f = link.latest()
         if f is not None:
-            tl, tr = ctl.step(f)
-            guard.submit(tl, tr, confidence=1.0)
+            st = gait.update(f)
+            tl, tr = ctl.step(f, st)
+            guard.submit(tl, tr, confidence=st.conf if ctl.name == "phase" else 1.0)
         now = time.monotonic()
         if now - last_print > 0.5:
             last_print = now
-            st = guard.state
-            fr = f"L{f.l_deg:6.1f}° R{f.r_deg:6.1f}° pitch{f.pitch:6.1f}°" if f else "no frames"
-            print(f"\r[{st:10s}] pad={'Y' if pad.connected else 'n'} dm={guard.deadman:.2f} "
+            gs = guard.state
+            fr = (f"L{f.l_deg:6.1f}° R{f.r_deg:6.1f}° φ{st.l.phase:.2f}/{st.r.phase:.2f} "
+                  f"conf{st.conf:.2f} {st.cadence:4.0f}spm sym{st.symmetry:.2f}") if st else "no frames"
+            print(f"\r[{gs:10s}] pad={'Y' if pad.connected else 'n'} dm={guard.deadman:.2f} "
                   f"sent=({guard.last_sent[0]:+.2f},{guard.last_sent[1]:+.2f}) {guard.last_reason:22s} "
                   f"{fr}  n={link.n_frames} bad={link.n_bad} age={link.stream_age()*1000:5.0f}ms   ",
                   end="", flush=True)

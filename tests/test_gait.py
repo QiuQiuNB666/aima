@@ -1,0 +1,55 @@
+"""步态估计和相位控制律，对着合成步态。"""
+import math
+
+from shellos.device.frame import Frame
+from shellos.gait.estimator import GaitEstimator
+from shellos.control.phase_profile import PhaseProfile
+
+
+def walk(seconds=8.0, spm=100.0, amp=20.0, rate=200):
+    f = spm / 120.0                      # 周期频率 Hz（一个周期两步）
+    for i in range(int(seconds * rate)):
+        t = i / rate
+        w = 2 * math.pi * f
+        l, r = amp * math.sin(w * t), amp * math.sin(w * t + math.pi)
+        ld, rd = amp * w * math.cos(w * t), amp * w * math.cos(w * t + math.pi)
+        yield Frame(t, i * 5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 101, l, r, ld, rd)
+
+
+def test_phase_monotonic_and_cadence():
+    g = GaitEstimator()
+    prev = None
+    backwards = 0
+    for fr in walk():
+        st = g.update(fr)
+        if prev is not None and st.conf > 0.5:
+            d = (st.l.phase - prev + 0.5) % 1.0 - 0.5
+            if d < -0.02:
+                backwards += 1
+        prev = st.l.phase
+    assert backwards < 5, f"相位倒退 {backwards} 次"
+    assert st.moving and st.conf > 0.8
+    assert abs(st.cadence - 100) < 8, st.cadence
+    assert 0.9 < st.symmetry < 1.1
+    assert st.variability < 0.1
+    assert 30 < st.l.rom < 45          # 摆幅 ±20 → 活动度 ≈ 40
+
+
+def test_standing_confidence_collapses():
+    g = GaitEstimator()
+    for fr in walk(4.0):
+        g.update(fr)
+    for i in range(600):               # 站着不动 3 秒
+        st = g.update(Frame(4 + i / 200, 10000 + i * 5, 0, 0, 0, 0, 0, 0, 0, 0, 1, 101, 3.0, -2.0, 0, 0))
+    assert st.conf < 0.3 and not st.moving
+
+
+def test_phase_profile_peaks_where_told():
+    c = PhaseProfile(peak_ext=2.0, t_ext=30, peak_flex=1.0, t_flex=75, width=10)
+    assert abs(c.torque_at(0.30) - 2.0) < 1e-6
+    assert abs(c.torque_at(0.75) + 1.0) < 1e-6
+    assert abs(c.torque_at(0.52)) < 0.1              # 两峰之间接近 0
+    c.set_params({"t_ext": -5})                      # "早一点"
+    assert c.p("t_ext") == 25
+    assert abs(c.torque_at(0.25) - 2.0) < 1e-6
+    assert c.set_params({"peak_ext": 100})["peak_ext"] == 4.0
