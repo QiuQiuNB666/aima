@@ -7,7 +7,7 @@
 3. 斜率限 每拍变化 <= slew      （默认 0.1 Nm/拍 = 10 Nm/s @100 Hz）
 4. deadman 深度全局缩放          扳机按一半，力就一半
 5. 步态置信度 < min_conf        → 力矩归零（不 DISABLE）
-6. 看门狗：>50 ms 没 submit     → T,0,0；>200 ms → DISABLE
+6. 看门狗：>100 ms 没 submit    → T,0,0；>1 s → DISABLE（固件自身 100 ms 无 T 即清零，DISABLE 只兜底）
 7. 进程退出/异常/断流           → DISABLE
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ class Guard:
     HARD_CAP = 7.5
 
     def __init__(self, link, soft_cap=3.0, slew=0.1, min_conf=0.5,
-                 wd_zero=0.05, wd_disable=0.2, stream_timeout=0.2, on_sent=None):
+                 wd_zero=0.1, wd_disable=1.0, stream_timeout=0.2, on_sent=None):
         self.link = link
         self.soft_cap = min(soft_cap, self.HARD_CAP)
         self.slew = slew

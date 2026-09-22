@@ -24,6 +24,7 @@ class DOFC(Controller):
         }
         self.hist: deque = deque(maxlen=400)   # (t, s)，够 1 s 以上
         self.s = 0.0
+        self.slow = 0.0          # 差值的慢均值：坐着一腿在前这类静态不对称不该变成持续力矩
         self._last_ms = None
 
     def step(self, frame, gait=None):
@@ -31,7 +32,9 @@ class DOFC(Controller):
             return self._out()
         self._last_ms = frame.ms
         a = self.p("ema")
-        self.s = (1 - a) * self.s + a * (frame.l_deg - frame.r_deg) / 2.0
+        d = (frame.l_deg - frame.r_deg) / 2.0
+        self.slow = 0.995 * self.slow + 0.005 * d          # ≈1 s 时间常数 @200 Hz
+        self.s = (1 - a) * self.s + a * (d - self.slow)
         self.hist.append((frame.t_host, self.s))
         return self._out()
 
