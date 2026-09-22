@@ -18,7 +18,8 @@ BAUD = 3_000_000
 
 
 def find_port() -> str:
-    cands = sorted(glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/ttyACM*"))
+    cands = sorted(glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/cu.usbserial*")
+                   + glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*"))
     if not cands:
         raise RuntimeError("没找到串口：外骨骼插上了吗？开机了吗？")
     return cands[0]
