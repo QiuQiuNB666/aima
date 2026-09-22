@@ -2,6 +2,29 @@
 
 EvoTavern 进化酒馆黑客松 · 深圳站（2026-09-21~24）· 01 具身与穿戴硬件赛道。
 
+## ShellOS：外骨骼主机端控制栈
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/pytest -q                                   # 安全层 + DOFC 单元测试
+
+# 第一次插上外骨骼（开机、进入工作态、插 Type-C）
+.venv/bin/python scripts/probe.py                     # PING → VERSION → ENABLE → 看 3 秒数据 → DISABLE
+.venv/bin/python scripts/probe.py --torque 0.5        # 再发 0.5 Nm 两秒，记下正值是伸展还是屈曲
+
+# 跑控制栈（手柄 USB 直连；按住 R2 才有力，× 急停，○ 重新上膛；键盘：空格 / Esc / R）
+.venv/bin/python -m shellos.main --ctl transparent    # 先透明模式，只录数据
+.venv/bin/python -m shellos.main --ctl dofc --cap 2   # DOFC 助力，软限 2 Nm
+
+# 没设备：对着录制数据跑
+.venv/bin/python -m shellos.main --replay data/recordings/synthetic-walk.csv --ctl dofc --force-deadman
+```
+
+已做：设备层（串口 / 回放 / 录制）、安全层（软限、斜率限、扳机死人开关、看门狗、退出必 DISABLE）、透明 + DOFC 控制律、手柄与键盘输入。
+没做：步态估计、相位控制律、网页仪表盘、经验库与大模型改参、EvoMap。分层与建法见 [docs/架构.md](docs/架构.md)。
+
+**真机第一次跑要确认的**：`probe.py` 报 200 Hz 左右；`--torque 0.5` 时力的方向（正值 = 伸展还是屈曲，决定 DOFC 的 gain 取正还是负）；手柄在 pygame 里 R2 是不是 axis 5（不是就改 `shellos/input/gamepad.py` 顶部常量）。
+
 ## 资料
 
 | 想干什么 | 读这个 |
