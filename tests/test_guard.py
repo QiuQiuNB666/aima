@@ -57,12 +57,21 @@ def test_deadman_scales():
     assert g.submit(2.0, 2.0) == (1.0, 1.0)
 
 
-def test_release_deadman_disables():
+def test_release_deadman_zeroes_but_keeps_stream():
     g, link = armed_guard(slew=10.0)
     g.submit(1.0, 1.0)
     assert g.state == ACTIVE
     g.set_deadman(0.0)
-    g.submit(1.0, 1.0)
+    assert g.submit(1.0, 1.0) == (0.0, 0.0)
+    assert g.state == ARMED and link.sent[-1] == "T,0.000,0.000"   # 清零，不 DISABLE
+    assert "DISABLE" not in link.sent
+    g.set_deadman(1.0)
+    assert g.submit(1.0, 1.0) == (1.0, 1.0) and g.state == ACTIVE  # 再按住直接恢复
+
+
+def test_estop_needs_rearm():
+    g, link = armed_guard(slew=10.0)
+    g.trigger_estop()
     assert g.state == DISARMED and link.sent[-1] == "DISABLE"
     assert g.submit(1.0, 1.0) == (0.0, 0.0)      # 不 rearm 就永远没力
     assert g.rearm() and g.state == ARMED and link.sent[-1] == "ENABLE"

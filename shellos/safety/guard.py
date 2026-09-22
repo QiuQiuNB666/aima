@@ -1,7 +1,8 @@
 """安全层：硬件和一切代码之间的唯一通道。
 
 规则按顺序，任一触发即短路：
-1. estop 或 deadman==0        → DISABLE，进 DISARMED，要 rearm() 才能再用
+1. estop                     → DISABLE，进 DISARMED，要 rearm() 才能再用
+   deadman==0                → 力矩归零回 ARMED（不 DISABLE：DISABLE 会停数据流），再按住即恢复
 2. 软限 |t| <= soft_cap        （默认 3 Nm；硬件 7.5 永远不用满）
 3. 斜率限 每拍变化 <= slew      （默认 0.1 Nm/拍 = 10 Nm/s @100 Hz）
 4. deadman 深度全局缩放          扳机按一半，力就一半
@@ -75,11 +76,17 @@ class Guard:
             self.last_submit_t = time.monotonic()
             if self.state in (DISCONNECTED, CONNECTED, DISARMED):
                 return self.last_sent
-            if self.estop or self.deadman <= 0.0:
-                if self.state == ACTIVE or self.last_sent != (0.0, 0.0):
-                    self._disarm_locked("estop" if self.estop else "deadman released")
-                else:
-                    self.state = ARMED
+            if self.estop:
+                self._disarm_locked("estop")
+                return self.last_sent
+            if self.deadman <= 0.0:
+                if self.last_sent != (0.0, 0.0):
+                    self.link.send_torque(0.0, 0.0)
+                    self.last_sent = (0.0, 0.0)
+                    if self.on_sent:
+                        self.on_sent(0.0, 0.0)
+                self.state = ARMED
+                self.last_reason = "deadman released"
                 return self.last_sent
             if self.link.stream_age() > self.stream_timeout:
                 tl = tr = 0.0

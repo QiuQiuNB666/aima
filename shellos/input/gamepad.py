@@ -29,8 +29,11 @@ class Gamepad:
         js.init()
         self.connected = True
         clock = pygame.time.Clock()
+        seen_r2 = False          # SDL 在第一个事件之前把扳机读成 0（=按一半），必须等到真实事件
         while True:
             for ev in pygame.event.get():
+                if ev.type == pygame.JOYAXISMOTION and ev.axis == R2_AXIS:
+                    seen_r2 = True
                 if ev.type == pygame.JOYBUTTONDOWN:
                     if ev.button == BTN_CROSS:
                         self.guard.trigger_estop("gamepad ×")
@@ -42,6 +45,6 @@ class Gamepad:
                     self.connected = False
                     self.guard.set_deadman(0.0, "gamepad")
                     return
-            self.r2 = (js.get_axis(R2_AXIS) + 1.0) / 2.0     # → 0..1
+            self.r2 = (js.get_axis(R2_AXIS) + 1.0) / 2.0 if seen_r2 else 0.0     # → 0..1
             self.guard.set_deadman(self.r2 if self.r2 > 0.05 else 0.0, "gamepad")
             clock.tick(100)
