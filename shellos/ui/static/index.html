@@ -114,7 +114,7 @@ function drawPhase(g){
 async function tick(){
  try{const s=await (await fetch('/state')).json();
   $('st').textContent=s.safety.state;$('st').className='state '+s.safety.state;$('reason').textContent=s.safety.reason;
-  $('link').textContent=`${s.link.port} · ${s.link.n} 帧 · 坏 ${s.link.bad} · ${s.link.age_ms} ms`;
+  $('link').textContent=`${s.link.port} · ${s.link.n} 帧 · ${s.link.age_ms} ms · OK,T ${(s.link.replies||{})['OK,T']||0} · ${s.link.enabled?'已使能':'未使能'}${s.link.reboots?' · 复位 '+s.link.reboots+' 次':''}${s.link.last_err?' · '+s.link.last_err:''}`;
   $('tl').textContent=s.safety.sent[0].toFixed(2);$('tr').textContent=s.safety.sent[1].toFixed(2);
   $('cap').textContent=s.safety.cap+' Nm';$('dm').textContent=s.safety.deadman+(Object.keys(s.safety.sources).length?' ('+Object.keys(s.safety.sources).join('+')+')':'');
   if(s.frame){hL.push(s.frame.l);hR.push(s.frame.r);$('imu').textContent=s.frame.pitch.toFixed(1)+' / '+s.frame.roll.toFixed(1);$('kpa').textContent=s.frame.kpa.toFixed(1)}

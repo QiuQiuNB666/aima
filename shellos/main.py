@@ -138,6 +138,8 @@ def main():
     period = 1.0 / LOOP_HZ
     next_t = time.monotonic()
     last_print = 0.0
+    last_recover = 0.0
+    seen_reboots = 0
     st = None
     max_gap = 0.0
     prev_t = time.monotonic()
@@ -153,6 +155,15 @@ def main():
             tl, tr = ctl.step(f, st)
             guard.submit(tl, tr, confidence=st.conf if ctl.name == "phase" else 1.0)
         now = time.monotonic()
+        if (not a.replay and now - last_recover > 2.0 and guard.state in ("ARMED", "ACTIVE")
+                and link.needs_recovery()):
+            last_recover = now
+            if link.reboots != seen_reboots:
+                seen_reboots = link.reboots
+                app.log(f"设备复位了（第 {link.reboots} 次）——重新 ENABLE")
+            ok = link.recover()
+            guard.arm()                      # 力矩从 0 重新爬
+            app.log("重新 ENABLE " + ("成功" if ok else "失败，2 秒后再试"))
         if now - last_print > 0.5:
             last_print = now
             app.loop_ms, max_gap = round(max_gap * 1000), 0.0

@@ -39,6 +39,8 @@ class SerialLink:
         self.last_frame_t = 0.0
         self.replies_seen: dict = {}          # 前缀 → 次数，例如 OK,T / ERR,NOT_ENABLED
         self.last_err = ""
+        self.enabled = False                  # 收到 OK,ENABLE 为真；看到开机日志或 ERR,NOT_ENABLED 为假
+        self.reboots = 0
         self._wlock = threading.Lock()
         self._alive = True
         self._thr = threading.Thread(target=self._reader, name="serial-read", daemon=True)
@@ -67,6 +69,16 @@ class SerialLink:
                     self.replies_seen[key] = self.replies_seen.get(key, 0) + 1
                     if line.startswith("ERR"):
                         self.last_err = line
+                        if line.startswith("ERR,NOT_ENABLED"):
+                            self.enabled = False
+                    elif line.startswith("OK,ENABLE"):
+                        self.enabled = True
+                    elif line.startswith("OK,DISABLE"):
+                        self.enabled = False
+                    elif "[initImpl]" in line or line.startswith("Total PSRAM"):
+                        if self.enabled or self.n_frames:      # 开机日志 = 设备刚复位
+                            self.reboots += 1
+                        self.enabled = False
                     if self.replies.qsize() < 50:
                         self.replies.put(line)
                 continue
@@ -96,6 +108,18 @@ class SerialLink:
             self.send("DISABLE")
         except Exception:
             pass
+
+    def needs_recovery(self) -> bool:
+        """设备复位 / 未使能 / 断流 —— 调用方应重新 ENABLE。"""
+        return (not self.enabled) or self.stream_age() > 1.0
+
+    def recover(self) -> bool:
+        """重新 ENABLE。成功返回 True。"""
+        try:
+            self.send("ENABLE")
+        except Exception:
+            return False
+        return bool(self.wait_reply("OK,ENABLE", 0.5))
 
     def wait_reply(self, prefix: str, timeout: float = 1.0) -> str | None:
         end = time.monotonic() + timeout
