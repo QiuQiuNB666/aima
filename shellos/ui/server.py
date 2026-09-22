@@ -83,7 +83,7 @@ class Dashboard:
             "gait": {"phase_l": st.l.phase, "phase_r": st.r.phase, "conf": st.conf, "cadence": st.cadence,
                      "symmetry": st.symmetry, "variability": st.variability, "rom_l": st.l.rom, "rom_r": st.r.rom,
                      "strides": st.l.n_strides + st.r.n_strides, "moving": st.moving},
-            "ctl": {"name": a.ctl.name, "params": {k: v for k, v in a.ctl.params.items()}, "available": list(a.ctls)},
+            "ctl": {"name": next((k for k, c in a.ctls.items() if isinstance(a.ctl, c)), a.ctl.name), "params": {k: v for k, v in a.ctl.params.items()}, "available": list(a.ctls)},
             "events": a.events[-30:],
             "loop_ms": getattr(a, "loop_ms", 0),
         }
