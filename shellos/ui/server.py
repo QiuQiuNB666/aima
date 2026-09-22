@@ -25,7 +25,7 @@ class Dashboard:
         self.port = port
         self._last_hold = 0.0
         html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
-        self._html = open(html_path, "rb").read()
+        self._html = open(html_path, "rb").read().replace(b"__V__", str(int(time.time())).encode())   # 模块脚本防缓存
         dash = self
 
         class H(BaseHTTPRequestHandler):
@@ -43,11 +43,27 @@ class Dashboard:
             def do_GET(self):
                 if self.path.startswith("/state"):
                     return self._json(dash.state())
+                if self.path.startswith("/vendor/") or self.path.startswith("/models/") or self.path.startswith("/body3d.js"):
+                    return self._static(self.path.split("?")[0])
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(dash._html)))
                 self.end_headers()
                 self.wfile.write(dash._html)
+
+            def _static(self, path):
+                base = os.path.join(os.path.dirname(__file__), "static")
+                full = os.path.normpath(os.path.join(base, path.lstrip("/")))
+                if not full.startswith(base) or not os.path.isfile(full):
+                    self.send_response(404); self.end_headers(); return
+                ctype = "application/javascript" if full.endswith(".js") else "model/gltf-binary" if full.endswith(".glb") else "application/octet-stream"
+                data = open(full, "rb").read()
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "max-age=3600" if "/vendor/" in path or "/models/" in path else "no-cache")
+                self.end_headers()
+                self.wfile.write(data)
 
             def do_POST(self):
                 n = int(self.headers.get("Content-Length") or 0)
