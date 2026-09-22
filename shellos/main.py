@@ -69,6 +69,7 @@ class App:
         self.ctl = CTLS[self.ctl_key()]()
         if hasattr(old, "ghost") and hasattr(self.ctl, "ghost"):   # 换人/复位不丢「山的记忆」
             self.ctl.set_preset(old.preset)
+            self.ctl.params = old.params                                 # 强度等参数也保留（经验卡另算）
             self.ctl.ghost, self.ctl.ghost_who, self.ctl.best = old.ghost, old.ghost_who, old.best
             if old.lap_steps and not old.ghost:                        # 上一位没爬完也留作影子
                 self.ctl.ghost, self.ctl.ghost_who = old.lap_steps, old.wearer
@@ -131,7 +132,7 @@ class App:
         else:
             self.ctl.set_preset(preset)
         self.ctl.reset()
-        self.log(f"地形：{preset}（{self.ctl.total} 步一圈）")
+        self.log(f"世界：{self.ctl.world['name']}（{self.ctl.total} 步）")
 
     def enable_exp(self, id_):
         it = self.store.set_enabled(int(id_), True)

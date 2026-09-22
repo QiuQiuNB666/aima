@@ -115,7 +115,7 @@ def test_memory_loop(tmp_path, monkeypatch):
 def test_terrain_and_puppet():
     from shellos.control.terrain import Terrain
     from shellos.control.puppet import Puppet
-    t = Terrain("台阶", strength=2.0)
+    t = Terrain("train_stairs", strength=2.0)
     g = GaitEstimator()
     seen = {}
     for fr in walk(20.0, spm=100):
@@ -140,7 +140,7 @@ def test_terrain_lap_and_ghost():
     """走完一圈 → 记用时、留影子；复位后影子按时间前进。"""
     import time as _t
     from shellos.control.terrain import Terrain
-    t = Terrain("台阶")
+    t = Terrain("train_stairs")
     t.wearer = "judge-01"
     g = GaitEstimator()
     for fr in walk(40.0, spm=110):
@@ -152,3 +152,24 @@ def test_terrain_lap_and_ghost():
     t.reset()
     s = t.status()
     assert s["pos"] == 0 and s["ghost_pos"] == 0          # 还没迈步，影子也在起点
+
+
+def test_worlds_and_red_light():
+    from shellos import worlds
+    from shellos.control.terrain import Terrain
+    assert {"tokyo_night", "taishan_18pan", "fuji_yoshida", "wutong_haohan"} <= set(worlds.WORLDS)
+    for w in worlds.summary():
+        assert w["steps"] > 10 and w["alt"][1] >= w["alt"][0]
+    t = Terrain("tokyo_night")                  # 第 5–7 步是红灯
+    g = GaitEstimator()
+    t_sim = 0.0
+    frames = list(walk(8.0, spm=110))
+    for fr in frames:
+        st = g.update(fr); t.step(fr, st)
+    assert t.segment_at(t.pos) == "wait"        # 走到红灯前被拦住，不再前进
+    stuck = t.pos
+    for fr in frames[:200]:
+        st = g.update(fr); t.step(fr, st)
+    assert t.pos == stuck
+    s = t.status()
+    assert s["label"] == "十字路口·红灯" and s["next"]["label"] == "斑马线"

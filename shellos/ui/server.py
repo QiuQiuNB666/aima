@@ -43,6 +43,11 @@ class Dashboard:
             def do_GET(self):
                 if self.path.startswith("/state"):
                     return self._json(dash.state())
+                if self.path.split("?")[0] == "/worlds.json":
+                    from .. import worlds
+                    return self._json(worlds.summary())
+                if self.path.split("?")[0] in ("/worlds", "/worlds.html"):
+                    return self._file(os.path.join(os.path.dirname(__file__), "static", "worlds.html"), "text/html; charset=utf-8")
                 if self.path.split("?")[0] in ("/game", "/game.html"):
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "game.html"), "text/html; charset=utf-8")
                 if self.path.startswith("/vendor/") or self.path.startswith("/models/") or self.path.startswith("/body3d.js"):
@@ -192,7 +197,7 @@ class Dashboard:
                 return {"walk": a.link.walking, "cadence": a.link.cadence}
             return {"error": "not sim"}
         if path == "/terrain":
-            a.set_terrain(body.get("preset", "山的记忆"))
+            a.set_terrain(body.get("preset") or body.get("world") or "tokyo_night")
             return {"ok": True}
         if path == "/terrain/force":
             if hasattr(a.ctl, "force"):

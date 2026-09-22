@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>选一座山</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#07080c;--fg:#eef2f6;--dim:#8a95a3;--line:#1d232c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,"PingFang SC","Hiragino Sans GB",sans-serif}
+header{padding:36px 40px 10px}
+header h1{margin:0;font-size:40px;letter-spacing:4px}
+header p{margin:6px 0 0;color:var(--dim);font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:22px;padding:24px 40px}
+.card{border-radius:18px;overflow:hidden;background:#0e1117;border:1px solid var(--line);display:flex;flex-direction:column;cursor:pointer;transition:transform .15s,border-color .15s}
+.card:hover{transform:translateY(-3px);border-color:#3a4555}
+.card.sel{border-color:#fff;box-shadow:0 0 0 2px #fff inset}
+.sky{height:170px;position:relative}
+.sky canvas{position:absolute;inset:0;width:100%;height:100%}
+.sky .alt{position:absolute;right:14px;top:10px;font-size:13px;color:#fff;background:rgba(0,0,0,.45);padding:2px 8px;border-radius:6px}
+.sky .num{position:absolute;left:14px;top:10px;font-size:13px;color:#fff;background:rgba(0,0,0,.45);padding:2px 8px;border-radius:6px;letter-spacing:2px}
+.body{padding:16px 20px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
+.name{font-size:26px;font-weight:700}
+.sub{color:var(--dim);font-size:14px}
+.story{font-size:15px}
+.mix{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:4px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.note{font-size:12px;color:#6d7784;margin-top:auto}
+.summit{font-size:13px;color:#cfd6de}
+h2{padding:10px 40px 0;margin:0;font-size:15px;color:var(--dim);letter-spacing:2px;font-weight:500}
+.go{position:fixed;right:32px;bottom:28px;padding:18px 30px;font-size:20px;font-weight:700;border-radius:14px;border:0;background:#fff;color:#000;cursor:pointer;display:none}
+</style></head><body>
+<header><h1>选一座山</h1><p>你在原地迈步，腿会感到坡和台阶。上一位登山者会化作影子，和你并排爬。</p></header>
+<div class="grid" id="main"></div>
+<h2>训练场</h2>
+<div class="grid" id="train"></div>
+<button class="go" id="go">进入 →</button>
+<script>
+const KC={flat:'#556070',up:'#3ddc84',down:'#4fc3f7',stairs_up:'#ffd54f',stairs_down:'#ff8a65',wait:'#ff2e88'};
+const KN={flat:'平地',up:'上坡',down:'下坡',stairs_up:'上台阶',stairs_down:'下台阶',wait:'红灯停'};
+const RISE={flat:0,up:.08,down:-.08,stairs_up:.12,stairs_down:-.12,wait:0};
+let chosen=null;
+function drawSky(cv,w){
+  const r=cv.getBoundingClientRect(),W=cv.width=r.width*devicePixelRatio,H=cv.height=r.height*devicePixelRatio,ctx=cv.getContext('2d');
+  const t=w.theme,g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,t.sky[0]);g.addColorStop(1,t.sky[1]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // 远山 / 城市剪影
+  ctx.fillStyle=t.fog;ctx.globalAlpha=.55;ctx.beginPath();ctx.moveTo(0,H);
+  if(t.style==='cyber_night'){for(let x=0;x<W;x+=W/22){const bh=H*(.25+.45*Math.abs(Math.sin(x*.013+1)));ctx.lineTo(x,H-bh);ctx.lineTo(x+W/26,H-bh)}}
+  else{for(let x=0;x<=W;x+=4)ctx.lineTo(x,H*.55-Math.sin(x/W*6+1)*H*.08-Math.sin(x/W*17)*H*.03)}
+  ctx.lineTo(W,H);ctx.fill();ctx.globalAlpha=1;
+  if(t.style==='cyber_night'){for(let i=0;i<26;i++){ctx.fillStyle=t.accent[i%3];ctx.globalAlpha=.8;ctx.fillRect((i*97%W),H*.3+(i*53%(H*.5)),W*.02,3*devicePixelRatio)}ctx.globalAlpha=1}
+  if(t.style==='night_to_dawn'){ctx.fillStyle='#fff';for(let i=0;i<40;i++){ctx.globalAlpha=.6;ctx.fillRect(i*131%W,i*71%(H*.5),2,2)}ctx.globalAlpha=1}
+  // 路线剖面
+  let h=0;const pts=[];w.route.forEach(s=>{for(let k=0;k<s.steps;k++){pts.push([h,s.kind]);h+=RISE[s.kind]}});
+  const hs=pts.map(p=>p[0]),mn=Math.min(...hs),mx=Math.max(...hs,mn+.01);
+  const X=i=>W*.06+i/(pts.length-1)*W*.88,Y=v=>H*.92-(v-mn)/(mx-mn)*H*.62;
+  ctx.lineWidth=5*devicePixelRatio;ctx.lineCap='round';
+  for(let i=0;i<pts.length-1;i++){ctx.strokeStyle=KC[pts[i][1]];ctx.beginPath();
+    if(pts[i][1].startsWith('stairs')){ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}
+    else{ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}ctx.stroke()}
+  const e=pts.length-1;ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(X(e),Y(pts[e][0]));ctx.lineTo(X(e),Y(pts[e][0])-22*devicePixelRatio);ctx.lineTo(X(e)+14*devicePixelRatio,Y(pts[e][0])-16*devicePixelRatio);ctx.lineTo(X(e),Y(pts[e][0])-10*devicePixelRatio);ctx.fill();
+}
+function card(w,i){
+  const d=document.createElement('div');d.className='card';
+  const mix=Object.entries(w.mix).map(([k,v])=>`<div style="flex:${v};background:${KC[k]}"></div>`).join('');
+  const leg=Object.entries(w.mix).map(([k,v])=>`<span><i style="background:${KC[k]}"></i>${KN[k]} ${v}</span>`).join('');
+  d.innerHTML=`<div class="sky"><canvas></canvas><div class="num">${w.training?'TRAINING':'0'+(i+1)}</div><div class="alt">${w.alt[0]} → ${w.alt[1]} ${w.unit}</div></div>
+   <div class="body"><div class="name">${w.name}</div><div class="sub">${w.subtitle}</div><div class="story">${w.story}</div>
+   <div class="mix">${mix}</div><div class="legend">${leg}<span>共 ${w.steps} 步</span></div>
+   ${w.summit.text?`<div class="summit">终点 · ${w.summit.name}：${w.summit.text}</div>`:''}
+   ${w.note?`<div class="note">${w.note}</div>`:''}</div>`;
+  d.onclick=()=>{document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));d.classList.add('sel');chosen=w.id;$go.style.display='block';$go.textContent='进入「'+w.name+'」 →'};
+  requestAnimationFrame(()=>drawSky(d.querySelector('canvas'),w));return d;
+}
+const $go=document.getElementById('go');
+$go.onclick=async()=>{if(!chosen)return;try{await fetch('/ctl',{method:'POST',body:JSON.stringify({name:'terrain'})});await fetch('/terrain',{method:'POST',body:JSON.stringify({preset:chosen})})}catch(e){}location.href='/game'};
+fetch('/worlds.json').then(r=>r.json()).then(ws=>{let n=0;ws.forEach(w=>(w.training?document.getElementById('train'):document.getElementById('main')).appendChild(card(w,w.training?0:n++)))});
+</script></body></html>

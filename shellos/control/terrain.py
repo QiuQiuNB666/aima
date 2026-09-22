@@ -1,34 +1,30 @@
-"""虚拟地形：让腿感受一段不存在的路。
+"""虚拟地形：让腿感受一段不存在的路。路线来自 shellos/worlds/*.json（和登山游戏共用）。
 
-地形 = 一串路段 [(kind, steps)]，kind ∈ flat / up / down / stairs_up / stairs_down。
-穿戴者每走一步（步态估计的周期事件）位置前进一步；当前路段决定这一步给什么力：
-  up          蹬地相位给伸展助力脉冲（正）——"有人在后面推"，坡越陡越大
-  down        摆动末期给屈曲阻力脉冲（负）——"腿被拖住"
-  stairs_up   触地相位一个短促的正脉冲——"台阶到了"
-  stairs_down 短促负脉冲
+穿戴者每走一步（步态估计接受的一个周期）位置前进一步；当前路段决定这一步给什么力：
+  up          早支撑伸展脉冲——"有人在后面推"
+  down        早支撑制动脉冲——"腿被拖住"（推断）
+  stairs_up   早支撑伸展 + 摆动期屈曲——"抬腿、蹬上去"
+  stairs_down 制动
+  wait        红灯：走着会被轻轻拉住、位置不前进；站定 2 s 放行
   flat        0
 脉冲式而不是持续顶：发热小、电量省、人对变化更敏感。正 = 伸展（9/22 数据推断，待穿上验证）。
 
-相位约定：文献以脚跟着地 = 0% 周期。我们的相位估计器 0 = 髋角最大（≈蹬离地），脚跟着地 ≈ 估计器相位 HS_PHASE（默认 0.5，
-现场校准：让人走几步，看 IMU 加速度冲击落在估计器相位的哪里）。参数表里的相位全按文献约定写，内部再加 HS_PHASE。
+相位约定：文献以脚跟着地 = 0% 周期。估计器 0 = 髋角最大（≈蹬离地），脚跟着地 ≈ 估计器相位 HS_PHASE（默认 0.5，
+现场校准）。参数表里的相位全按文献约定写，内部再加 HS_PHASE。
 数字依据（调研/设备/髋关节力矩感知阈值与脉冲设计.md）：上坡 = 早支撑髋伸脉冲（Lay 2006、Montgomery 2018）；
-脉冲宽 10–20% 周期、梯形；时序 JND ≈2.8% 周期、力矩 Weber 分数 12–19% → "早 5%"、"±0.5 Nm" 可分辨。
-下坡用屈曲向制动脉冲是推断（文献只说下坡是膝在吸能）。
+脉冲宽 10–20% 周期、梯形；时序 JND ≈2.8% 周期、力矩 Weber 分数 12–19%。下坡用制动脉冲是推断。
 """
 from __future__ import annotations
-import math
 import time
 
 from .base import Controller
+from .. import worlds as W
 
 HS_PHASE = 0.5   # 脚跟着地在估计器相位里的位置，现场校准后改
-
-PRESETS = {
-    "山的记忆": [("flat", 4), ("up", 8), ("stairs_up", 6), ("flat", 3), ("down", 8), ("stairs_down", 4), ("flat", 4)],
-    "台阶": [("flat", 3), ("stairs_up", 8), ("flat", 3), ("stairs_down", 8), ("flat", 3)],
-    "长坡": [("flat", 3), ("up", 15), ("flat", 3), ("down", 15), ("flat", 3)],
-}
-GRADE = {"flat": 0.0, "up": 1.0, "down": -1.0, "stairs_up": 1.5, "stairs_down": -1.5}
+WAIT_STILL_S = 2.0
+LEGACY = {"台阶": "train_stairs", "长坡": "train_slope", "山的记忆": "taishan_18pan"}
+RISE = {"flat": 0.0, "up": 0.08, "down": -0.08, "stairs_up": 0.12, "stairs_down": -0.12, "wait": 0.0}
+PRESETS = {wid: [(s["kind"], s["steps"]) for s in w["route"]] for wid, w in W.WORLDS.items()}   # 兼容旧接口
 
 
 def _bump(phase_pct, center_pct, width_pct):
@@ -45,83 +41,107 @@ def _bump(phase_pct, center_pct, width_pct):
 class Terrain(Controller):
     name = "terrain"
 
-    def __init__(self, preset="山的记忆", strength=1.5):
+    def __init__(self, preset=W.DEFAULT, strength=1.5):
         super().__init__()
         self.params = {
             "strength": [strength, 0.0, 3.0],     # Nm，上坡脉冲峰值（下坡 ×0.8，台阶 ×1.2）
             "t_push":   [11.0, 0.0, 100.0],       # 上坡伸展脉冲中心：早支撑 5–17%（脚跟着地=0%）
-            "t_brake":  [10.0, 0.0, 100.0],       # 下坡制动脉冲中心：5–15%
+            "t_brake":  [10.0, 0.0, 100.0],       # 制动脉冲中心：5–15%
             "t_step":   [6.0, 0.0, 100.0],        # 台阶伸展脉冲：0–12%；摆动期屈曲脉冲固定在 68%
-            "width":    [12.0, 6.0, 20.0],        # 脉冲半宽 % 周期（文献 10–20%）
+            "width":    [12.0, 6.0, 20.0],        # 脉冲宽 % 周期（文献 10–20%）
         }
+        self.force = None                         # 强制路段（2AFC / 演示）
+        self.wearer = "anon"
         self.set_preset(preset)
         self._strides = 0
-        self.force = None                         # 强制路段（2AFC 校准 / 演示时手动"给他上坡"）
 
+    # ---- 世界 ----
     def set_preset(self, preset):
-        self.preset = preset if preset in PRESETS else "山的记忆"
-        self.segments = PRESETS[self.preset]
+        wid = LEGACY.get(preset, preset)
+        self.world = W.get(wid)
+        self.preset = self.world["id"]
+        self.route = self.world["route"]
+        self.segments = [(s["kind"], s["steps"]) for s in self.route]
         self.total = sum(n for _, n in self.segments)
         self.pos = 0
         self.laps = 0
-        self.lap_t0 = None            # 这一圈第一步的时刻
-        self.lap_steps: list = []     # 这一圈每一步相对 lap_t0 的秒数
-        self.ghost: list = []         # 上一圈（上一位）的每一步时刻 —— "山的记忆"
-        self.ghost_who = ""
-        self.best = None              # 最快一圈的秒数
+        self.lap_t0 = None
+        self.lap_steps: list = []
         self.last_lap = None
-        self.wearer = "anon"
+        self._still_since = None
+        # 换世界：影子和最佳成绩只在同一个世界里有意义
+        self.ghost: list = []                     # 上一位的每一步时刻 ——「山的记忆」
+        self.ghost_who = ""
+        self.best = None
 
     def reset(self):
-        """换人/演示复位：回到山脚。上一圈留作影子。"""
+        """换人/演示复位：回到起点。上一圈留作影子。"""
         self.pos = 0
         self._strides = 0
         self.lap_t0 = None
         self.lap_steps = []
+        self._still_since = None
+
+    def seg_index(self, pos):
+        p = pos % self.total
+        for i, (_, n) in enumerate(self.segments):
+            if p < n:
+                return i, p
+            p -= n
+        return len(self.segments) - 1, 0
 
     def segment_at(self, pos):
         if self.force:
             return self.force
-        p = pos % self.total
-        for kind, n in self.segments:
-            if p < n:
-                return kind
-            p -= n
-        return "flat"
+        return self.segments[self.seg_index(pos)[0]][0]
 
     def profile(self):
-        """给界面画剖面：每一步的累计高度。"""
+        """每一步的累计高度（游戏单位）与路段，给界面画剖面/建山路。"""
         h, out = 0.0, []
-        for kind, n in self.segments:
-            for _ in range(n):
-                out.append({"kind": kind, "h": h})
-                h += GRADE[kind] * 0.15
+        for seg in self.route:
+            for _ in range(seg["steps"]):
+                out.append({"kind": seg["kind"], "h": round(h, 3), "label": seg["label"]})
+                h += RISE[seg["kind"]]
         return out
+
+    # ---- 前进 ----
+    def _advance(self, n, now):
+        for _ in range(n):
+            if self.lap_t0 is None:
+                self.lap_t0 = now
+            self.lap_steps.append(now - self.lap_t0)
+            self.pos += 1
+            if self.pos >= self.total:              # 登顶一圈
+                self.laps += 1
+                self.pos = 0
+                self.last_lap = self.lap_steps[-1]
+                self.best = self.last_lap if self.best is None else min(self.best, self.last_lap)
+                self.ghost, self.ghost_who = self.lap_steps, self.wearer
+                self.lap_steps, self.lap_t0 = [], None
 
     def step(self, frame, gait=None):
         if gait is None:
             return 0.0, 0.0
+        now = time.monotonic()
+        kind = self.segment_at(self.pos)
         strides = gait.l.n_strides + gait.r.n_strides
         if strides < self._strides:                     # 步态估计被重置（换人）
             self._strides = strides
-        if strides != self._strides:                    # 一个新的步态周期 = 前进一步
-            now = time.monotonic()
-            for _ in range(strides - self._strides):
-                if self.lap_t0 is None:
-                    self.lap_t0 = now
-                self.lap_steps.append(now - self.lap_t0)
-                self.pos += 1
-                if self.pos >= self.total:              # 登顶一圈
-                    self.laps += 1
-                    self.pos = 0
-                    self.last_lap = self.lap_steps[-1]
-                    self.best = self.last_lap if self.best is None else min(self.best, self.last_lap)
-                    self.ghost, self.ghost_who = self.lap_steps, self.wearer
-                    self.lap_steps, self.lap_t0 = [], None
-            self._strides = strides
+        new = strides - self._strides
+        self._strides = strides
+        if kind == "wait" and not self.force:           # 红灯：走着不前进，站定 2 s 放行
+            if gait.moving:
+                self._still_since = None
+            else:
+                self._still_since = self._still_since or now
+                if now - self._still_since >= WAIT_STILL_S:
+                    i, off = self.seg_index(self.pos)
+                    self._advance(self.segments[i][1] - off, now)
+                    self._still_since = None
+        elif new > 0:
+            self._advance(new, now)
         kind = self.segment_at(self.pos)
-        g = GRADE[kind]
-        if g == 0.0 or not gait.moving:
+        if kind == "flat" or not gait.moving:
             return 0.0, 0.0
         s, w = self.p("strength"), self.p("width")
         lit = lambda ph: ((ph - HS_PHASE) % 1.0) * 100.0     # 估计器相位 → 文献相位（脚跟着地=0%）
@@ -129,19 +149,37 @@ class Terrain(Controller):
             f = lambda ph: s * _bump(lit(ph), self.p("t_push"), w)
         elif kind == "down":
             f = lambda ph: -0.8 * s * _bump(lit(ph), self.p("t_brake"), w)
-        elif kind == "stairs_up":                        # 早支撑伸展 + 摆动期屈曲（抬腿更高）
+        elif kind == "stairs_up":
             f = lambda ph: 1.2 * s * _bump(lit(ph), self.p("t_step"), w) - 0.8 * s * _bump(lit(ph), 68.0, w)
-        else:                                            # 下台阶：制动脉冲
+        elif kind == "stairs_down":
             f = lambda ph: -1.0 * s * _bump(lit(ph), self.p("t_brake"), w)
+        else:                                            # wait：走着就轻轻拉住
+            f = lambda ph: -0.5 * s * _bump(lit(ph), self.p("t_brake"), w)
         return f(gait.l.phase), f(gait.r.phase)
 
+    # ---- 给游戏 / 仪表盘 ----
     def status(self):
-        el = (time.monotonic() - self.lap_t0) if self.lap_t0 is not None else 0.0
-        ghost_pos = None
-        if self.ghost:
-            ghost_pos = sum(1 for x in self.ghost if x <= el) if self.lap_t0 is not None else 0
-        return {"preset": self.preset, "pos": self.pos, "total": self.total, "laps": self.laps,
-                "segment": self.segment_at(self.pos), "force": self.force, "profile": self.profile(),
-                "segments": self.segments, "presets": list(PRESETS), "hs_phase": HS_PHASE,
+        now = time.monotonic()
+        el = (now - self.lap_t0) if self.lap_t0 is not None else 0.0
+        ghost_pos = (sum(1 for x in self.ghost if x <= el) if self.lap_t0 is not None else 0) if self.ghost else None
+        i, off = self.seg_index(self.pos)
+        seg = self.route[i]
+        nxt = None
+        for j in range(i + 1, len(self.route)):
+            if self.route[j]["kind"] != seg["kind"]:
+                nxt = {"label": self.route[j]["label"], "kind": self.route[j]["kind"],
+                       "in": sum(self.route[k]["steps"] for k in range(i, j)) - off}
+                break
+        prof = self.profile()
+        hmax = max((p["h"] for p in prof), default=1.0) or 1.0
+        h_now = prof[self.pos]["h"] if prof else 0.0
+        a0, a1 = self.world["alt"]
+        return {"preset": self.preset, "world": {k: self.world[k] for k in ("id", "name", "subtitle", "summit", "theme", "unit")},
+                "pos": self.pos, "total": self.total, "laps": self.laps,
+                "segment": self.segment_at(self.pos), "label": seg["label"], "next": nxt,
+                "wait_still": round(now - self._still_since, 1) if (seg["kind"] == "wait" and self._still_since) else None,
+                "altitude": round(a0 + (a1 - a0) * (h_now / hmax)),
+                "force": self.force, "profile": prof, "segments": self.segments,
+                "presets": list(W.WORLDS), "hs_phase": HS_PHASE,
                 "elapsed": round(el, 1), "best": self.best, "last_lap": self.last_lap,
                 "ghost_pos": ghost_pos, "ghost_who": self.ghost_who}
