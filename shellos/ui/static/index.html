@@ -71,7 +71,15 @@ input,select{font:inherit;background:#0e1115;color:var(--fg);border:1px solid #3
    <tr><td><b>← →</b></td><td>第 2 个参数 ± 一档（峰时 / 延迟 / 右腿力矩）</td></tr>
    <tr><td><b>L1 / R1</b></td><td>上一个 / 下一个控制律</td></tr>
    <tr><td><b>△</b></td><td>在事件流打一个"评委反馈点"</td></tr>
+   <tr><td><b>□</b></td><td>眼镜拍一张，看路</td></tr>
   </table>
+ </div>
+ <div class="panel" style="margin-top:12px"><h2>Luma 眼镜 <span id="glst" style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0"></span></h2>
+  <div class="row"><button id="glinfo" style="flex:1">连接 / 电量</button><button id="gllook" style="flex:2;background:#1f3b2a;color:var(--ok)">□ 拍一张看路</button></div>
+  <div class="row" style="margin-top:8px;align-items:flex-start">
+   <img id="glimg" style="width:160px;height:120px;object-fit:cover;border-radius:6px;background:#0e1115" alt="">
+   <div style="flex:1"><div id="glterrain" style="font-size:22px;font-weight:700">–</div><div id="glsay" style="color:var(--dim)"></div></div>
+  </div>
  </div>
  <div class="panel" style="margin-top:12px"><h2>控制律</h2>
   <select id="ctl"></select>
@@ -93,7 +101,7 @@ function stopHold(e){if(!holding)return;holding=false;$('hold').classList.remove
 $('hold').addEventListener('pointerdown',startHold);
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>$('hold').addEventListener(ev,stopHold));
 window.addEventListener('blur',stopHold);
-$('estop').onclick=()=>post('/estop');$('rearm').onclick=()=>post('/rearm');
+$('estop').onclick=()=>post('/estop');$('glinfo').onclick=()=>post('/glasses/info');$('gllook').onclick=()=>post('/glasses/look');let lastShotT=0;$('rearm').onclick=()=>post('/rearm');
 $('sayb').onclick=()=>{const t=$('say').value.trim();if(t){post('/log',{text:'评委：'+t});$('say').value=''}};
 $('say').addEventListener('keydown',e=>{if(e.key==='Enter')$('sayb').click()});
 $('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});
@@ -137,6 +145,10 @@ async function tick(){
   hT.push(s.safety.sent[0]);hT2.push(s.safety.sent[1]);[hL,hR,hT,hT2].forEach(a=>{while(a.length>N)a.shift()});
   const g=s.gait;$('cad').textContent=g.cadence.toFixed(0);$('sym').textContent=g.symmetry.toFixed(2);$('var').textContent=(g.variability*100).toFixed(0)+'%';
   $('conf').textContent=g.conf.toFixed(2);$('rom').textContent=g.rom_l.toFixed(0)+' / '+g.rom_r.toFixed(0);$('str').textContent=g.strides;$('loop').textContent=s.loop_ms+' ms';
+  const gl=s.glasses;$('glst').textContent=!gl.available?'未找到 luma 程序':gl.busy?'工作中…':'就绪';
+  if(gl.shot&&gl.shot_t!==lastShotT){lastShotT=gl.shot_t;$('glimg').src='/shots/latest.jpg?'+gl.shot_t}
+  const T={flat:'平地',stairs_up:'上楼梯',stairs_down:'下楼梯',slope_up:'上坡',slope_down:'下坡',obstacle:'障碍',unknown:'不确定'};
+  if(gl.terrain&&gl.terrain.terrain){$('glterrain').textContent=(T[gl.terrain.terrain]||gl.terrain.terrain)+' '+Math.round((gl.terrain.confidence||0)*100)+'%';$('glsay').textContent=gl.terrain.say||''}
   renderParams(s.ctl);drawSeries();drawPhase(g);updateBody(s.frame);if(s.frame)$('c3info').textContent=`L ${s.frame.l.toFixed(0)}° R ${s.frame.r.toFixed(0)}° · pitch ${s.frame.pitch.toFixed(0)}°`;
   $('padst').textContent=s.pad.connected?('已连接 · R2 '+Math.round(s.pad.r2*100)+'%'):'未连接（用网页按钮或键盘）';$('r2bar').style.width=(s.pad.r2*100)+'%';
   $('events').innerHTML=s.events.slice().reverse().map(e=>`<div><span style="color:var(--dim)">${e.t}</span> ${e.text}</div>`).join('');

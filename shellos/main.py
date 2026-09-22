@@ -36,6 +36,22 @@ class App:
         self.gait = GaitEstimator()
         self.events: list = []
         self.loop_ms = 0
+        from .glasses.luma import Glasses
+        self.glasses = Glasses(on_event=self.log)
+        self.terrain = {}            # 最近一次"看路"的结果
+
+    def look(self):
+        """眼镜拍一张 → 视觉模型判地形 → 记事件。手柄 □ / 网页按钮都走这里。"""
+        from .agent import vision
+        def then(path):
+            if not vision.configured():
+                self.log("眼镜：小图已到，未配视觉模型（SHELLOS_LLM_*），只显示图")
+                return
+            r = vision.look(path)
+            if r:
+                self.terrain = r
+                self.log(f"看路：{r.get('terrain')} ({float(r.get('confidence', 0)):.0%}) — {r.get('say', '')}")
+        return self.glasses.photo(then=then)
 
     def set_ctl(self, name):
         self.ctl = CTLS[name]()          # 新控制律从 0 起，Guard 的斜率限负责平滑
@@ -71,6 +87,7 @@ class App:
         elif b == BTN["r1"]:    self.cycle_ctl(+1)
         elif b == BTN["l1"]:    self.cycle_ctl(-1)
         elif b == BTN["triangle"]: self.log("△ 标记：评委反馈点")
+        elif b == BTN["square"]:   self.look()
 
     def log(self, text):
         self.events.append({"t": datetime.now().strftime("%H:%M:%S"), "text": text})

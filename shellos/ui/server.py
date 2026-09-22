@@ -45,11 +45,24 @@ class Dashboard:
                     return self._json(dash.state())
                 if self.path.startswith("/vendor/") or self.path.startswith("/models/") or self.path.startswith("/body3d.js"):
                     return self._static(self.path.split("?")[0])
+                if self.path.startswith("/shots/"):
+                    return self._file(os.path.join(dash.app.glasses.shots_dir, os.path.basename(self.path.split("?")[0])), "image/jpeg")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(dash._html)))
                 self.end_headers()
                 self.wfile.write(dash._html)
+
+            def _file(self, full, ctype):
+                if not os.path.isfile(full):
+                    self.send_response(404); self.end_headers(); return
+                data = open(full, "rb").read()
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(data)
 
             def _static(self, path):
                 base = os.path.join(os.path.dirname(__file__), "static")
@@ -112,6 +125,9 @@ class Dashboard:
                      "strides": st.l.n_strides + st.r.n_strides, "moving": st.moving},
             "ctl": {"name": next((k for k, c in a.ctls.items() if isinstance(a.ctl, c)), a.ctl.name), "params": {k: v for k, v in a.ctl.params.items()}, "available": list(a.ctls)},
             "events": a.events[-30:],
+            "glasses": {"available": a.glasses.available, "busy": a.glasses.busy, "shot": bool(a.glasses.last_shot),
+                        "shot_t": os.path.getmtime(a.glasses.last_shot) if a.glasses.last_shot else 0,
+                        "terrain": a.terrain, "bin": a.glasses.bin, "error": a.glasses.last_error[-120:]},
             "loop_ms": getattr(a, "loop_ms", 0),
         }
 
@@ -138,6 +154,10 @@ class Dashboard:
             a.set_ctl(body["name"])
             a.log(f"切换控制律 → {body['name']}")
             return {"ctl": a.ctl.name}
+        if path == "/glasses/info":
+            return {"ok": a.glasses.info()}
+        if path == "/glasses/look":
+            return {"ok": a.look()}
         if path == "/log":
             a.log(body.get("text", ""))
             return {"ok": True}
