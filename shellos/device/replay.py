@@ -1,4 +1,5 @@
 """回放器：读 recorder 写的 CSV，按 200 Hz 吐帧。接口和 SerialLink 一样，send 只记日志。没设备时用它。"""
+from __future__ import annotations
 import csv
 import threading
 import time

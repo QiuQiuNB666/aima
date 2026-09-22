@@ -1,4 +1,5 @@
 """安全层的七条规则，每条一个断言。跑：.venv/bin/pytest -q"""
+from __future__ import annotations
 import time
 
 from shellos.device.frame import parse_line, Frame

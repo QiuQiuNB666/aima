@@ -1,11 +1,12 @@
 """一帧 200 Hz 数据。协议：S:<ms>,<pitch>,<roll>,<yaw>,<gx>,<gy>,<gz>,<ax>,<ay>,<az>,<kPa>,<Ldeg>,<Rdeg>,<Ldps>,<Rdps>"""
+from __future__ import annotations
 from dataclasses import dataclass, fields
 
 FIELDS = ("ms", "pitch", "roll", "yaw", "gx", "gy", "gz", "ax", "ay", "az",
           "kpa", "l_deg", "r_deg", "l_dps", "r_dps")
 
 
-@dataclass(slots=True)
+@dataclass
 class Frame:
     t_host: float          # 主机收到的时间 time.monotonic()
     ms: float              # 主板时间

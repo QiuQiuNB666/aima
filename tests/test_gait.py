@@ -1,4 +1,5 @@
 """步态估计和相位控制律，对着合成步态。"""
+from __future__ import annotations
 import math
 
 from shellos.device.frame import Frame

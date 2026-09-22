@@ -1,6 +1,7 @@
 """键盘备份：按住空格 = deadman 1.0，Esc = 急停，R = 重新上膛。需要 pynput 和 macOS 辅助功能权限。
 没权限就静默失效——手柄仍是主路径。
 """
+from __future__ import annotations
 import threading
 
 

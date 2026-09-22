@@ -4,6 +4,7 @@
 置信度：相图半径 / 参考半径，站着不动半径塌缩 → 置信度 0 → Guard 把力矩归零。
 事件：φ 绕回一圈 = 一个步态周期(stride)；步频 = 2 × 60 / stride 时间（一个周期两步）。
 """
+from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import dataclass, field

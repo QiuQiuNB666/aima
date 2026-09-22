@@ -9,6 +9,7 @@
 6. 看门狗：>50 ms 没 submit     → T,0,0；>200 ms → DISABLE
 7. 进程退出/异常/断流           → DISABLE
 """
+from __future__ import annotations
 import atexit
 import threading
 import time

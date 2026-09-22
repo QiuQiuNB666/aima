@@ -1,4 +1,5 @@
 """录制：每帧一行、每条发出的力矩一行，同一个 CSV。回放器只读 kind=frame 的行。"""
+from __future__ import annotations
 import os
 import time
 from datetime import datetime

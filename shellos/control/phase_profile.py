@@ -5,6 +5,7 @@
 "早一点" = t_ext −5；"轻一点" = peak_ext −0.5；"左腿再多点" = 只改左（用 side 参数）。
 伸展/屈曲哪个是正号要在真机上验（见 dofc.py 的说明），这里假设正 = 伸展助力。
 """
+from __future__ import annotations
 import math
 
 from .base import Controller

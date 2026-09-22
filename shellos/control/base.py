@@ -1,4 +1,5 @@
 """控制律统一接口。params 里每项是 (value, min, max)；改参只能走 set_params，自动裁剪。"""
+from __future__ import annotations
 from ..device.frame import Frame
 
 

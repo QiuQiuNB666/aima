@@ -5,6 +5,7 @@
   python -m shellos.main --replay data/recordings/xxx.csv --ctl dofc
 按住 R2（或空格）才有力；× / Esc 急停；○ / R 重新上膛。
 """
+from __future__ import annotations
 import argparse
 import signal
 import sys

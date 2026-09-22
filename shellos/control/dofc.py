@@ -5,6 +5,7 @@
 三参数：gain (Nm/deg)、delay_s、ema (0–1，越小越平滑)。
 参考：Lim et al. 2019 IEEE T-RO；延迟量原文未核到，从 0.15 s 起扫。
 """
+from __future__ import annotations
 from collections import deque
 
 from .base import Controller

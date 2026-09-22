@@ -4,6 +4,7 @@
   .venv/bin/python scripts/probe.py --torque 0.5   # 再发 T,0.5,0.5 两秒，感受方向
 任何异常都会先发 DISABLE 再退出。
 """
+from __future__ import annotations
 import argparse
 import sys
 import time

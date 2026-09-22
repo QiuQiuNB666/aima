@@ -2,6 +2,7 @@
 pygame 的轴号在 macOS 上：R2 是 axis 5（-1 松开 → +1 按满）；× 是 button 0，○ 是 button 1。
 没插手柄时线程直接退出，Guard 的 deadman 保持 0——也就是没有手柄就没有力。
 """
+from __future__ import annotations
 import os
 import threading
 

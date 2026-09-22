@@ -3,6 +3,7 @@
 握手：PING → PONG，VERSION → OK,VERSION,x，ENABLE → OK,ENABLE。
 只有 Guard 应该调用 send_torque / disable；别的模块只读 latest()。
 """
+from __future__ import annotations
 import glob
 import queue
 import threading
