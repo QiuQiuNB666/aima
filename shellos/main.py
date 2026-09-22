@@ -30,6 +30,7 @@ def main():
     ap.add_argument("--cap", type=float, default=3.0, help="软限 Nm")
     ap.add_argument("--wearer", default="anon")
     ap.add_argument("--no-record", action="store_true")
+    ap.add_argument("--no-input", action="store_true", help="不起手柄/键盘线程（诊断用）")
     ap.add_argument("--force-deadman", action="store_true",
                     help="回放时没手柄也给力（只允许配合 --replay）")
     a = ap.parse_args()
@@ -53,8 +54,9 @@ def main():
 
     from .input.gamepad import Gamepad
     from .input.hotkeys import Hotkeys
-    pad = Gamepad(guard)
-    Hotkeys(guard)
+    pad = Gamepad(guard) if not a.no_input else type("P", (), {"connected": False})()
+    if not a.no_input:
+        Hotkeys(guard)
     if a.force_deadman:
         guard.set_deadman(1.0)
 
@@ -77,8 +79,13 @@ def main():
     next_t = time.monotonic()
     last_print = 0.0
     st = None
+    max_gap = 0.0
+    prev_t = time.monotonic()
     while True:
         next_t += period
+        now0 = time.monotonic()
+        max_gap = max(max_gap, now0 - prev_t)
+        prev_t = now0
         f = link.latest()
         if f is not None:
             st = gait.update(f)
@@ -87,12 +94,13 @@ def main():
         now = time.monotonic()
         if now - last_print > 0.5:
             last_print = now
+            gap_ms, max_gap = max_gap * 1000, 0.0
             gs = guard.state
             fr = (f"L{f.l_deg:6.1f}° R{f.r_deg:6.1f}° φ{st.l.phase:.2f}/{st.r.phase:.2f} "
                   f"conf{st.conf:.2f} {st.cadence:4.0f}spm sym{st.symmetry:.2f}") if st else "no frames"
             print(f"\r[{gs:10s}] pad={'Y' if pad.connected else 'n'} dm={guard.deadman:.2f} "
                   f"sent=({guard.last_sent[0]:+.2f},{guard.last_sent[1]:+.2f}) {guard.last_reason:22s} "
-                  f"{fr}  n={link.n_frames} bad={link.n_bad} age={link.stream_age()*1000:5.0f}ms   ",
+                  f"{fr}  n={link.n_frames} bad={link.n_bad} age={link.stream_age()*1000:5.0f}ms loop{gap_ms:4.0f}ms   ",
                   end="", flush=True)
         time.sleep(max(0.0, next_t - time.monotonic()))
 
