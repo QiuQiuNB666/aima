@@ -116,6 +116,7 @@ def main():
         from .input.gamepad import Gamepad
         from .input.hotkeys import Hotkeys
         pad = Gamepad(guard, on_button=app.on_button)
+        app.pad = pad
         Hotkeys(guard)
     if a.force_deadman:
         guard.set_deadman(1.0, "forced")
