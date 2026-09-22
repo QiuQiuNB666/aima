@@ -25,6 +25,7 @@ button:active{filter:brightness(1.3)}
 .params div{display:flex;align-items:center;gap:8px;margin:4px 0}.params .n{flex:1}.params .v{width:70px;text-align:right;font-variant-numeric:tabular-nums}
 .params button{padding:4px 10px}
 #padmap td{padding:3px 4px;border-bottom:1px solid #1e242b;vertical-align:top}#padmap td:first-child{white-space:nowrap;width:86px}
+#cards .card{border:1px solid #2a323c;border-radius:8px;padding:6px 8px;margin:6px 0;font-size:13px}#cards .card.on{border-color:var(--ok)}#cards .card.off{opacity:.45}#cards .card b{color:var(--t)}#cards .card button{padding:2px 8px;font-size:12px;float:right}
 #events{font-size:13px;max-height:220px;overflow:auto;color:#c9d2dc}#events div{padding:3px 0;border-bottom:1px solid #1e242b}
 input,select{font:inherit;background:#0e1115;color:var(--fg);border:1px solid #333;border-radius:6px;padding:8px}
 .sent{font-size:28px;font-variant-numeric:tabular-nums}.sent .l{color:var(--l)}.sent .r{color:var(--r)}
@@ -85,9 +86,13 @@ input,select{font:inherit;background:#0e1115;color:var(--fg);border:1px solid #3
   <select id="ctl"></select>
   <div class="params" id="params"></div>
  </div>
- <div class="panel" style="margin-top:12px"><h2>事件 / 评委原话</h2>
-  <div class="row"><input id="say" placeholder="评委说：早一点 / 轻一点 / 左腿再多点" style="flex:1"><button id="sayb">记</button></div>
-  <div id="events" style="margin-top:8px"></div>
+ <div class="panel" style="margin-top:12px"><h2>记忆 <span id="memst" style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0"></span></h2>
+  <div class="row"><input id="wearer" placeholder="穿戴者（评委-03）" style="width:130px"><button id="wearerb">换人</button><button id="resetb">演示复位</button></div>
+  <div class="row" style="margin-top:8px"><input id="say" placeholder="评委说：早一点 / 轻一点 / 左腿再多点" style="flex:1"><button id="sayb" style="background:#1f3b2a;color:var(--ok)">学</button></div>
+  <div id="cards" style="margin-top:8px"></div>
+ </div>
+ <div class="panel" style="margin-top:12px"><h2>事件</h2>
+  <div id="events"></div>
  </div>
 </div>
 </main>
@@ -102,7 +107,7 @@ $('hold').addEventListener('pointerdown',startHold);
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>$('hold').addEventListener(ev,stopHold));
 window.addEventListener('blur',stopHold);
 $('estop').onclick=()=>post('/estop');$('glinfo').onclick=()=>post('/glasses/info');$('gllook').onclick=()=>post('/glasses/look');let lastShotT=0;$('rearm').onclick=()=>post('/rearm');
-$('sayb').onclick=()=>{const t=$('say').value.trim();if(t){post('/log',{text:'评委：'+t});$('say').value=''}};
+$('sayb').onclick=()=>{const t=$('say').value.trim();if(t){post('/feedback',{text:t});$('say').value=''}};$('wearerb').onclick=()=>post('/wearer',{name:$('wearer').value.trim()});$('resetb').onclick=()=>post('/demo/reset');
 $('say').addEventListener('keydown',e=>{if(e.key==='Enter')$('sayb').click()});
 $('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});
 let paramsKey='';
@@ -151,6 +156,9 @@ async function tick(){
   if(gl.terrain&&gl.terrain.terrain){$('glterrain').textContent=(T[gl.terrain.terrain]||gl.terrain.terrain)+' '+Math.round((gl.terrain.confidence||0)*100)+'%';$('glsay').textContent=gl.terrain.say||''}
   renderParams(s.ctl);drawSeries();drawPhase(g);updateBody(s.frame);if(s.frame)$('c3info').textContent=`L ${s.frame.l.toFixed(0)}° R ${s.frame.r.toFixed(0)}° · pitch ${s.frame.pitch.toFixed(0)}°`;
   $('padst').textContent=s.pad.connected?('已连接 · R2 '+Math.round(s.pad.r2*100)+'%'):'未连接（用网页按钮或键盘）';$('r2bar').style.width=(s.pad.r2*100)+'%';
+  const m=s.memory;$('memst').textContent=`${m.wearer} · 步频 ${m.profile.cadence} · ${m.recalled?('已检索，套用 '+(m.applied.length?m.applied.map(i=>'#'+i).join(' '):'0 条')):'走 6 步后检索'}`;
+  $('cards').innerHTML=m.cards.slice().reverse().map(c=>`<div class="card ${!c.enabled?'off':(m.applied.includes(c.id)?'on':'')}"><b>#${c.id}</b> 「${c.quote}」 → ${Object.entries(c.delta).map(([k,v])=>k+' '+(v>0?'+':'')+(+v).toFixed(2)).join(', ')} <button data-id="${c.id}" data-on="${c.enabled?0:1}">${c.enabled?'删除':'恢复'}</button><br><span style="color:var(--dim)">${c.wearer} · 步频 ${c.trigger.cadence[0]}–${c.trigger.cadence[1]} · ${c.controller} · 命中 ${c.hits} · ${c.source} · ${c.ts}</span></div>`).join('');
+  $('cards').querySelectorAll('button').forEach(b=>b.onclick=()=>post(b.dataset.on==='1'?'/memory/enable':'/memory/delete',{id:+b.dataset.id}));
   $('events').innerHTML=s.events.slice().reverse().map(e=>`<div><span style="color:var(--dim)">${e.t}</span> ${e.text}</div>`).join('');
  }catch(e){$('st').textContent='断开';$('st').className='state DISARMED'}
 }

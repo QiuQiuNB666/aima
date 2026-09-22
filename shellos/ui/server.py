@@ -125,6 +125,8 @@ class Dashboard:
                      "strides": st.l.n_strides + st.r.n_strides, "moving": st.moving},
             "ctl": {"name": next((k for k, c in a.ctls.items() if isinstance(a.ctl, c)), a.ctl.name), "params": {k: v for k, v in a.ctl.params.items()}, "available": list(a.ctls)},
             "events": a.events[-30:],
+            "memory": {"wearer": a.wearer, "recalled": a.recalled, "applied": a.applied,
+                       "cards": a.store.items[-40:], "profile": a.profile()},
             "glasses": {"available": a.glasses.available, "busy": a.glasses.busy, "shot": bool(a.glasses.last_shot),
                         "shot_t": os.path.getmtime(a.glasses.last_shot) if a.glasses.last_shot else 0,
                         "terrain": a.terrain, "bin": a.glasses.bin, "error": a.glasses.last_error[-120:]},
@@ -165,6 +167,19 @@ class Dashboard:
             k, v = body["name"], float(body["value"])
             cur = a.ctl.params[k][0]
             return a.ctl.set_params({k: v - cur})
+        if path == "/feedback":
+            it = a.feedback(body.get("text", ""))
+            return {"card": it}
+        if path == "/memory/delete":
+            return {"card": a.delete_exp(body["id"])}
+        if path == "/memory/enable":
+            return {"card": a.enable_exp(body["id"])}
+        if path == "/wearer":
+            a.set_wearer(body.get("name", "anon"))
+            return {"wearer": a.wearer}
+        if path == "/demo/reset":
+            a.demo_reset()
+            return {"ok": True}
         if path == "/log":
             a.log(body.get("text", ""))
             return {"ok": True}

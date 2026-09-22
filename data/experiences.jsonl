@@ -1,0 +1,2 @@
+{"id": 1, "ts": "09-23 00:02:31", "wearer": "anon", "controller": "phase", "trigger": {"cadence": [190, 210]}, "delta": {"t_ext": -5}, "quote": "早一点", "confidence": 0.6, "hits": 1, "enabled": true, "source": "rule"}
+{"id": 2, "ts": "09-23 00:02:31", "wearer": "anon", "controller": "phase", "trigger": {"cadence": [190, 210]}, "delta": {"peak_ext": -0.5}, "quote": "轻一点", "confidence": 0.6, "hits": 1, "enabled": true, "source": "rule"}

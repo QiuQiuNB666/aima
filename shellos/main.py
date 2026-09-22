@@ -39,6 +39,86 @@ class App:
         from .glasses.luma import Glasses
         self.glasses = Glasses(on_event=self.log)
         self.terrain = {}            # 最近一次"看路"的结果
+        from .memory.store import Store
+        self.store = Store()
+        self.wearer = "anon"
+        self.applied: list = []      # 本次穿戴已经套用的经验 id
+        self.recalled = False        # 本次穿戴是否已做过检索
+        self.min_strides = 6
+
+    # ---- 记忆层 ----
+    def ctl_key(self):
+        return next((k for k, c in CTLS.items() if isinstance(self.ctl, c)), self.ctl.name)
+
+    def profile(self):
+        st = self.gait.state
+        return {"wearer": self.wearer, "cadence": round(st.cadence), "symmetry": round(st.symmetry, 2),
+                "rom": round((st.l.rom + st.r.rom) / 2), "controller": self.ctl_key()}
+
+    def set_wearer(self, name):
+        self.wearer = name or "anon"
+        self.demo_reset(keep_wearer=True)
+        self.log(f"换人：{self.wearer}。参数回缺省，走 {self.min_strides} 步后自动检索经验")
+
+    def demo_reset(self, keep_wearer=False):
+        self.ctl = CTLS[self.ctl_key()]()
+        self.gait = GaitEstimator()
+        self.applied, self.recalled = [], False
+        if not keep_wearer:
+            self.log("演示复位：参数回缺省、步态重新估计，经验库不动")
+
+    def auto_recall(self):
+        """走够步数后检索一次经验并套用。主循环每 0.5 s 调一次。"""
+        st = self.gait.state
+        if self.recalled or (st.l.n_strides + st.r.n_strides) < self.min_strides or st.cadence <= 0:
+            return
+        self.recalled = True
+        hits = self.store.retrieve(self.ctl_key(), st.cadence)
+        if not hits:
+            self.log(f"检索经验：步频 {st.cadence:.0f}，0 命中，用缺省参数")
+            return
+        delta = self.store.merged_delta(hits)
+        out = self.ctl.set_params(delta)
+        self.applied = [h["id"] for h in hits]
+        self.store.bump(self.applied)
+        self.log(f"命中经验 {', '.join('#%d' % i for i in self.applied)}（步频 {st.cadence:.0f}）→ {out}")
+
+    def feedback(self, quote):
+        """评委一句话 → 参数差值 → 立即生效 → 存成经验卡。"""
+        from .agent.interpret import interpret
+        quote = (quote or "").strip()
+        if not quote:
+            return None
+        if self.ctl_key() == "transparent":
+            self.log(f"评委：「{quote}」——当前是透明模式，没有参数可调，先切到 dofc 或 phase")
+            return None
+        r = interpret(quote, self.ctl_key(), self.ctl.params, self.gait.state.cadence, self.profile())
+        if not r:
+            self.log(f"评委：「{quote}」——没听懂，参数不变")
+            return None
+        out = self.ctl.set_params(r["delta"])
+        it = self.store.add(self.wearer, self.ctl_key(), r["trigger"], r["delta"], quote, r["confidence"], r["source"])
+        self.applied.append(it["id"])
+        self.log(f"评委：「{quote}」→ 经验卡 #{it['id']} {r['delta']}（{r['source']}，{r.get('why', '')}）→ 现在 {out}")
+        return it
+
+    def delete_exp(self, id_):
+        it = self.store.set_enabled(int(id_), False)
+        if not it:
+            return None
+        if it["id"] in self.applied:
+            out = self.ctl.set_params({k: -float(v) for k, v in it["delta"].items()})
+            self.applied.remove(it["id"])
+            self.log(f"删除经验卡 #{it['id']} → 参数回退 {out}")
+        else:
+            self.log(f"停用经验卡 #{it['id']}")
+        return it
+
+    def enable_exp(self, id_):
+        it = self.store.set_enabled(int(id_), True)
+        if it:
+            self.log(f"恢复经验卡 #{it['id']}（下次检索生效）")
+        return it
 
     def look(self):
         """眼镜拍一张 → 视觉模型判地形 → 记事件。手柄 □ / 网页按钮都走这里。"""
@@ -88,6 +168,7 @@ class App:
         elif b == BTN["l1"]:    self.cycle_ctl(-1)
         elif b == BTN["triangle"]: self.log("△ 标记：评委反馈点")
         elif b == BTN["square"]:   self.look()
+        elif b == BTN["options"]:  self.demo_reset()
 
     def mark(self, label):
         if self.rec:
@@ -189,6 +270,7 @@ def main():
             app.log("重新 ENABLE " + ("成功" if ok else "失败，2 秒后再试"))
         if now - last_print > 0.5:
             last_print = now
+            app.auto_recall()
             app.loop_ms, max_gap = round(max_gap * 1000), 0.0
             gs = guard.state
             fr = (f"L{f.l_deg:6.1f}° R{f.r_deg:6.1f}° φ{st.l.phase:.2f}/{st.r.phase:.2f} "

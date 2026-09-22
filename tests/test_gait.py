@@ -77,3 +77,36 @@ def test_gamepad_nudge_and_cycle():
     app.on_button(BTN["right"]); assert abs(app.ctl.p("delay_s") - 0.16) < 1e-9   # 0.15 + 0.01
     app.on_button(BTN["l1"]);    assert app.ctl.name == "constant"
     app.on_button(BTN["up"]);    assert app.ctl.p("tl") == 0.5            # 0 + 0.5
+
+
+def test_memory_loop(tmp_path, monkeypatch):
+    """评委一句话 → 卡 → 删除回退 → 换人后走够步数自动命中。"""
+    monkeypatch.delenv("SHELLOS_LLM_KEY", raising=False)
+    from shellos.main import App
+    from shellos.memory.store import Store
+    from shellos.safety.guard import Guard
+
+    class L:
+        port = "x"; n_frames = 0; n_bad = 0
+        def latest(self): return None
+        def stream_age(self): return 0.0
+        def send(self, c): pass
+        def send_torque(self, a, b): pass
+        def disable(self): pass
+    app = App(L(), Guard(L()), "phase")
+    app.store = Store(str(tmp_path / "exp.jsonl"))
+    for fr in walk(6.0):                       # 先走出一个步频画像
+        app.gait.update(fr)
+    assert app.gait.state.cadence > 80
+    card = app.feedback("早一点")
+    assert card and card["delta"] == {"t_ext": -5} and app.ctl.p("t_ext") == 20
+    app.delete_exp(card["id"])
+    assert app.ctl.p("t_ext") == 25            # 回退
+    app.enable_exp(card["id"])
+    app.set_wearer("judge-02")                 # 换人：参数回缺省
+    assert app.ctl.p("t_ext") == 25 and not app.recalled
+    for fr in walk(6.0):
+        app.gait.update(fr)
+    app.auto_recall()
+    assert app.recalled and app.applied == [card["id"]] and app.ctl.p("t_ext") == 20   # 步频相近 → 命中
+    assert app.store.items[0]["hits"] == 1
