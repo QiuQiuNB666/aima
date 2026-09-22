@@ -125,6 +125,7 @@ class Dashboard:
                      "strides": st.l.n_strides + st.r.n_strides, "moving": st.moving},
             "ctl": {"name": next((k for k, c in a.ctls.items() if isinstance(a.ctl, c)), a.ctl.name), "params": {k: v for k, v in a.ctl.params.items()}, "available": list(a.ctls)},
             "events": a.events[-30:],
+            "terrain": a.ctl.status() if hasattr(a.ctl, "status") else None,
             "memory": {"wearer": a.wearer, "recalled": a.recalled, "applied": a.applied,
                        "cards": a.store.items[-40:], "profile": a.profile()},
             "glasses": {"available": a.glasses.available, "busy": a.glasses.busy, "shot": bool(a.glasses.last_shot),
@@ -177,6 +178,9 @@ class Dashboard:
         if path == "/wearer":
             a.set_wearer(body.get("name", "anon"))
             return {"wearer": a.wearer}
+        if path == "/terrain":
+            a.set_terrain(body.get("preset", "山的记忆"))
+            return {"ok": True}
         if path == "/demo/reset":
             a.demo_reset()
             return {"ok": True}

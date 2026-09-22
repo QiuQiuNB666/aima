@@ -10,6 +10,7 @@ import time
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 R2_AXIS, BTN_CROSS, BTN_CIRCLE = 5, 0, 1
+LY_AXIS, RY_AXIS = 1, 3        # 摇杆上下；SDL 标准映射，未逐个验证
 # 9/22 在 MacBook 上实测：R2=轴5、×=0；其余按 SDL 对 DualSense 的标准映射（未逐个验证）
 BTN = {"cross": 0, "circle": 1, "square": 2, "triangle": 3, "share": 4, "ps": 5, "options": 6,
        "l3": 7, "r3": 8, "l1": 9, "r1": 10, "up": 11, "down": 12, "left": 13, "right": 14, "touchpad": 15}
@@ -21,6 +22,7 @@ class Gamepad:
         self.on_button = on_button
         self.connected = False
         self.r2 = 0.0
+        self.sticks = [0.0, 0.0]        # 左/右摇杆上下，上为正，死区 0.1
         threading.Thread(target=self._run, name="gamepad", daemon=True).start()
 
     def _run(self):
@@ -56,4 +58,6 @@ class Gamepad:
                     return
             self.r2 = (js.get_axis(R2_AXIS) + 1.0) / 2.0 if seen_r2 else 0.0     # → 0..1
             self.guard.set_deadman(self.r2 if self.r2 > 0.05 else 0.0, "gamepad")
+            ly, ry = -js.get_axis(LY_AXIS), -js.get_axis(RY_AXIS)
+            self.sticks = [ly if abs(ly) > 0.1 else 0.0, ry if abs(ry) > 0.1 else 0.0]
             clock.tick(100)

@@ -17,12 +17,14 @@ from datetime import datetime
 from .control.base import Transparent
 from .control.dofc import DOFC
 from .control.constant import Constant
+from .control.terrain import Terrain
+from .control.puppet import Puppet
 from .control.phase_profile import PhaseProfile
 from .gait.estimator import GaitEstimator
 from .device.recorder import Recorder
 from .safety.guard import Guard
 
-CTLS = {"transparent": Transparent, "constant": Constant, "dofc": DOFC, "phase": PhaseProfile}
+CTLS = {"transparent": Transparent, "constant": Constant, "dofc": DOFC, "phase": PhaseProfile, "terrain": Terrain, "puppet": Puppet}
 LOOP_HZ = 100
 
 
@@ -113,6 +115,14 @@ class App:
         else:
             self.log(f"停用经验卡 #{it['id']}")
         return it
+
+    def set_terrain(self, preset):
+        if self.ctl_key() != "terrain":
+            self.ctl = Terrain(preset)
+        else:
+            self.ctl.set_preset(preset)
+        self.ctl.reset()
+        self.log(f"地形：{preset}（{self.ctl.total} 步一圈）")
 
     def enable_exp(self, id_):
         it = self.store.set_enabled(int(id_), True)
@@ -256,8 +266,10 @@ def main():
         if f is not None:
             st = app.gait.update(f)
             ctl = app.ctl
+            if ctl.name == "puppet" and pad is not None:
+                ctl.sticks = pad.sticks
             tl, tr = ctl.step(f, st)
-            guard.submit(tl, tr, confidence=st.conf if ctl.name == "phase" else 1.0)
+            guard.submit(tl, tr, confidence=st.conf if ctl.name in ("phase", "terrain") else 1.0)
         now = time.monotonic()
         if (not a.replay and now - last_recover > 2.0 and guard.state in ("ARMED", "ACTIVE")
                 and link.needs_recovery()):

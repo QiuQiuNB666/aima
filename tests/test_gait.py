@@ -71,7 +71,7 @@ def test_gamepad_nudge_and_cycle():
     app = App(L(), Guard(L()), "phase")
     app.on_button(BTN["up"]);    assert app.ctl.p("peak_ext") == 2.0      # 1.5 + 0.5
     app.on_button(BTN["left"]);  assert app.ctl.p("t_ext") == 20.0        # 25 - 5
-    app.on_button(BTN["r1"]);    assert app.ctl.name == "transparent"     # phase → 绕回第一个
+    app.on_button(BTN["r1"]);    assert app.ctl.name == "terrain"         # phase → terrain
     app.on_button(BTN["l1"]);    assert app.ctl.name == "phase_profile"
     app.on_button(BTN["l1"]);    assert app.ctl.name == "dofc"
     app.on_button(BTN["right"]); assert abs(app.ctl.p("delay_s") - 0.16) < 1e-9   # 0.15 + 0.01
@@ -110,3 +110,21 @@ def test_memory_loop(tmp_path, monkeypatch):
     app.auto_recall()
     assert app.recalled and app.applied == [card["id"]] and app.ctl.p("t_ext") == 20   # 步频相近 → 命中
     assert app.store.items[0]["hits"] == 1
+
+
+def test_terrain_and_puppet():
+    from shellos.control.terrain import Terrain
+    from shellos.control.puppet import Puppet
+    t = Terrain("台阶", strength=2.0)
+    g = GaitEstimator()
+    seen = {}
+    for fr in walk(20.0, spm=100):
+        st = g.update(fr)
+        tl, tr = t.step(fr, st)
+        seen.setdefault(t.segment_at(t.pos), []).append(max(abs(tl), abs(tr)))
+    assert t.pos > 0 and "stairs_up" in seen and "flat" in seen
+    assert max(seen["flat"]) == 0.0                     # 平地不给力
+    assert max(seen["stairs_up"]) > 0.5                 # 台阶有脉冲
+    assert all(v <= 2.0 + 1e-9 for vs in seen.values() for v in vs)
+    p = Puppet(scale=2.0); p.sticks = [0.5, -1.0]
+    assert p.step(None) == (1.0, -2.0)

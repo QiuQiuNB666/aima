@@ -36,6 +36,9 @@ input,select{font:inherit;background:#0e1115;color:var(--fg);border:1px solid #3
 <div>
  <div class="panel"><h2>髋角 · 左 <span style="color:var(--l)">■</span> 右 <span style="color:var(--r)">■</span> · 发出力矩 <span style="color:var(--t)">■</span></h2>
   <canvas id="c1" height="260"></canvas></div>
+ <div class="panel" style="margin-top:12px" id="terrainPanel"><h2>虚拟地形 <span id="trst" style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0"></span>
+   <span style="float:right"><select id="trsel"></select></span></h2>
+  <canvas id="c4" height="110"></canvas></div>
  <div class="row" style="margin-top:12px">
   <div class="panel" style="flex:1;min-width:180px"><h2>相位</h2><canvas id="c2" height="180"></canvas></div>
   <div class="panel" style="flex:1.4;min-width:220px"><h2>腿部 3D <small style="color:var(--dim)">拖动旋转 · 滚轮缩放</small> <span id="c3info" style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0;float:right"></span></h2><div id="c3" style="height:300px;border-radius:6px;background:#0e1115;overflow:hidden"></div></div>
@@ -109,7 +112,7 @@ window.addEventListener('blur',stopHold);
 $('estop').onclick=()=>post('/estop');$('glinfo').onclick=()=>post('/glasses/info');$('gllook').onclick=()=>post('/glasses/look');let lastShotT=0;$('rearm').onclick=()=>post('/rearm');
 $('sayb').onclick=()=>{const t=$('say').value.trim();if(t){post('/feedback',{text:t});$('say').value=''}};$('wearerb').onclick=()=>post('/wearer',{name:$('wearer').value.trim()});$('resetb').onclick=()=>post('/demo/reset');
 $('say').addEventListener('keydown',e=>{if(e.key==='Enter')$('sayb').click()});
-$('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});
+$('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});$('trsel').onchange=()=>post('/terrain',{preset:$('trsel').value});
 let paramsKey='';
 function renderParams(c){
  const key=c.name+Object.keys(c.params).join();
@@ -133,6 +136,19 @@ function drawSeries(){
  line(hT,12,'#ffd54f',H*0.8);line(hT2,12,'#ffd54f88',H*0.8);
  ctx.fillStyle='#7f8b99';ctx.font='11px sans-serif';ctx.fillText('髋角 ±40°',6,14);ctx.fillText('力矩 ±3 Nm（实线左 / 虚线右）',6,H*0.8-38)}
 let updateBody=()=>{};
+const KIND={flat:'平地',up:'上坡',down:'下坡',stairs_up:'上台阶',stairs_down:'下台阶'};
+function drawTerrain(t){
+ const panel=$('terrainPanel');if(!t){panel.style.display='none';return}panel.style.display='';
+ if($('trsel').options.length!==t.presets.length){$('trsel').innerHTML=t.presets.map(n=>`<option>${n}</option>`).join('')}$('trsel').value=t.preset;
+ $('trst').textContent=`${KIND[t.segment]||t.segment} · 第 ${t.pos+1}/${t.total} 步 · 第 ${t.laps+1} 圈`;
+ const cv=$('c4'),ctx=cv.getContext('2d');cv.width=cv.clientWidth*devicePixelRatio;cv.height=110*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);
+ const W=cv.clientWidth,H=110;ctx.clearRect(0,0,W,H);const p=t.profile;const hs=p.map(x=>x.h);const hmin=Math.min(...hs),hmax=Math.max(...hs,hmin+1);
+ const X=i=>i/p.length*W, Y=h=>H-12-(h-hmin)/(hmax-hmin)*(H-30);
+ ctx.beginPath();ctx.moveTo(0,H);p.forEach((x,i)=>ctx.lineTo(X(i),Y(x.h)));ctx.lineTo(W,Y(hs[hs.length-1]));ctx.lineTo(W,H);ctx.closePath();ctx.fillStyle='#1c2a33';ctx.fill();
+ const col={flat:'#3a4653',up:'#3ddc84',down:'#4fc3f7',stairs_up:'#ffd54f',stairs_down:'#ff8a65'};
+ p.forEach((x,i)=>{ctx.fillStyle=col[x.kind];ctx.fillRect(X(i),H-10,W/p.length-1,6)});
+ const px=X(t.pos+0.5),py=Y(p[t.pos]?p[t.pos].h:0);ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(px,py,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#000';ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#7f8b99';ctx.font='11px sans-serif';ctx.textAlign='left';ctx.fillText('绿=上坡 蓝=下坡 黄=上台阶 橙=下台阶',6,12)}
 function drawPhase(g){
  const cv=$('c2'),ctx=cv.getContext('2d');cv.width=cv.clientWidth*devicePixelRatio;cv.height=180*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);
  const W=cv.clientWidth,H=180,cx=W/2,cy=H/2,R=70;ctx.clearRect(0,0,W,H);
@@ -154,7 +170,7 @@ async function tick(){
   if(gl.shot&&gl.shot_t!==lastShotT){lastShotT=gl.shot_t;$('glimg').src='/shots/latest.jpg?'+gl.shot_t}
   const T={flat:'平地',stairs_up:'上楼梯',stairs_down:'下楼梯',slope_up:'上坡',slope_down:'下坡',obstacle:'障碍',unknown:'不确定'};
   if(gl.terrain&&gl.terrain.terrain){$('glterrain').textContent=(T[gl.terrain.terrain]||gl.terrain.terrain)+' '+Math.round((gl.terrain.confidence||0)*100)+'%';$('glsay').textContent=gl.terrain.say||''}
-  renderParams(s.ctl);drawSeries();drawPhase(g);updateBody(s.frame);if(s.frame)$('c3info').textContent=`L ${s.frame.l.toFixed(0)}° R ${s.frame.r.toFixed(0)}° · pitch ${s.frame.pitch.toFixed(0)}°`;
+  renderParams(s.ctl);drawSeries();drawPhase(g);drawTerrain(s.terrain);updateBody(s.frame);if(s.frame)$('c3info').textContent=`L ${s.frame.l.toFixed(0)}° R ${s.frame.r.toFixed(0)}° · pitch ${s.frame.pitch.toFixed(0)}°`;
   $('padst').textContent=s.pad.connected?('已连接 · R2 '+Math.round(s.pad.r2*100)+'%'):'未连接（用网页按钮或键盘）';$('r2bar').style.width=(s.pad.r2*100)+'%';
   const m=s.memory;$('memst').textContent=`${m.wearer} · 步频 ${m.profile.cadence} · ${m.recalled?('已检索，套用 '+(m.applied.length?m.applied.map(i=>'#'+i).join(' '):'0 条')):'走 6 步后检索'}`;
   $('cards').innerHTML=m.cards.slice().reverse().map(c=>`<div class="card ${!c.enabled?'off':(m.applied.includes(c.id)?'on':'')}"><b>#${c.id}</b> 「${c.quote}」 → ${Object.entries(c.delta).map(([k,v])=>k+' '+(v>0?'+':'')+(+v).toFixed(2)).join(', ')} <button data-id="${c.id}" data-on="${c.enabled?0:1}">${c.enabled?'删除':'恢复'}</button><br><span style="color:var(--dim)">${c.wearer} · 步频 ${c.trigger.cadence[0]}–${c.trigger.cadence[1]} · ${c.controller} · 命中 ${c.hits} · ${c.source} · ${c.ts}</span></div>`).join('');
