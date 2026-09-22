@@ -113,4 +113,4 @@ def test_dofc_shape_and_delay():
     for i in range(11, 30):
         out = c.step(Frame(i * 0.005, i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     assert out == (0.0, 0.0)              # 延迟窗口过去后归零
-    assert c.set_params({"gain": 5.0}) == {"gain": 0.15}   # 裁剪到上限
+    assert c.set_params({"gain": 5.0}) == {"gain": 0.3}    # 裁剪到上限
