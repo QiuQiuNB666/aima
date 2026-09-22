@@ -6,4 +6,5 @@
 穿在人身上后必须验一次：双髋同时前屈，归一化后 L、R 应同号；T,+x,+x 两腿应同向助力。
 验不对就把 R_SIGN 改成 +1。
 """
+from __future__ import annotations
 R_SIGN = -1.0

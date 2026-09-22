@@ -3,6 +3,7 @@
 每一段：屏幕告诉你做什么 → 回车开始（输 s 跳过，q 结束）→ 倒计时 → 自动记 START/END 标签。
 力矩段要求你按住 R2（或网页大按钮），没按住就等着，不会自己给力。
 """
+from __future__ import annotations
 import json
 import sys
 import time

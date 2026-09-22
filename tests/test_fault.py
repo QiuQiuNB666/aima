@@ -192,3 +192,37 @@ def test_shutdown_inside_submit_does_not_deadlock():
     with g._lock:                      # 模拟信号打断在 submit 里面
         g.shutdown()
     assert g.state == DISARMED and link.sent[-1] == "DISABLE"
+
+
+def _stress():
+    import importlib.util
+    import pathlib
+    p = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "stress.py"
+    spec = importlib.util.spec_from_file_location("stress", p)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_stress_summarize_flags_disarm_and_traceback():
+    s = _stress()
+    good = [(0.0, "ARMED", "ok", 14), (0.1, "ACTIVE", "ok", 15)]
+    assert s.summarize("x.csv", good, {}, "", 0, False, 0.3)["ok"]
+    r = s.summarize("x.csv", good + [(0.2, "DISARMED", "watchdog", 300)], {}, "", 0, True, 0.3)
+    assert not r["ok"] and r["disarms"] == 1 and r["loop_max"] == 300
+    assert not s.summarize("x.csv", good, {}, "Traceback (most recent call last)", 1, False, 0.3)["ok"]
+    assert not s.summarize("x.csv", [], None, "", 1, False, 30.0)["ok"]          # 起不来
+
+
+def test_stress_stack_end_to_end():
+    """scripts/stress.py 真的起 main --replay 子进程、读 /state、正常退出。"""
+    import json
+    import pathlib
+    import subprocess
+    import sys
+    root = pathlib.Path(__file__).resolve().parent.parent
+    p = subprocess.run([sys.executable, "scripts/stress.py", "stack", "--secs", "2",
+                        "data/recordings/synthetic-walk.csv"], cwd=root, capture_output=True, text=True, timeout=60)
+    assert p.returncode == 0, p.stdout + p.stderr
+    r = json.loads(p.stdout.splitlines()[0])
+    assert r["ok"] and r["loop_med"] is not None

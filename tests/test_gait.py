@@ -288,16 +288,17 @@ def test_posture_change_stops_moving_fast():
                 return 10 + 20 * math.sin(w * t + shift), 20 * w * math.cos(w * t + shift)
             return -60.0, 0.0                           # 8 s 起坐着不动
         return f
-    g = GaitEstimator()
-    last_moving = None
-    for fr in _frames(leg(0.0), leg(math.pi), seconds=12.0):
-        st = g.update(fr)
-        if st.moving:
-            last_moving = fr.t_host
-    assert 7.5 < last_moving < 8.3, last_moving
     slow = lambda t: (-40 + 30 * math.sin(2 * math.pi * 0.4 * t), 30 * 2 * math.pi * 0.4 * math.cos(2 * math.pi * 0.4 * t))
-    g = GaitEstimator()
-    assert not any(g.update(fr).moving for fr in _frames(slow, slow, seconds=10.0))
+    for stepping in (False, True):                      # 踏步模式 r_ref 更小、conf 更高，停滞/同相两条照样要拦
+        g = GaitEstimator(stepping=stepping)
+        last_moving = None
+        for fr in _frames(leg(0.0), leg(math.pi), seconds=12.0):
+            st = g.update(fr)
+            if st.moving:
+                last_moving = fr.t_host
+        assert 7.5 < last_moving < 8.3, (stepping, last_moving)
+        g = GaitEstimator(stepping=stepping)
+        assert not any(g.update(fr).moving for fr in _frames(slow, slow, seconds=10.0)), stepping
     g = GaitEstimator(inphase_tol=None)
     assert any(g.update(fr).moving for fr in _frames(slow, slow, seconds=10.0))   # 证明是同相检查拦下的
 
@@ -327,3 +328,20 @@ def test_symmetry_is_rom_ratio():
         st = g.update(fr)
     assert st.l.n_strides > 10 and st.r.n_strides > 10
     assert 1.9 < st.symmetry < 2.5, st.symmetry
+
+
+def test_stepping_mode_longest_output_after_sitting():
+    """踏步模式全栈口径（GaitEstimator + Terrain 强制 stairs_up，conf≥0.5）：走 8 s 坐下，最长连续出力 <0.5 s；
+    关掉相位停滞/同相检查就是旧 bug（坐下后持续出力 4 s+），证明审计的 longest_output 量得出来。"""
+    A = _audit()
+    w = 2 * math.pi * 110 / 120.0
+
+    def leg(shift):
+        def f(t):
+            if t < 8.0:
+                return 10 + 20 * math.sin(w * t + shift), 20 * w * math.cos(w * t + shift)
+            return -60.0, 0.0
+        return f
+    fr = list(_frames(leg(0.0), leg(math.pi), seconds=12.0))
+    assert A.longest_output(fr, params={"width": 20.0}, stepping=True)[0] < 0.5
+    assert A.longest_output(fr, params={"width": 20.0}, stepping=True, prog_min=-1.0, inphase_tol=None)[0] > 2.0

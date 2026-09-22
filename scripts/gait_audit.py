@@ -136,6 +136,33 @@ def run(frames, walk=(), table=False, hz=100.0, **kw):
     return sorted(cands, key=lambda c: c[1]), series
 
 
+def longest_output(frames, kind="stairs_up", hz=100.0, conf_th=0.5, params=None, **kw):
+    """主循环同款：GaitEstimator + Terrain（强制路段 kind），任一腿 |τ|>0.05 且 conf≥Guard 门（0.5）算「在出力」，
+    返回最长一段连续出力 (秒, 起点 t_host)。Guard 的斜率限没算（只会把段拉长约 1 拍）。kw 给估计器，params 给地形。"""
+    from shellos.control.terrain import Terrain
+    g, ter = GaitEstimator(**kw), Terrain()
+    ter.force = kind
+    for k, v in (params or {}).items():
+        ter.params[k][0] = v
+    best, start, prev = (0.0, None), None, None
+    for f in ticks(frames, hz):
+        st = g.update(f)
+        tl, tr = ter.step(f, st)
+        on = (abs(tl) > 0.05 or abs(tr) > 0.05) and st.conf >= conf_th
+        if on and start is None:
+            start = f.t_host
+        elif not on and start is not None:
+            best = max(best, (prev - start + 1.0 / hz, start))
+            start = None
+        prev = f.t_host
+    if start is not None:
+        best = max(best, (prev - start + 1.0 / hz, start))
+    return best
+
+
+OUT_PARAMS = ({}, {"width": 20.0}, {"t_step": 3.0})   # 缺省 / 最宽脉冲 / 台阶脉冲最早：9/22 回放里最长连续出力的最坏档
+
+
 def gates(stepping=False, **kw):
     """一个估计器实际用的门限（和 GaitEstimator 的合并规则一致）。"""
     base = {**DEFAULTS, **(STEPPING if stepping else {}), **kw}
@@ -465,12 +492,13 @@ def stepping_report(use, rec_cfg):
         print(f"| {cad} | {' | '.join(cells)} |")
 
     print("\n踏步模式在 9/22 真机录制上的代价（踏步模式改了置信度参考半径时要重跑估计器，这里就是重跑的）：\n")
-    print("| 门限 | 穿戴假周期 | 桌上假周期 | 覆盖率 | 非走路误判走动中 s（穿戴 / 桌上） | 走路段里走动中占比 |")
-    print("|---|---|---|---|---|---|")
+    print("最长连续出力：地形强制 stairs_up，缺省 / width=20 / t_step=3 三档取最坏，任一腿 |τ|>0.05 且 conf≥0.5（Guard 门），括号里是录制@录制内时刻。\n")
+    print("| 门限 | 穿戴假周期 | 桌上假周期 | 覆盖率 | 非走路误判走动中 s（穿戴 / 桌上） | 走路段里走动中占比 | 最长连续出力 s（穿戴 / 桌上） |")
+    print("|---|---|---|---|---|---|---|")
     wsum = sum(r["walk_s"] for r in use)
     for n, kw in cfgs:
         g = gates(**kw)
-        tot = {"still": 0, "table": 0, "cov_s": 0.0, "fw": 0.0, "ft": 0.0, "wm": 0.0}
+        tot = {"still": 0, "table": 0, "cov_s": 0.0, "fw": 0.0, "ft": 0.0, "wm": 0.0, "ow": (0.0, ""), "ot": (0.0, "")}
         for r in use:
             rr = r
             if kw.get("stepping"):
@@ -482,9 +510,15 @@ def stepping_report(use, rec_cfg):
                 tot[k] += e[k]
             tot["ft" if r["table"] else "fw"] += m["false_s"]
             tot["wm"] += m["walk_s"]
+            est = {"stepping": True} if kw.get("stepping") else {k: v for k, v in kw.items() if k in GATES}
+            for pp in OUT_PARAMS:
+                d, t = longest_output(r["frames"], params=pp, **est)
+                k = "ot" if r["table"] else "ow"
+                tot[k] = max(tot[k], (d, "%s@%.0fs" % (r["name"][5:11], t - r["frames"][0].t_host) if d else ""))
         extra = "·" + str({k: v for k, v in STEPPING.items() if k not in GATES}) if kw.get("stepping") else ""
         print(f"| {n} {cfg_name(g)}{extra} | {tot['still']} | {tot['table']} | {fmt(tot['cov_s'] / (2 * wsum) if wsum else None)} | "
-              f"{tot['fw']:.0f} / {tot['ft']:.0f} | {fmt(tot['wm'] / wsum if wsum else None)} |")
+              f"{tot['fw']:.0f} / {tot['ft']:.0f} | {fmt(tot['wm'] / wsum if wsum else None)} | "
+              f"{tot['ow'][0]:.2f}（{tot['ow'][1]}） / {tot['ot'][0]:.2f}（{tot['ot'][1]}） |")
 
 
 # ---------- --hs：az 冲击 vs 估计器相位 ----------

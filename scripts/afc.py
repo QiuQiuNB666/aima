@@ -49,9 +49,10 @@ def main():
     print(f"模式 {a.mode}，{a.trials} 轮，每轮 {a.seconds} s。{'干跑（理想观察者）' if a.dry else '穿的人别看屏幕。回车开始每一轮。'}")
     if a.dry:
         post("/sim", {"walk": True})
-    score = []
+    score, voids = [], 0
     try:
-        for i in range(a.trials):
+        while len(score) < a.trials:                           # 0 力轮作废重做，不计分
+            i = len(score)
             ask(f"\n第 {i+1} 轮：按住 R2 开始走，回车给刺激 → ")
             if a.mode == "slope":
                 truth = rnd.choice(["up", "down"]); post("/terrain/force", {"kind": truth})
@@ -75,6 +76,13 @@ def main():
             post("/set", {"name": "strength", "value": base_strength}); post("/set", {"name": "t_push", "value": base_push})
             pos, neg = sum(x for x in sent if x > 0), -sum(x for x in sent if x < 0)
             peak = max((abs(x) for x in sent), default=0.0)
+            if peak == 0:
+                voids += 1
+                post("/mark", {"label": f"AFC{' DRY' if a.dry else ''} {a.mode} {i+1}/{a.trials} VOID truth={truth} peak=0"})
+                print("\n  ！这一轮一点力都没发出去：R2 没按 / 没在走 / 置信度门控。这轮不算数，重做")
+                if voids >= a.trials:
+                    print(f"  已作废 {voids} 轮，先查 R2 / 步态再来"); break
+                continue
             if a.dry:
                 if a.mode == "slope":
                     ans = "u" if pos > neg else "d"
@@ -89,15 +97,13 @@ def main():
             post("/mark", {"label": f"AFC{' DRY' if a.dry else ''} {a.mode} {i+1}/{a.trials} truth={truth} "
                                     f"answer={keys.get(ans)} {'OK' if ok else 'X'} peak={peak:.2f}"})
             print(f"\n  实际 {truth} → {'对' if ok else '错'}   累计 {sum(score)}/{len(score)}   发出峰值 {peak:.2f} Nm")
-            if peak == 0:
-                print("  ！这一轮一点力都没发出去：R2 没按 / 没在走 / 置信度门控。这轮不算数")
     finally:                                                   # Ctrl-C 也要把强制路段和参数还原
         post("/terrain/force", {"kind": None})
         post("/set", {"name": "strength", "value": base_strength}); post("/set", {"name": "t_push", "value": base_push})
         if a.dry:
             post("/sim", {"walk": False})
     n, k = len(score), sum(score)
-    msg = f"正确率 {k}/{n} = {k/n:.0%}" if n else "没跑完一轮"
+    msg = (f"正确率 {k}/{n} = {k/n:.0%}" if n else "没跑完一轮") + (f"（另作废 {voids} 轮）" if voids else "")
     post("/mark", {"label": f"AFC{' DRY' if a.dry else ''} {a.mode} 结果 {msg}"})
     print(f"\n{msg}。10 轮里 ≥9 对才可以说'能分辨'（二项检验 p≈0.01）；≤7 对就是在猜。")
 
