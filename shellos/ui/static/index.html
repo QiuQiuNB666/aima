@@ -102,7 +102,7 @@ function renderParams(c){
  const key=c.name+Object.keys(c.params).join();
  if(key!==paramsKey){paramsKey=key;$('params').innerHTML='';
   for(const [k,[v,lo,hi]] of Object.entries(c.params)){
-   const step=(hi-lo)>=50?5:(hi-lo)>=3?0.5:(hi-lo)>=1?0.1:0.01;
+   const step=(hi-lo)>=50?5:(hi-lo)>=3?0.5:(hi-lo)>=1?0.1:(hi-lo)>=0.5?0.02:0.01;
    const d=document.createElement('div');
    d.innerHTML=`<span class="n">${k} <small style="color:var(--dim)">${lo}…${hi}</small></span><button data-k="${k}" data-d="${-step}">−</button><span class="v" id="p_${k}"></span><button data-k="${k}" data-d="${step}">+</button>`;
    $('params').appendChild(d)}

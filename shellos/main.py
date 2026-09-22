@@ -43,7 +43,7 @@ class App:
     @staticmethod
     def _step(lo, hi):
         r = hi - lo
-        return 5 if r >= 50 else 0.5 if r >= 3 else 0.1 if r >= 1 else 0.01
+        return 5 if r >= 50 else 0.5 if r >= 3 else 0.1 if r >= 1 else 0.02 if r >= 0.5 else 0.01
 
     def nudge(self, index, sign):
         """调第 index 个参数一档。手柄：上下调第 0 个（一般是峰值/增益），左右调第 1 个（峰时/延迟）。"""

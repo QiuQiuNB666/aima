@@ -15,10 +15,10 @@ from .base import Controller
 class DOFC(Controller):
     name = "dofc"
 
-    def __init__(self, gain=0.05, delay_s=0.15, ema=0.2):
+    def __init__(self, gain=0.10, delay_s=0.15, ema=0.2):
         super().__init__()
         self.params = {
-            "gain":    [gain,    -0.15, 0.15],   # Nm/deg；髋角差 ±20° → ±3 Nm
+            "gain":    [gain,    -0.30, 0.30],   # Nm/deg；髋角差 ±20°(差/2=±10°) × 0.1 → ±1 Nm，0.3 → ±3 Nm
             "delay_s": [delay_s,  0.05, 0.40],
             "ema":     [ema,      0.05, 1.0],
         }
