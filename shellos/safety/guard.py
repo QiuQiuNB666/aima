@@ -29,7 +29,7 @@ class Guard:
         self.wd_zero, self.wd_disable, self.stream_timeout = wd_zero, wd_disable, stream_timeout
         self.on_sent = on_sent                      # (tl, tr) 回调，录制用
         self.state = CONNECTED
-        self.deadman = 0.0
+        self._deadman_src: dict = {}
         self.estop = False
         self.last_sent = (0.0, 0.0)
         self.last_submit_t = time.monotonic()
@@ -40,8 +40,12 @@ class Guard:
         threading.Thread(target=self._watchdog, name="guard-wd", daemon=True).start()
 
     # ---- 外部信号 ----
-    def set_deadman(self, v: float):
-        self.deadman = max(0.0, min(1.0, v))
+    def set_deadman(self, v: float, source: str = "default"):
+        self._deadman_src[source] = max(0.0, min(1.0, v))
+
+    @property
+    def deadman(self) -> float:
+        return max(self._deadman_src.values(), default=0.0)
 
     def trigger_estop(self, reason="estop"):
         self.estop = True

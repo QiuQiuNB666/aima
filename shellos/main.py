@@ -1,15 +1,16 @@
-"""装配：设备(串口/回放) → Guard → 控制律 → 100 Hz 循环 → 手柄/键盘。
+"""装配：设备(串口/回放) → Guard → 控制律 → 100 Hz 循环 → 手柄/键盘/网页。
 
   python -m shellos.main                       # 串口，transparent，只读数据
   python -m shellos.main --ctl dofc --cap 2    # DOFC，软限 2 Nm
-  python -m shellos.main --replay data/recordings/xxx.csv --ctl dofc
-按住 R2（或空格）才有力；× / Esc 急停；○ / R 重新上膛。
+  python -m shellos.main --replay data/recordings/xxx.csv --ctl phase --force-deadman
+仪表盘 http://localhost:8765 。按住 R2 / 空格 / 网页大按钮才有力；× / Esc / 网页急停；○ / R / 网页重新上膛。
 """
 from __future__ import annotations
 import argparse
 import signal
 import sys
 import time
+from datetime import datetime
 
 from .control.base import Transparent
 from .control.dofc import DOFC
@@ -22,6 +23,25 @@ CTLS = {"transparent": Transparent, "dofc": DOFC, "phase": PhaseProfile}
 LOOP_HZ = 100
 
 
+class App:
+    """仪表盘和 Agent 层看到的东西都挂在这上面。"""
+
+    def __init__(self, link, guard, ctl_name):
+        self.link, self.guard = link, guard
+        self.ctls = CTLS
+        self.ctl = CTLS[ctl_name]()
+        self.gait = GaitEstimator()
+        self.events: list = []
+        self.loop_ms = 0
+
+    def set_ctl(self, name):
+        self.ctl = CTLS[name]()          # 新控制律从 0 起，Guard 的斜率限负责平滑
+
+    def log(self, text):
+        self.events.append({"t": datetime.now().strftime("%H:%M:%S"), "text": text})
+        print(f"\n[{self.events[-1]['t']}] {text}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port")
@@ -31,11 +51,12 @@ def main():
     ap.add_argument("--wearer", default="anon")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--no-input", action="store_true", help="不起手柄/键盘线程（诊断用）")
+    ap.add_argument("--http", type=int, default=8765, help="仪表盘端口，0 = 不起")
     ap.add_argument("--force-deadman", action="store_true",
                     help="回放时没手柄也给力（只允许配合 --replay）")
     a = ap.parse_args()
     if a.force_deadman and not a.replay:
-        ap.error("--force-deadman 只允许配合 --replay；真机必须用手柄或键盘")
+        ap.error("--force-deadman 只允许配合 --replay；真机必须用手柄/键盘/网页按钮")
 
     rec = None if a.no_record else Recorder(a.wearer)
     on_frame = rec.frame if rec else None
@@ -52,17 +73,21 @@ def main():
     guard.arm()
     print(f"[handshake] firmware {ver}  state {guard.state}  cap {guard.soft_cap} Nm")
 
-    from .input.gamepad import Gamepad
-    from .input.hotkeys import Hotkeys
-    pad = Gamepad(guard) if not a.no_input else type("P", (), {"connected": False})()
+    app = App(link, guard, a.ctl)
+    app.log(f"启动：{link.port} 固件 {ver}，控制律 {a.ctl}，软限 {a.cap} Nm")
+
+    pad = None
     if not a.no_input:
+        from .input.gamepad import Gamepad
+        from .input.hotkeys import Hotkeys
+        pad = Gamepad(guard)
         Hotkeys(guard)
     if a.force_deadman:
-        guard.set_deadman(1.0)
-
-    ctl = CTLS[a.ctl]()
-    gait = GaitEstimator()
-    print(f"[ctl] {ctl.name} {ctl.values()}")
+        guard.set_deadman(1.0, "forced")
+    if a.http:
+        from .ui.server import Dashboard
+        Dashboard(app, a.http)
+        print(f"[ui] http://localhost:{a.http}")
 
     def stop(*_):
         guard.shutdown()
@@ -88,19 +113,21 @@ def main():
         prev_t = now0
         f = link.latest()
         if f is not None:
-            st = gait.update(f)
+            st = app.gait.update(f)
+            ctl = app.ctl
             tl, tr = ctl.step(f, st)
             guard.submit(tl, tr, confidence=st.conf if ctl.name == "phase" else 1.0)
         now = time.monotonic()
         if now - last_print > 0.5:
             last_print = now
-            gap_ms, max_gap = max_gap * 1000, 0.0
+            app.loop_ms, max_gap = round(max_gap * 1000), 0.0
             gs = guard.state
             fr = (f"L{f.l_deg:6.1f}° R{f.r_deg:6.1f}° φ{st.l.phase:.2f}/{st.r.phase:.2f} "
                   f"conf{st.conf:.2f} {st.cadence:4.0f}spm sym{st.symmetry:.2f}") if st else "no frames"
-            print(f"\r[{gs:10s}] pad={'Y' if pad.connected else 'n'} dm={guard.deadman:.2f} "
+            pc = 'Y' if (pad and pad.connected) else 'n'
+            print(f"\r[{gs:10s}] pad={pc} dm={guard.deadman:.2f} "
                   f"sent=({guard.last_sent[0]:+.2f},{guard.last_sent[1]:+.2f}) {guard.last_reason:22s} "
-                  f"{fr}  n={link.n_frames} bad={link.n_bad} age={link.stream_age()*1000:5.0f}ms loop{gap_ms:4.0f}ms   ",
+                  f"{fr}  n={link.n_frames} bad={link.n_bad} age={link.stream_age()*1000:5.0f}ms loop{app.loop_ms:4d}ms   ",
                   end="", flush=True)
         time.sleep(max(0.0, next_t - time.monotonic()))
 

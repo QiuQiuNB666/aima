@@ -19,7 +19,7 @@ class Hotkeys:
 
         def on_press(k):
             if k == keyboard.Key.space:
-                self.guard.set_deadman(1.0)
+                self.guard.set_deadman(1.0, "keyboard")
             elif k == keyboard.Key.esc:
                 self.guard.trigger_estop("keyboard esc")
             elif getattr(k, "char", None) in ("r", "R"):
@@ -27,7 +27,7 @@ class Hotkeys:
 
         def on_release(k):
             if k == keyboard.Key.space:
-                self.guard.set_deadman(0.0)
+                self.guard.set_deadman(0.0, "keyboard")
 
         try:
             with keyboard.Listener(on_press=on_press, on_release=on_release) as l:

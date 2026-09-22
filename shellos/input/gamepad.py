@@ -40,8 +40,8 @@ class Gamepad:
                         self.on_button(ev.button)
                 elif ev.type == pygame.JOYDEVICEREMOVED:
                     self.connected = False
-                    self.guard.set_deadman(0.0)
+                    self.guard.set_deadman(0.0, "gamepad")
                     return
             self.r2 = (js.get_axis(R2_AXIS) + 1.0) / 2.0     # → 0..1
-            self.guard.set_deadman(self.r2 if self.r2 > 0.05 else 0.0)
+            self.guard.set_deadman(self.r2 if self.r2 > 0.05 else 0.0, "gamepad")
             clock.tick(100)
