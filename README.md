@@ -29,6 +29,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 | 想干什么 | 读这个 |
 |---|---|
+| 荣耀 Robot Phone 实机摸底（adb） | [docs/荣耀手机-adb摸底.md](docs/荣耀手机-adb摸底.md) |
 | **ShellOS 控制栈架构：分层、线程、安全层、44 h 建法** | [docs/架构.md](docs/架构.md) |
 | **Hypershell 想做什么、怎么说对口、什么踩雷** | [docs/Hypershell想做什么.md](docs/Hypershell想做什么.md) |
 | **外骨骼能往哪做：六个方向 + 建议组合** | [docs/外骨骼开发方向.md](docs/外骨骼开发方向.md) |
