@@ -16,12 +16,13 @@ from datetime import datetime
 
 from .control.base import Transparent
 from .control.dofc import DOFC
+from .control.constant import Constant
 from .control.phase_profile import PhaseProfile
 from .gait.estimator import GaitEstimator
 from .device.recorder import Recorder
 from .safety.guard import Guard
 
-CTLS = {"transparent": Transparent, "dofc": DOFC, "phase": PhaseProfile}
+CTLS = {"transparent": Transparent, "constant": Constant, "dofc": DOFC, "phase": PhaseProfile}
 LOOP_HZ = 100
 
 

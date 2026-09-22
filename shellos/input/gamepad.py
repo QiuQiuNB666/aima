@@ -5,6 +5,7 @@ pygame 的轴号在 macOS 上：R2 是 axis 5（-1 松开 → +1 按满）；× 
 from __future__ import annotations
 import os
 import threading
+import time
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
@@ -32,12 +33,17 @@ class Gamepad:
         js.init()
         self.connected = True
         clock = pygame.time.Clock()
-        seen_r2 = False          # SDL 在第一个事件之前把扳机读成 0（=按一半），必须等到真实事件
+        seen_r2 = False
+        last_btn = {}            # 防抖：同一键 250 ms 内只算一次          # SDL 在第一个事件之前把扳机读成 0（=按一半），必须等到真实事件
         while True:
             for ev in pygame.event.get():
                 if ev.type == pygame.JOYAXISMOTION and ev.axis == R2_AXIS:
                     seen_r2 = True
                 if ev.type == pygame.JOYBUTTONDOWN:
+                    now = time.monotonic()
+                    if now - last_btn.get(ev.button, 0) < 0.25:
+                        continue
+                    last_btn[ev.button] = now
                     if ev.button == BTN_CROSS:
                         self.guard.trigger_estop("gamepad ×")
                     elif ev.button == BTN_CIRCLE:

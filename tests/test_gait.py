@@ -74,4 +74,5 @@ def test_gamepad_nudge_and_cycle():
     app.on_button(BTN["r1"]);    assert app.ctl.name == "transparent"     # phase → 绕回第一个
     app.on_button(BTN["l1"]);    assert app.ctl.name == "phase_profile"
     app.on_button(BTN["l1"]);    assert app.ctl.name == "dofc"
+    app.on_button(BTN["l1"]);    assert app.ctl.name == "constant"
     app.on_button(BTN["right"]); assert app.ctl.p("delay_s") == 0.16      # 0.15 + 0.01

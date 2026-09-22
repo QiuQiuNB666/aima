@@ -37,6 +37,8 @@ class SerialLink:
         self.n_frames = 0
         self.n_bad = 0
         self.last_frame_t = 0.0
+        self.replies_seen: dict = {}          # 前缀 → 次数，例如 OK,T / ERR,NOT_ENABLED
+        self.last_err = ""
         self._wlock = threading.Lock()
         self._alive = True
         self._thr = threading.Thread(target=self._reader, name="serial-read", daemon=True)
@@ -61,7 +63,12 @@ class SerialLink:
                 if line.startswith("S:"):
                     self.n_bad += 1
                 else:
-                    self.replies.put(line)
+                    key = ",".join(line.split(",")[:2])
+                    self.replies_seen[key] = self.replies_seen.get(key, 0) + 1
+                    if line.startswith("ERR"):
+                        self.last_err = line
+                    if self.replies.qsize() < 50:
+                        self.replies.put(line)
                 continue
             self.n_frames += 1
             self.last_frame_t = t
