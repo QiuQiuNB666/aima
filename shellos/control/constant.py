@@ -8,7 +8,7 @@ from .base import Controller
 class Constant(Controller):
     name = "constant"
 
-    def __init__(self, tl=1.5, tr=1.5):
+    def __init__(self, tl=0.0, tr=0.0):
         super().__init__()
         self.params = {"tl": [tl, -4.0, 4.0], "tr": [tr, -4.0, 4.0]}
 

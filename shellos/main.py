@@ -29,8 +29,8 @@ LOOP_HZ = 100
 class App:
     """仪表盘和 Agent 层看到的东西都挂在这上面。"""
 
-    def __init__(self, link, guard, ctl_name):
-        self.link, self.guard = link, guard
+    def __init__(self, link, guard, ctl_name, rec=None):
+        self.link, self.guard, self.rec = link, guard, rec
         self.ctls = CTLS
         self.ctl = CTLS[ctl_name]()
         self.gait = GaitEstimator()
@@ -89,6 +89,11 @@ class App:
         elif b == BTN["triangle"]: self.log("△ 标记：评委反馈点")
         elif b == BTN["square"]:   self.look()
 
+    def mark(self, label):
+        if self.rec:
+            self.rec.mark(label)
+        self.log(f"▶ {label}")
+
     def log(self, text):
         self.events.append({"t": datetime.now().strftime("%H:%M:%S"), "text": text})
         print(f"\n[{self.events[-1]['t']}] {text}")
@@ -125,7 +130,7 @@ def main():
     guard.arm()
     print(f"[handshake] firmware {ver}  state {guard.state}  cap {guard.soft_cap} Nm")
 
-    app = App(link, guard, a.ctl)
+    app = App(link, guard, a.ctl, rec)
     app.log(f"启动：{link.port} 固件 {ver}，控制律 {a.ctl}，软限 {a.cap} Nm")
 
     pad = None

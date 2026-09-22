@@ -158,6 +158,13 @@ class Dashboard:
             return {"ok": a.glasses.info()}
         if path == "/glasses/look":
             return {"ok": a.look()}
+        if path == "/mark":
+            a.mark(body.get("label", ""))
+            return {"ok": True}
+        if path == "/set":                      # 直接设参数绝对值（采集脚本用）
+            k, v = body["name"], float(body["value"])
+            cur = a.ctl.params[k][0]
+            return a.ctl.set_params({k: v - cur})
         if path == "/log":
             a.log(body.get("text", ""))
             return {"ok": True}

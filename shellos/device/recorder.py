@@ -15,6 +15,8 @@ class Recorder:
         self._fh = open(self.path, "w", buffering=1 << 16)
         self._fh.write("kind," + CSV_HEADER + ",tl,tr\n")
         self.n = 0
+        self._marks = open(self.path.replace(".csv", ".marks.csv"), "w", buffering=1)
+        self._marks.write("t_host,label\n")
 
     def frame(self, f: Frame):
         self._fh.write("frame," + f.csv() + ",,\n")
@@ -23,5 +25,9 @@ class Recorder:
     def torque(self, tl: float, tr: float):
         self._fh.write(f"torque,{time.monotonic():.4f}" + ",," * 14 + f",{tl:.3f},{tr:.3f}\n")
 
+    def mark(self, label: str):
+        self._marks.write(f"{time.monotonic():.4f},{label.replace(',', ';')}\n")
+
     def close(self):
         self._fh.close()
+        self._marks.close()
