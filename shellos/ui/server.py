@@ -57,7 +57,14 @@ class Dashboard:
                 except Exception as e:  # noqa: BLE001
                     return self._json({"error": str(e)}, 400)
 
-        self.httpd = ThreadingHTTPServer(("0.0.0.0", port), H)
+        for i in range(20):                      # 上一个进程可能还没释放端口
+            try:
+                self.httpd = ThreadingHTTPServer(("0.0.0.0", port), H)
+                break
+            except OSError:
+                if i == 19:
+                    raise
+                time.sleep(0.25)
         threading.Thread(target=self.httpd.serve_forever, name="dashboard", daemon=True).start()
         threading.Thread(target=self._hold_watch, name="hold-wd", daemon=True).start()
 
