@@ -43,6 +43,8 @@ class Dashboard:
             def do_GET(self):
                 if self.path.startswith("/state"):
                     return self._json(dash.state())
+                if self.path.split("?")[0] in ("/game", "/game.html"):
+                    return self._file(os.path.join(os.path.dirname(__file__), "static", "game.html"), "text/html; charset=utf-8")
                 if self.path.startswith("/vendor/") or self.path.startswith("/models/") or self.path.startswith("/body3d.js"):
                     return self._static(self.path.split("?")[0])
                 if self.path.startswith("/shots/"):
@@ -113,6 +115,9 @@ class Dashboard:
                        "sent": [round(x, 3) for x in g.last_sent], "cap": g.soft_cap,
                        "sources": {k: round(v, 2) for k, v in g._deadman_src.items() if v > 0}},
             "pad": {"connected": bool(getattr(a, "pad", None) and a.pad.connected), "r2": round(getattr(getattr(a, "pad", None), "r2", 0.0) or 0.0, 2)},
+            "sim": {"on": hasattr(a.link, "set_walk"), "walk": getattr(a.link, "walking", False),
+                    "cadence": getattr(a.link, "cadence", 0)},
+            "wearer": a.wearer,
             "link": {"port": getattr(a.link, "port", "?"), "n": a.link.n_frames, "bad": a.link.n_bad,
                      "age_ms": round(min(a.link.stream_age(), 9.999) * 1000),
                      "replies": {k: v for k, v in getattr(a.link, "replies_seen", {}).items() if "\x00" not in k},
@@ -178,6 +183,14 @@ class Dashboard:
         if path == "/wearer":
             a.set_wearer(body.get("name", "anon"))
             return {"wearer": a.wearer}
+        if path == "/sim":
+            if hasattr(a.link, "set_walk"):
+                if "walk" in body:
+                    a.link.set_walk(bool(body["walk"]))
+                if "cadence" in body:
+                    a.link.set_cadence(float(body["cadence"]))
+                return {"walk": a.link.walking, "cadence": a.link.cadence}
+            return {"error": "not sim"}
         if path == "/terrain":
             a.set_terrain(body.get("preset", "山的记忆"))
             return {"ok": True}

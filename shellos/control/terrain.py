@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 import math
+import time
 
 from .base import Controller
 
@@ -63,10 +64,20 @@ class Terrain(Controller):
         self.total = sum(n for _, n in self.segments)
         self.pos = 0
         self.laps = 0
+        self.lap_t0 = None            # 这一圈第一步的时刻
+        self.lap_steps: list = []     # 这一圈每一步相对 lap_t0 的秒数
+        self.ghost: list = []         # 上一圈（上一位）的每一步时刻 —— "山的记忆"
+        self.ghost_who = ""
+        self.best = None              # 最快一圈的秒数
+        self.last_lap = None
+        self.wearer = "anon"
 
     def reset(self):
+        """换人/演示复位：回到山脚。上一圈留作影子。"""
         self.pos = 0
         self._strides = 0
+        self.lap_t0 = None
+        self.lap_steps = []
 
     def segment_at(self, pos):
         if self.force:
@@ -91,12 +102,23 @@ class Terrain(Controller):
         if gait is None:
             return 0.0, 0.0
         strides = gait.l.n_strides + gait.r.n_strides
-        if strides != self._strides:                    # 一个新的步态周期 = 前进一步
-            self.pos += strides - self._strides
+        if strides < self._strides:                     # 步态估计被重置（换人）
             self._strides = strides
-            if self.pos >= self.total:
-                self.laps += self.pos // self.total
-                self.pos %= self.total
+        if strides != self._strides:                    # 一个新的步态周期 = 前进一步
+            now = time.monotonic()
+            for _ in range(strides - self._strides):
+                if self.lap_t0 is None:
+                    self.lap_t0 = now
+                self.lap_steps.append(now - self.lap_t0)
+                self.pos += 1
+                if self.pos >= self.total:              # 登顶一圈
+                    self.laps += 1
+                    self.pos = 0
+                    self.last_lap = self.lap_steps[-1]
+                    self.best = self.last_lap if self.best is None else min(self.best, self.last_lap)
+                    self.ghost, self.ghost_who = self.lap_steps, self.wearer
+                    self.lap_steps, self.lap_t0 = [], None
+            self._strides = strides
         kind = self.segment_at(self.pos)
         g = GRADE[kind]
         if g == 0.0 or not gait.moving:
@@ -114,6 +136,12 @@ class Terrain(Controller):
         return f(gait.l.phase), f(gait.r.phase)
 
     def status(self):
+        el = (time.monotonic() - self.lap_t0) if self.lap_t0 is not None else 0.0
+        ghost_pos = None
+        if self.ghost:
+            ghost_pos = sum(1 for x in self.ghost if x <= el) if self.lap_t0 is not None else 0
         return {"preset": self.preset, "pos": self.pos, "total": self.total, "laps": self.laps,
                 "segment": self.segment_at(self.pos), "force": self.force, "profile": self.profile(),
-                "presets": list(PRESETS), "hs_phase": HS_PHASE}
+                "segments": self.segments, "presets": list(PRESETS), "hs_phase": HS_PHASE,
+                "elapsed": round(el, 1), "best": self.best, "last_lap": self.last_lap,
+                "ghost_pos": ghost_pos, "ghost_who": self.ghost_who}

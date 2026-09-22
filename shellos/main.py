@@ -60,10 +60,19 @@ class App:
     def set_wearer(self, name):
         self.wearer = name or "anon"
         self.demo_reset(keep_wearer=True)
+        if hasattr(self.ctl, "wearer"):
+            self.ctl.wearer = self.wearer
         self.log(f"换人：{self.wearer}。参数回缺省，走 {self.min_strides} 步后自动检索经验")
 
     def demo_reset(self, keep_wearer=False):
+        old = self.ctl
         self.ctl = CTLS[self.ctl_key()]()
+        if hasattr(old, "ghost") and hasattr(self.ctl, "ghost"):   # 换人/复位不丢「山的记忆」
+            self.ctl.set_preset(old.preset)
+            self.ctl.ghost, self.ctl.ghost_who, self.ctl.best = old.ghost, old.ghost_who, old.best
+            if old.lap_steps and not old.ghost:                        # 上一位没爬完也留作影子
+                self.ctl.ghost, self.ctl.ghost_who = old.lap_steps, old.wearer
+            self.ctl.wearer = self.wearer
         self.gait = GaitEstimator()
         self.applied, self.recalled = [], False
         if not keep_wearer:
@@ -194,6 +203,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port")
     ap.add_argument("--replay", help="录制 CSV，替代串口")
+    ap.add_argument("--sim", action="store_true", help="模拟外骨骼：按住空格/网页按钮走路")
     ap.add_argument("--ctl", default="transparent", choices=CTLS)
     ap.add_argument("--cap", type=float, default=3.0, help="软限 Nm")
     ap.add_argument("--wearer", default="anon")
@@ -203,12 +213,15 @@ def main():
     ap.add_argument("--force-deadman", action="store_true",
                     help="回放时没手柄也给力（只允许配合 --replay）")
     a = ap.parse_args()
-    if a.force_deadman and not a.replay:
+    if a.force_deadman and not (a.replay or a.sim):
         ap.error("--force-deadman 只允许配合 --replay；真机必须用手柄/键盘/网页按钮")
 
     rec = None if a.no_record else Recorder(a.wearer)
     on_frame = rec.frame if rec else None
-    if a.replay:
+    if a.sim:
+        from .device.sim import SimLink
+        link = SimLink(on_frame=on_frame)
+    elif a.replay:
         from .device.replay import ReplayLink
         link = ReplayLink(a.replay, on_frame=on_frame)
     else:

@@ -134,3 +134,21 @@ def test_terrain_and_puppet():
     assert abs(out[0] - 1.0) < 1e-9 and abs(out[1] + 2.0) < 1e-9
     p.sticks = [0.0, 0.0]; out = p.step(None)
     assert abs(out[0] - 0.93) < 1e-9                    # 松开也是缓降，不是断崖
+
+
+def test_terrain_lap_and_ghost():
+    """走完一圈 → 记用时、留影子；复位后影子按时间前进。"""
+    import time as _t
+    from shellos.control.terrain import Terrain
+    t = Terrain("台阶")
+    t.wearer = "judge-01"
+    g = GaitEstimator()
+    for fr in walk(40.0, spm=110):
+        st = g.update(fr)
+        t.step(fr, st)
+        if t.laps:
+            break
+    assert t.laps == 1 and t.ghost and t.ghost_who == "judge-01" and t.best is not None
+    t.reset()
+    s = t.status()
+    assert s["pos"] == 0 and s["ghost_pos"] == 0          # 还没迈步，影子也在起点
