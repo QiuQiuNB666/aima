@@ -10,9 +10,9 @@ import * as THREE from 'three';
 import { loadAvatar, preloadAvatar } from '/game/avatar.js';
 import { dressFengge } from '/game/fengge.js';
 import { makeJifeng } from '/game/npc_jifeng.js';
-import { PALETTE, applyCssVars } from '/game/style.js';
+import { PALETTE, UI, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
-import { makeRunner } from './runner.js';
+import { makeRunner, damp } from './runner.js';
 import { makeCloth } from './cloth.js';
 import { TUNE, rng, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
@@ -66,6 +66,7 @@ async function main() {
   scene.add(av.group);
   const runner = Q.get('runner') === '0' ? null : makeRunner(av);
   const cloth = runner ? makeCloth(scene, av) : null;             // 在第一次摆姿势之前建：按绑定姿态找挂点
+  const avLook = av.mats[0] && av.mats[0].userData.look, rim0 = avLook && avLook.uRim.value.clone(), rimK0 = avLook && avLook.uRimK.value, DANGER = new THREE.Color(UI.danger), TS = { t: 0 };   // 峰哥衣服 / 头共用这组 uniform
   const jf = await makeJifeng(scene);
   if (Q.get('hud') === '0') document.body.classList.add('clean');
   if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
@@ -83,16 +84,16 @@ async function main() {
   let pend = { jump: false, slide: false, lane: 0, slideHold: false };
 
   // ---------- /state ----------
-  let S = null, lastT = null, legWalk = 0, audio = null;
+  let S = null, sAt = 0, lastT = null, legWalk = 0, audio = null;
   async function poll() {
     const t0 = performance.now();
     try {
-      S = await fetch('/state', { cache: 'no-store' }).then(r => r.json());
+      S = await fetch('/state', { cache: 'no-store' }).then(r => r.json()); sAt = performance.now() / 1000;
       $('banner').style.display = 'none';
       const f = S.frame;
       if (f && S.t !== lastT) {
         lastT = S.t;
-        if (legWalk >= LEG_READY_S) {
+        if (legWalk >= LEG_READY_S && !runner) {      // 关了跑步层（?runner=0）才走老路：直接用 10 Hz 原始样本
           const off = av.body.off, r = legs.push(-f.l - off, -f.r - off, -(f.ldps || 0), -(f.rdps || 0));
           if (r.jump) pend.jump = true;
           pend.slideHold = r.slide; if (r.slide) pend.slide = true;
@@ -104,12 +105,14 @@ async function main() {
   if (!DEMO) poll();
   // 预览：合成髋角（人走路 / 跑步的髋角曲线），按 10 Hz 更新 S——和真机轮询一样，A2 的外推 + 滤波照常起作用
   let demoPh = 0, demoAt = -1;
+  let G_MIN = 0; { let m = 1e9; for (let g = 0; g < 1; g += 1e-3) { const v = synthHip(g)[0]; if (v < m) { m = v; G_MIN = g; } } }
   function demoState(dt) {
     const f = CAD_DEMO / 120; demoPh = (demoPh + dt * f) % 1;
     if (clock - demoAt < 0.1) return;
     demoAt = clock;
     const [a, va] = synthHip(demoPh), [b, vb] = synthHip((demoPh + 0.5) % 1), on = clock > 0.6;
-    S = { t: clock, frame: { l: -a, r: -b, ldps: -va * f, rdps: -vb * f }, gait: { moving: on, cadence: on ? CAD_DEMO : 0 }, sim: { on: false } };
+    const pl = ((demoPh - G_MIN) % 1 + 1) % 1;                     // 估计器相位 0 = 髋最伸（屈曲最小），和 shellos/gait 一样
+    S = { t: clock, frame: { l: -a, r: -b, ldps: -va * f, rdps: -vb * f }, gait: { moving: on, cadence: on ? CAD_DEMO : 0, phase_l: pl, phase_r: (pl + 0.5) % 1 }, sim: { on: false }, terrain: { hs_phase: 0.5 } };
   }
   const say = key => {
     jfSaid = key; $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
@@ -139,6 +142,13 @@ async function main() {
   addEventListener('blur', () => walk(false));
 
   // ---------- 自动驾驶（?auto=p）：每个障碍按概率 p 决定躲不躲 ----------
+  // 离下一次 lift 出力还有几秒（两条腿取近的）：/state 的步态相位按步频外推到现在
+  const liftIn = () => {
+    const g = S && S.gait; if (!g || !(g.cadence > 0) || g.phase_l == null) return 9;
+    const f = g.cadence / 120, lp = (((S.terrain && S.terrain.hs_phase) ?? 0.5) + TUNE.LIFT_LIT) % 1, age = DEMO ? clock - S.t : performance.now() / 1000 - sAt + 0.01;   // 样本多旧（真机：收到时刻 + 服务端 ~10 ms）
+    return Math.min(...[g.phase_l, g.phase_r].map(p => (((lp - p - age * f) % 1) + 1) % 1 / f));
+  };
+  let dtNow = 1 / 60, liPrev = 9;
   function autopilot() {
     if (isSim() && !autoWalk) { autoWalk = true; post('/sim', { walk: true, cadence: 130 }); }
     if (run.over) { if (clock - overAt > 8) newRun(); return; }
@@ -146,7 +156,18 @@ async function main() {
     if (!th) return;
     if (th.o.ap === undefined) th.o.ap = rand() < AUTO;
     if (!th.o.ap) return;
-    if (th.what === 'jump' && th.dx < 1.5 + run.speed * 0.12) pend.jump = true;
+    // 第 5 轮：跳对到 lift 那一拍。lift 由 ShellOS 的步态估计相位触发（terrain.py：文献相位 68% = 估计器相位 (hs_phase + 0.68) % 1），
+    //   /state 里就有这两个数：把 gait.phase_l / phase_r 按步频外推到现在，哪条腿这一帧跨过 lift 相位就起跳——和腿上出力用的是同一个钟。只在安全窗口里等：
+    //   最早 = 还跳得过（楼缝：落点过对面楼沿 0.6 m；矮障碍：够高的那段滞空盖住它），最晚 = 原来的起跳距离（不会比以前更晚）
+    if (th.what === 'jump') {
+      // 安全窗口按物理算：矮障碍 = 脚在 LOW_H 以上的那段滞空 [t1, t2] 盖住它（碰撞 ±0.3 再留 0.3）；楼缝 = 楼沿前 0.35 m 以内起跳、落点过对面 0.6 m；最晚再留两帧的路
+      const v = Math.max(run.speed, 1), G = TUNE.G, V0 = TUNE.V0, gap = th.o.kind === 'gap';
+      const q = Math.sqrt(Math.max(0, V0 * V0 - 2 * G * TUNE.LOW_H)), t1 = (V0 - q) / G, t2 = (V0 + q) / G;
+      const late = (gap ? 0.35 : t1 * v + 0.6) + v * 2 / 60, early = gap ? v * 2 * V0 / G - (th.o.x1 - th.o.x0) - 0.6 : t2 * v - th.o.len - 0.6;
+      const li = liftIn(), beat = li < dtNow / 2 || li > liPrev + dtNow / 2;   // 这一帧最接近 lift 出力（刚要到 / 刚过去）
+      liPrev = li;
+      if (th.dx < late || (th.dx < early && beat)) pend.jump = true;
+    } else liPrev = 9;
     if (th.what === 'slide' && th.dx < 2.2) pend.slide = true;
     if (th.what === 'lane') { const free = [0, 1, 2].filter(l => !th.o.lanes.includes(l)).sort((a, b) => Math.abs(a - run.lane) - Math.abs(b - run.lane)); pend.lane = Math.sign(free[0] - run.lane); }
   }
@@ -163,6 +184,7 @@ async function main() {
     const g = S && S.gait;
     const moving = !!(g && g.moving);
     if (moving) legWalk += dtR;
+    dtNow = dtR;
     if (AUTO) autopilot();
     const vT = speedFor(g ? g.cadence : 0, moving);
     {
@@ -193,10 +215,12 @@ async function main() {
     av.group.position.copy(P);
     const slide = run.slideT > 0;
     // 根节点：滑铲后仰 0.6 rad（绕脚转，再把人往下放 0.3，屁股贴着地；腿怎么摆在 runner.js），腾空微前倾
-    tilt += ((slide ? 0.6 : run.air ? -0.12 : 0) - tilt) * (1 - Math.exp(-dtR * 14));
+    tilt = damp(TS, 't', slide ? 0.6 : run.air ? -0.12 : 0, dtR, 22);
     av.group.rotation.set(runner ? runner.roll : 0, runner ? runner.yaw : 0, tilt);
     av.group.position.y -= 0.5 * Math.max(0, tilt);
-    av.group.visible = !(run.invuln > 0 && Math.floor(t * 12) % 2);
+    // 撞了之后的无敌时间：不再 6 Hz 整个人一闪一闪（硬切，也超过 ART 的 2 Hz 上限），改成轮廓光 2 Hz 平滑泛红
+    if (avLook) { const k = run.invuln > 0 ? (0.5 - 0.5 * Math.cos(clock * 4 * Math.PI)) * Math.min(1, run.invuln / 0.3) : 0;
+      avLook.uRim.value.copy(rim0).lerp(DANGER, k); avLook.uRimK.value = rimK0 + 1.6 * k; }
     if (runner) {                                   // 前方马上要跳（楼缝 / 矮障碍）：0.35 s 内开始预判下沉，到边上蹲到 1
       if (gy !== null && !run.air) lastG = gy;       // 离地高度按起跳那栋楼算（空中飞过楼缝时脚下没地）
       const th = run.started && !run.air ? nextThreat(run, level, 8) : null;
@@ -204,6 +228,13 @@ async function main() {
       const vz = (run.z - lastZ) / Math.max(dtR, 1e-3); lastZ = run.z;
       runner.set({ v: run.speed, lat: run.laneZ(run.lane) - run.z, vz, air: run.air, vy: run.vy, h: run.y - lastG, pre: Math.max(0, Math.min(1, (0.35 - ttc) / 0.3)), slide });
       av.group.position.y += runner.rootDy;
+    }
+    // 第 5 轮：高抬腿 / 下蹲识别用 A2 跟踪后的髋角（按设备角速度外推到现在 + one-euro，60 fps），再往前看 JUMP_LEAD 秒。
+    //   原来等 10 Hz 样本（平均晚 ~50 ms，外加跨阈值要等下一拍），起跳帧离 lift 出力那一拍更远
+    if (runner && !DEMO && legWalk >= LEG_READY_S && S && S.frame) {
+      const h = runner.hip, off = av.body.off, L = TUNE.JUMP_LEAD, r = legs.push(h.fl - off + h.wl * L, h.fr - off + h.wr * L, h.wl, h.wr);
+      if (r.jump) pend.jump = true;
+      pend.slideHold = r.slide; if (r.slide) pend.slide = true;
     }
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
 
