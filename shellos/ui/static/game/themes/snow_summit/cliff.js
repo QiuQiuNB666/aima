@@ -38,12 +38,16 @@ export function cliffZones(route) {
   const C = { xing, knife, trav, end };
   C.wK = s => knife ? smooth(knife.start - 6, knife.start - 0.5, s) * (1 - smooth(end(knife) - 1, end(knife), s)) : 0;
   C.wT = s => trav ? smooth(trav.start + 0.2, trav.start + 1.2, s) * (1 - smooth(end(trav) - 0.8, end(trav) + 0.2, s)) : 0;
-  C.hw = (s, o = [0, 0]) => { const k = C.wK(s), t = C.wT(s); o[0] = HW - (HW - 0.5) * k - (HW - 0.6) * t; o[1] = HW - (HW - 0.5) * k - (HW - 0.8) * t; return o; };   // 路面半宽 [左, 右]
+  // 顶峰（考据 §7 §9-1：不是尖锥，是一道窄雪脊 + 东侧大雪檐；西风从右往左吹 → 东 = 左）：左边收窄、悬出雪檐，右边照旧
+  const N = route.N, snowy = !!(knife || trav || xing);
+  C.wP = s => snowy ? smooth(N - 1.5, N + 0.5, s) * (1 - smooth(N + 6, N + 7.5, s)) : 0;
+  C.hw = (s, o = [0, 0]) => { const k = C.wK(s), t = C.wT(s), p = C.wP(s); o[0] = HW - (HW - 0.5) * k - (HW - 0.6) * t - (HW - 0.75) * p; o[1] = HW - (HW - 0.5) * k - (HW - 0.8) * t; return o; };   // 路面半宽 [左, 右]
   if (xing) { C.sc = xing.start + xing.steps / 2; C.g0 = xing.start + 0.5; C.g1 = end(xing) - 0.5; }   // 缝在路上占 [g0, g1]（4 步 = 2 个单位）
   // 刀脊 / 横切的横向用一个固定方向（段中间的左方向）：路在入口拐一点，坡面远处不打折
   const frame = (s0, s1, w) => { const a = route.at((s0 + s1) / 2); return { s0, s1, w, L: a.left.clone(), D: a.dir.clone(), cx: a.pos.x, cz: a.pos.z, r: (s1 - s0) * STEP / 2 + 34 }; };
   if (knife) C.K = frame(knife.start - 6, end(knife), C.wK);
   if (trav) C.T = frame(trav.start, end(trav) + 0.4, C.wT);
+  if (snowy) C.P = frame(N - 1.5, N + 7.5, C.wP);
   return C;
 }
 const _hw = [0, 0], _a = {}, _v = new THREE.Vector3();
@@ -57,7 +61,7 @@ function toSeg(route, F, x, z, out) {
 const _sl = {};
 // 地面循环调：刀脊两侧 / 横切外侧的地面挖到坡面下面（再低 1）；横切右侧（岩壁）不动——地面在岩壁里面看不见
 export function cliffGround(C, route, x, z, y) {
-  for (const F of [C.K, C.T]) {
+  for (const F of [C.K, C.T, C.P]) {
     if (!F || Math.hypot(x - F.cx, z - F.cz) > F.r) continue;
     const q = toSeg(route, F, x, z, _sl);
     if (q.s < F.s0 || q.s > F.s1) continue;
@@ -66,7 +70,8 @@ export function cliffGround(C, route, x, z, y) {
     if (xx <= 0) continue;
     const u = xx / w, r = route.heightAt(q.s);
     if (F === C.K) y = Math.min(y, r - w * (kD(u) * (left ? 1 + 0.6 * (1 - smooth(0.6, 1.6, u)) : 1) + smooth(0.2, 1.5, u)));   // 左边雪檐下掏空：地面再深一点
-    else if (left) y = Math.min(y, r - w * (vD(u) + smooth(0.2, 1.5, u)));
+    else if (F === C.T) { if (left) y = Math.min(y, r - w * (vD(u) + smooth(0.2, 1.5, u))); }
+    else if (left) y = Math.min(y, r - w * (kD(u) * 0.7 * (1 + 0.6 * (1 - smooth(0.6, 1.6, u))) + smooth(0.2, 1.5, u)));   // 顶峰东侧：雪檐下掏空，坡缓一点
   }
   return y;
 }
@@ -77,7 +82,7 @@ export function shapeRoad(C, route, road) {
   const g = road.geometry, p = g.attributes.position, uv = g.attributes.uv, a = {};
   for (let i = 0; i < p.count; i++) {
     const s = uv.getY(i) / STEP, sg = uv.getX(i) > 0 ? 1 : -1;
-    if (C.wK(s) < 1e-3 && C.wT(s) < 1e-3) continue;
+    if (C.wK(s) < 1e-3 && C.wT(s) < 1e-3 && C.wP(s) < 1e-3) continue;
     const lat = sg * C.hw(s, _hw)[sg > 0 ? 0 : 1];
     route.at(s, lat, a); p.setX(i, a.pos.x); p.setZ(i, a.pos.z); uv.setX(i, lat);
   }
@@ -246,15 +251,31 @@ export function buildCliff(scene, ctx, { C, ground, hAt }) {
     grid(rowsW); grid(rowsV);
   }
 
+  // ---------- ④ 顶峰东侧雪檐（grp 2：排队那段起露面，登顶时照画） ----------
+  if (C.P) {
+    grp = 2;
+    const F = C.P, rows = [];
+    for (let s = F.s0; s <= F.s1 + 1e-6; s += 0.25) {
+      const w = F.w(s), hw = C.hw(s, _hw)[0], y0 = route.heightAt(s), c0 = route.at(s).pos, row = [];
+      for (let j = 0; j < CX.length; j++) {
+        const lat = hw + CX[j] * w, px = c0.x + F.L.x * lat, pz = c0.z + F.L.z * lat, n = nz(s * 0.9 + 11, CX[j] * 0.35);
+        col.copy(j >= 3 && j <= 5 ? under : snowC).lerp(rockA.clone().lerp(rockB, nz(px, pz)), smooth(0.5, 0.64, n) * smooth(2, 4, CX[j]) * 0.7).lerp(deep, smooth(10, 18, CD[j] * 0.7) * 0.6);
+        row.push([px, y0 - CD[j] * 0.7 * w, pz, col.r, col.g, col.b, j === 4 ? 0.22 : 0.08]);
+      }
+      rows.push(row);
+    }
+    grid(rows);
+  }
+
   if (!parts.length) return null;
   const geo = mergeAll(parts);
-  const U = { uP0: { value: new THREE.Vector2() }, uDir: { value: new THREE.Vector2(1, 0) }, uLen: { value: 1 }, uFoot: { value: -10 }, uDip: { value: 0 }, uShake: { value: 0 }, uT: { value: 0 }, uRevA: { value: 1 }, uRevB: { value: 0 } };
+  const U = { uP0: { value: new THREE.Vector2() }, uDir: { value: new THREE.Vector2(1, 0) }, uLen: { value: 1 }, uFoot: { value: -10 }, uDip: { value: 0 }, uShake: { value: 0 }, uT: { value: 0 }, uRevA: { value: 1 }, uRevB: { value: 0 }, uRevC: { value: 0 } };
   if (out.lad) { U.uP0.value.set(out.lad.A.x, out.lad.A.z); U.uDir.value.set(out.lad.D.x, out.lad.D.z).normalize(); U.uLen.value = out.lad.len; }
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = 'attribute float aGlow; attribute float aLd; attribute float aGrp; uniform vec2 uP0, uDir; uniform float uLen, uFoot, uDip, uShake, uT, uRevA, uRevB; varying float vGlow, vRev;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      vGlow = aGlow; vRev = aGrp < 0.5 ? uRevA : uRevB;
+    sh.vertexShader = 'attribute float aGlow; attribute float aLd; attribute float aGrp; uniform vec2 uP0, uDir; uniform float uLen, uFoot, uDip, uShake, uT, uRevA, uRevB, uRevC; varying float vGlow, vRev;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      vGlow = aGlow; vRev = aGrp < 0.5 ? uRevA : aGrp < 1.5 ? uRevB : uRevC;
       if (aLd > 0.0) {                                                  // 梯子：以脚下为中心往下弯（两头不动）+ 不稳时左右抖
         float d = dot(transformed.xz - uP0, uDir), b = sin(3.14159 * clamp(d / uLen, 0.0, 1.0)), x = (d - uFoot) / 0.8;
         transformed.y -= aLd * b * (uDip * exp(-x * x) + 0.025);
@@ -312,7 +333,7 @@ export function buildCliff(scene, ctx, { C, ground, hAt }) {
             #include <colorspace_fragment>
           }`,
       });
-      const fog = new THREE.Mesh(g, fm); fog.name = 'cliffMist'; fog.renderOrder = 3; fog.frustumCulled = false; scene.add(fog);
+      const fog = new THREE.Mesh(g, fm); fog.name = 'cliffMist'; fog.renderOrder = 3; scene.add(fog);
       out.fog = fog; out.FU = FU;
     }
   }
@@ -348,10 +369,12 @@ export function updateCliff(CL, X, dt, st, { kit, route, fovK, fogColor, windDir
   CL.first++;
   const warm = CL.first > 2, near = (a, b) => s > a && s < b;
   // 裂缝在地面上挖了洞：过裂缝之前一直画（大本营也看得见北坳）；刀脊 / 横切离段口 6 → 1 步溶出来（过了北坳；雾里看不出），登顶不画（横切岩壁比顶峰高）
-  const last = C.T || C.K, onCliff = !st.summit && s < (last ? last.s1 + 4 : C.end(C.xing) + 8);
+  //   顶峰雪檐（grp 2）：排队那段（N − 12 → N − 7）溶出来，登顶照画
+  const last = C.T || C.K, N = route.N, top = !!C.P && (st.summit || s > N - 12), onCliff = top || (!st.summit && s < (last ? last.s1 + 4 : C.xing ? C.end(C.xing) + 8 : -1e9));
   if (CL.mesh) {
     CL.mesh.visible = !warm || onCliff; CL.mesh.frustumCulled = warm;
-    const first = C.K || C.T; CL.U.uRevB.value = first ? smooth(first.s0 - 6, first.s0 - 1, s) : 0;
+    const first = C.K || C.T; CL.U.uRevB.value = first && !st.summit ? smooth(first.s0 - 6, first.s0 - 1, s) : 0;
+    CL.U.uRevA.value = st.summit ? 0 : 1; CL.U.uRevC.value = st.summit ? 1 : smooth(N - 12, N - 7, s);
   }
   // 新一圈：台词、滚石重置
   if (C.xing && s < C.xing.start - 5) { X.said = {}; X.lap++; X.rockNext = 1e9; X.falls = 0; }
@@ -417,7 +440,7 @@ export function updateCliff(CL, X, dt, st, { kit, route, fovK, fogColor, windDir
     if (cam) CL.FU.uCam.value.copy(cam.position);
     if (fogColor) CL.FU.uCol.value.copy(fogColor).lerp(WHITE, 0.35);
     if (windDir) CL.FU.uWind.value.copy(windDir);
-    CL.fog.visible = !warm || k > 0.001;
+    CL.fog.visible = !warm || k > 0.001; CL.fog.frustumCulled = warm;                    // 前两帧照画建管线，之后默认视锥裁剪
   }
   // —— 滚石 ——
   if (CL.rock) rockUpdate(CL, X, dt, st, kit, route, live, warm);

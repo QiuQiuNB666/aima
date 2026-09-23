@@ -1,5 +1,5 @@
 // 排队的登山者（第二台阶）：鼓鼓的连体羽绒服（一道道充绒格）、安全带、冰爪靴；帽兜 + 毛领、雪镜、氧气面罩 + 管子通到背包、
-//   背包（顶上一卷防潮垫、侧面橙色氧气瓶）。整队一个 InstancedMesh = 1 次绘制；腿 / 胳膊 / 头在顶点着色器里按实例属性动：
+//   小背包（橙色氧气瓶头露出包顶）。整队一个 InstancedMesh = 1 次绘制；腿 / 胳膊 / 头在顶点着色器里按实例属性动：
 //   aAnim = (相位, 走, 搓手, 抬头)：走起来腿和胳膊交替摆；站着等的时候跺脚（左右脚轮流抬）、搓手（两手收到胸前来回搓）、抬头看梯子。
 //   羽绒服 / 背包颜色是实例属性（aSuit / aPack）。LOD 三级：0 ≈ 700 / 1 ≈ 300 / 2 ≈ 120 三角形 / 人（climberGeo(lod)）。
 import * as THREE from 'three';
@@ -50,11 +50,10 @@ export function climberGeo(lod = 0) {
   if (!L1) add(at(new THREE.CylinderGeometry(0.025, 0.025, 0.05, 6).rotateZ(Math.PI / 2), 0.22, 1.55, 0, '#9a9a9a'), 5, 0);
   if (!L1) { add(tube(V(0.17, 1.52, -0.03), V(0.02, 1.4, -0.2), 0.016, '#3a3c40', 5), 5, 0); add(tube(V(0.02, 1.4, -0.2), V(-0.24, 1.44, -0.14), 0.016, '#3a3c40', 5), 5, 0); }
   // 背包（白底 × aPack）+ 顶盖、防潮垫卷、橙色氧气瓶 + 阀
-  add(at(new THREE.BoxGeometry(0.26, 0.5, 0.34), -0.27, 1.2, 0, '#f0f0f0'), 0, 2);
-  if (!L2) add(at(new THREE.BoxGeometry(0.28, 0.1, 0.35), -0.27, 1.46, 0, '#a0a0a0'), 0, 2);
-  if (!L1) add(at(new THREE.CylinderGeometry(0.075, 0.075, 0.38, 8).rotateX(Math.PI / 2), -0.28, 1.56, 0, '#e0c040'), 0, 0);
-  add(at(new THREE.CylinderGeometry(0.062, 0.062, 0.46, rs(8)), -0.33, 1.26, -0.2, '#e8781c'), 0, 0);
-  if (!L1) add(at(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 6), -0.33, 1.52, -0.2, '#9a9a9a'), 0, 0);
+  add(at(new THREE.BoxGeometry(0.2, 0.34, 0.26), -0.25, 1.22, 0, '#f0f0f0'), 0, 2);                        // 小背包（评审 r1 #2：20–30 L）
+  if (!L2) add(at(new THREE.BoxGeometry(0.21, 0.07, 0.27), -0.25, 1.4, 0, '#a0a0a0'), 0, 2);
+  add(at(new THREE.CylinderGeometry(0.058, 0.058, 0.42, rs(8)), -0.28, 1.36, -0.08, '#e8781c'), 0, 0);     // 橙色氧气瓶，瓶头露出包顶
+  if (!L1) add(at(new THREE.CylinderGeometry(0.028, 0.028, 0.06, 6), -0.28, 1.6, -0.08, '#9a9a9a'), 0, 0);
   return mergeGeometries(G);
 }
 
