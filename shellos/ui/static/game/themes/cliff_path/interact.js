@@ -17,8 +17,9 @@ function audio() {
   return AC.state === 'running' ? AC : (AC.resume(), null);
 }
 export function sfx(name, vol = 1) {
-  const ac = audio(); if (!ac) return;
-  const t = ac.currentTime, out = ac.createGain(); out.gain.value = 0.22 * vol; out.connect(ac.destination);
+  const ac = audio(), k = window.__settings ? window.__settings.get('vSfx') / 100 : 1;   // U 设置页的「捷风 / 音效音量」（它只管 <audio>，WebAudio 这里自己乘）
+  if (!ac || !(k > 0)) return;
+  const t = ac.currentTime, out = ac.createGain(); out.gain.value = 0.22 * vol * k; out.connect(ac.destination);
   const tone = (f, dur, g = 1, type = 'sine', t0 = 0) => {
     const o = ac.createOscillator(), e = ac.createGain(); o.type = type; o.frequency.value = f;
     e.gain.setValueAtTime(0, t + t0); e.gain.linearRampToValueAtTime(g, t + t0 + 0.004); e.gain.exponentialRampToValueAtTime(0.0001, t + t0 + dur);
