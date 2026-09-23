@@ -401,7 +401,7 @@ export function build(scene, ctx) {
   // 登顶：镜头从化身左前方起（face 取右后方），看得见峰哥的脸；影子（右边 0.85）和觇标（右前）都错开在化身右侧，不被挡；
   //   停 1.2 s 再慢慢转
   Object.assign(rig.summit, { radius: 4.2, height: 1.8, lookY: 1.3, speed: 0.2, hold: 1.2, face: route.at(N + 1.2 - 4.8, 0.35 - 2.4).pos.setY(route.heightAt(N) + 1.2) });
-  const snowFx = buildSnow(scene, { count: LOW ? 700 : 2200, windDir });
+  const snowFx = buildSnow(scene, { count: LOW ? 800 : 2600, windDir });
   const hyp = makeHypoxia({ blur: !LOW });
 
   ctx.theme.summitCard = 'left';                                              // 化身 + 觇标在画面正中，登顶卡放左下
@@ -485,7 +485,10 @@ export function update(dt, st) {
   S.sky.apply({ top: K.top, hz: K.hz, below: K.below, band: K.band, halo: K.halo, sun: K.sun, haze: K.haze,
     sink: 48 * Math.max(smooth(0.08, 1, p), sk), cloud: Math.max(smooth(0.38, 0.62, p), sk), everest: (1 - smooth(0.3, 0.46, p)) * (1 - sk) }, st.t || 0);
   const vh = S.ctx.renderer.domElement.clientHeight || innerHeight;
-  S.snow.update(st.t || 0, st.dt || dt || 0, Math.min(1, storm * (LOW ? 0.7 : 1) + 0.12 * smooth(0.3, 0.42, p) * (1 - sk)), st.camera, vh);
+  // 雪：风雪强度 + 越高越密；大风口（北坳后的上坡）贴地吹雪（?fx=low 不要）
+  const R_ = Z.ridge, rz = R_ ? smooth(R_.start - 1, R_.start + 1, st.s) * (1 - smooth(Z.end(R_), Z.end(R_) + 2, st.s)) : 0;
+  S.snow.update(st.t || 0, st.dt || dt || 0, Math.min(1, storm * (LOW ? 0.7 : 1) + (0.12 * smooth(0.3, 0.42, p) + 0.3 * smooth(0.55, 0.9, p)) * (1 - sk)), st.camera, vh,
+    LOW ? 0 : rz * (0.45 + 0.55 * storm) * (1 - sk), route.heightAt(st.s));
   // 风力分级：大本营微风 → 前进营地起风 → 北山脊风雪里大风（旗被扯平）；再叠一点阵风。旗的抖动频率也跟着风走（相位按帧累加，不跳）
   const t0 = st.t || 0, wind = (0.55 + 0.9 * smooth(0.02, 0.45, p) + 1.6 * storm) * (1 + 0.25 * Math.sin(t0 * 0.7) * Math.sin(t0 * 1.9 + 1)) * (1 - 0.3 * sk);
   S.flagT = (S.flagT + dt * (0.5 + 0.55 * wind)) % 1000;
