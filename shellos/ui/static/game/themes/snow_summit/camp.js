@@ -1,5 +1,7 @@
 // 大本营村落（docs/珠峰-架构.md §2 ★新）：一整块静态合并几何（大穹顶帐篷、餐厅大帐、「珠穆朗玛峰大本营 海拔5200米」石碑、
-//   玛尼堆、直升机停机坪 + 风向袋、晾衣绳；前进营地一串晾晒的睡袋）。= 1 次绘制（+ 阴影 1 次），约 5k 三角形；跟山下别的东西一起走过北坳就溶掉（lowVc / hideLow）。
+//   玛尼堆、临时起降点 + 风向袋、晾衣绳；前进营地一串晾晒的睡袋）。= 1 次绘制（+ 阴影 1 次），约 6k 三角形；跟山下别的东西一起走过北坳就溶掉（lowVc / hideLow）。
+//   按考据分两片（§1、§9-3/4）：起点身后的平台 = 游客营地（黑色长方大帐 + 藏式彩边，成排坐在水泥台上，门口太阳能板）；
+//   起点往前 = 登山大本营（彩色圆顶帐只在这片）。地面灰碛石滩 + 一条灰白的冰碛河 + 零星褐色矮灌丛，没有草、没有树。
 //   位置全按 route.at(s, lat) 算（大本营 = 路线开头那段平地、前进营地 = zonesOf 的 abc），不写死坐标。
 //   返回 { meshes, pad（停机坪面中心，世界坐标）, blockers（[{x, z, r}]，路边随机帐篷避开这些） }
 import * as THREE from 'three';
@@ -55,8 +57,9 @@ export function buildCamp(ctx, { hAt, rightOf, texts, glowMat, Z, windDir, LOW }
   {
     const a = route.at(bc.start - 2.8, -8.6), y0 = hAt(a.pos.x, a.pos.z) - 0.05, ry = -a.heading;
     const loc = (x, y, z) => new THREE.Vector3(x, y, z).applyAxisAngle(Y, ry).add(a.pos).setY(y0 + y);
-    P.push({ geo: new THREE.BoxGeometry(4.4, 1.4, 2.8), p: loc(0, 0.7, 0), ry, color: '#e7a93a' });
-    P.push({ geo: new THREE.CylinderGeometry(1.62, 1.62, 4.5, 3, 1).rotateY(Math.PI / 2).rotateZ(Math.PI / 2), p: loc(0, 1.4, 0), ry, s: [1, 0.62, 1.05], color: '#c9862a' });
+    P.push({ geo: new THREE.BoxGeometry(4.4, 1.4, 2.8), p: loc(0, 0.7, 0), ry, color: '#dcdcd6' });                 // 白灰（考据 §1 §3：餐帐白 / 灰）
+    P.push({ geo: new THREE.CylinderGeometry(1.62, 1.62, 4.5, 3, 1).rotateY(Math.PI / 2).rotateZ(Math.PI / 2), p: loc(0, 1.4, 0), ry, s: [1, 0.62, 1.05], color: '#cfcfc9' });
+    P.push({ geo: new THREE.BoxGeometry(4.46, 0.16, 2.86), p: loc(0, 1.3, 0), ry, color: '#2f6fd6' });               // 帐檐一道蓝饰带
     for (const zz of [-1.41, 1.41]) {
       P.push({ geo: new THREE.BoxGeometry(0.8, 1.1, 0.02), p: loc(0.6, 0.55, zz), ry, color: DOOR });
       for (const xx of [-0.6, -1.5]) P.push({ geo: new THREE.BoxGeometry(0.5, 0.32, 0.02), p: loc(xx, 0.95, zz), ry, color: DOOR });   // 两扇小窗
@@ -81,7 +84,7 @@ export function buildCamp(ctx, { hAt, rightOf, texts, glowMat, Z, windDir, LOW }
   })();
   const door = new THREE.CircleGeometry(0.3, 3).rotateY(Math.PI / 2);
   {
-    const spots = [[-7, -6.8, 1.9], [bc.start + 3.4, -11, 2.2], [-1.2, -13.4, 1.8], [-3.6, 7.6, 1.7], [bc.start + 2.6, 10.2, 2.0]].slice(0, LOW ? 3 : 5);
+    const spots = [[-2.2, -6.8, 1.9], [bc.start + 3.4, -11, 2.2], [-1.2, -13.4, 1.8], [0.9, 8.4, 1.7], [bc.start + 2.6, 10.2, 2.0]].slice(0, LOW ? 3 : 5);   // 都在起点往前（游客营地那片不放）
     const DC = ['#f2c21b', '#e8781c', '#d63b2a', '#f2c21b', '#e8781c'];
     spots.forEach(([s, lat, sc], k) => {
       const a = route.at(s, lat);
@@ -92,7 +95,8 @@ export function buildCamp(ctx, { hAt, rightOf, texts, glowMat, Z, windDir, LOW }
     });
   }
 
-  // ---------- 停机坪：石头垒的台子（地不平就垫高）+ 白圈 + H + 橙白边石 + 风向袋；路右、出了大本营往前 ~11 步的碛石滩上
+  // ---------- 临时起降点：压平的碛石台（地不平就垫一点，台面 = 这一圈里最高的地面）+ 一圈乱石 + 风向袋；路右、出了大本营往前 ~11 步的碛石滩上
+  //   （评审 r1 折中：北坡禁飞，不画白圈 / H / 橙白边石）
   //   （跟拍镜头在身后 5–6 个单位：放远一点，直升机落地那几秒一直在画面右前方）。离所有路段 ≥ 4 个单位（冰川那段有拐弯） ----------
   const pad = (() => {
     const s0 = bc.start + bc.steps + 11;
@@ -101,12 +105,11 @@ export function buildCamp(ctx, { hAt, rightOf, texts, glowMat, Z, windDir, LOW }
     const c = a.pos, ry = -a.heading;
     let gmax = -1e9, gmin = 1e9;
     for (let k = 0; k < 9; k++) { const ang = k / 8 * 6.283, r = k ? 3.4 : 0, h = hAt(c.x + Math.cos(ang) * r, c.z + Math.sin(ang) * r); gmax = Math.max(gmax, h); gmin = Math.min(gmin, h); }
-    const top = gmax + 0.14, h = top - gmin + 0.3;
-    P.push({ geo: new THREE.CylinderGeometry(3.5, 3.8, h, 24), p: [c.x, top - h / 2, c.z], color: '#8a8782' });
-    P.push({ geo: new THREE.RingGeometry(2.5, 2.78, 40).rotateX(-Math.PI / 2), p: [c.x, top + 0.012, c.z], color: '#f2f2ee' });
-    const hq = (x, z, w, d) => P.push({ geo: new THREE.BoxGeometry(w, 0.02, d), p: new THREE.Vector3(x, 0, z).applyAxisAngle(Y, ry).add(c).setY(top + 0.015), ry, color: '#f2f2ee' });
-    hq(0, -0.6, 1.8, 0.34); hq(0, 0.6, 1.8, 0.34); hq(0, 0, 0.34, 0.9);
-    for (let k = 0; k < 20; k++) { const ang = k / 20 * 6.283; P.push({ geo: new THREE.BoxGeometry(0.3, 0.15, 0.22), p: [c.x + Math.cos(ang) * 3.3, top + 0.075, c.z + Math.sin(ang) * 3.3], ry: -ang, color: k % 2 ? '#e8781c' : '#f2f2ee' }); }
+    const top = gmax - 0.01, h = top - gmin + 0.3;                                                // 比原来低 0.15：直升机滑橇贴着台面
+    P.push({ geo: new THREE.CylinderGeometry(3.6, 4.4, h, 18), p: [c.x, top - h / 2, c.z], color: '#8f887c' });
+    P.push({ geo: new THREE.CylinderGeometry(3.3, 3.3, 0.02, 18), p: [c.x, top + 0.005, c.z], color: '#9d968b' });   // 压平的台面，浅一点
+    for (let k = 0; k < 22; k++) { const ang = k / 22 * 6.283 + R() * 0.2, r = 3.6 + R() * 0.7, x = c.x + Math.cos(ang) * r, z = c.z + Math.sin(ang) * r;
+      P.push({ geo: new THREE.IcosahedronGeometry(0.18 + 0.16 * R(), 0), p: [x, Math.max(hAt(x, z), top - 0.4) + 0.05, z], ry: R() * 6, s: [1.3, 0.6, 1], color: R() < 0.5 ? '#7d776d' : '#6a655d' }); }
     const wp = new THREE.Vector3(4.2, 0, -1.8).applyAxisAngle(Y, ry).add(c), wy = hAt(wp.x, wp.z);
     P.push({ geo: new THREE.CylinderGeometry(0.035, 0.045, 2.4, 6), p: [wp.x, wy + 1.2, wp.z], color: '#9a9a9a' });
     const wd = windDir.clone().setY(-0.15).normalize();
@@ -114,6 +117,47 @@ export function buildCamp(ctx, { hAt, rightOf, texts, glowMat, Z, windDir, LOW }
     block(c, 4.6);
     return new THREE.Vector3(c.x, top, c.z);
   })();
+
+  // ---------- 游客营地（起点身后的平台）：黑色长方大帐（顶略坡）+ 檐口藏式彩边 + 门 + 水泥台，路两侧各两排；门口太阳能板 ----------
+  {
+    const TRIM = ['#c8322a', '#2f8f4e', '#e0a93a', '#2f64e8'];
+    let k = 0;
+    for (const lat of LOW ? [5, -5] : [4.8, 8.2, -4.8, -8.2]) for (const s of [-8.2, -14.6]) {
+      const a = route.at(s, lat), y0 = hAt(a.pos.x, a.pos.z), ry = -a.heading, side = lat > 0 ? 1 : -1;
+      const loc = (x, y, z) => new THREE.Vector3(x, y, z).applyAxisAngle(Y, ry).add(a.pos).setY(y0 + y);
+      P.push({ geo: new THREE.BoxGeometry(3.7, 0.24, 2.4), p: loc(0, 0.02, 0), ry, color: '#a9a7a2' });                   // 水泥台
+      P.push({ geo: new THREE.BoxGeometry(3.2, 1.05, 1.8), p: loc(0, 0.66, 0), ry, color: '#2b2724' });                   // 深色篷布
+      P.push({ geo: new THREE.CylinderGeometry(1.0, 1.0, 3.24, 3, 1).rotateZ(Math.PI / 2), p: loc(0, 1.18, 0), ry, s: [1, 0.32, 0.95], color: '#221e1b' });   // 缓坡顶
+      P.push({ geo: new THREE.BoxGeometry(3.26, 0.13, 1.86), p: loc(0, 1.12, 0), ry, color: TRIM[k % 4] });             // 檐口彩边
+      P.push({ geo: new THREE.BoxGeometry(3.24, 0.06, 1.84), p: loc(0, 1.03, 0), ry, color: TRIM[(k + 2) % 4] });
+      P.push({ geo: new THREE.BoxGeometry(0.7, 0.8, 0.02), p: loc(0.4, 0.54, -side * 0.91), ry, color: DOOR });          // 门朝路
+      if (k % 2 === 0) P.push({ geo: new THREE.BoxGeometry(0.9, 0.04, 0.6).rotateX(side * 0.6), p: loc(-0.9, 0.5, -side * 1.35), ry, color: '#1f3a6e' });   // 太阳能板
+      block(a.pos, 2.2); k++;
+    }
+  }
+  // ---------- 冰碛河：路右远处一条灰白的冰川融水，弯弯曲曲，偶尔分岔；贴地 ----------
+  {
+    const pos = [], idx = [], n = 64, s0 = -16, s1 = 12;
+    const ctr = (s, o) => route.at(s, -(15.5 + 2.2 * Math.sin(s * 0.3) + o)).pos;
+    for (const [o, w0] of [[0, 0.8], [1.4 * Math.sin(1.3), 0.35]]) {
+      const b = pos.length / 3;
+      for (let i = 0; i <= n; i++) {
+        const s = s0 + (s1 - s0) * i / n, w = w0 * (0.7 + 0.3 * Math.sin(s * 0.9)) * (o ? Math.max(0, Math.sin(s * 0.35)) : 1);
+        for (const e of [-w / 2, w / 2]) { const q = ctr(s, o + e); pos.push(q.x, hAt(q.x, q.z) + 0.04, q.z); }
+      }
+      for (let i = 0; i < n; i++) { const a = b + i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    P.push({ geo: g, p: [0, 0, 0], color: '#a7b6bd' });
+  }
+  // ---------- 零星褐色矮灌丛（没有草、没有树） ----------
+  for (let k = 0, tries = 0; k < (LOW ? 14 : 30) && tries < 400; tries++) {
+    const s = -16 + R() * 26, lat = (R() < 0.5 ? 1 : -1) * (2.2 + R() * 11), a = route.at(s, lat);
+    if (!util.offRoad(route, a.pos.x, a.pos.z, 0.8) || blockers.some(b => Math.hypot(b.x - a.pos.x, b.z - a.pos.z) < b.r + 0.3)) continue;
+    const r = 0.1 + 0.12 * R();
+    P.push({ geo: new THREE.IcosahedronGeometry(r, 0), p: [a.pos.x, hAt(a.pos.x, a.pos.z) + r * 0.25, a.pos.z], ry: R() * 6, s: [1.4, 0.55, 1.2], color: ['#6b5a3e', '#7d6b48', '#5e5238'][k % 3] });
+    k++;
+  }
 
   // ---------- 晾衣绳：两根杆 + 下垂的绳 + 挂着的衣服 / 睡袋 ----------
   const line = (s0, s1, lat, bags) => {

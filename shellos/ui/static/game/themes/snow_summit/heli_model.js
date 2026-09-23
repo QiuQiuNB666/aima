@@ -1,4 +1,4 @@
-// 直升机低模（AS350「松鼠」一类的比例，按米建再整体缩 S）：放样出来的曲面机舱（大气泡风挡 + 门窗）、上红下白涂装 + 「救援」字、
+// 直升机低模（AS350「松鼠」一类的比例，按米建再整体缩 S）：放样出来的曲面机舱（大气泡风挡 + 门窗）、上红下白涂装 + 「应急」字、
 //   发动机罩、锥形尾梁、带端板的水平尾翼、上下垂尾、撬式起落架（弓形横管）、3 片带扭角的主桨（桨尖黄）、左侧 2 片尾桨。
 //   整架一个 mesh = 1 次绘制：主桨 / 尾桨的顶点带 aSpin（1 / 2），在顶点着色器里绕桨毂 / 尾桨轴转（setSpin），阴影也跟着转。
 //   LOD 三级（THREE.LOD，离镜头 22 / 55 切）：约 1.5k / 800 / 350 三角形，共用同一个材质和转速。
@@ -10,11 +10,11 @@ export const S = 0.62;                                              // 米 → �
 const RED = '#d8261f', WHITE = '#f1f1ee', DARK = '#2a2c30', GLASS = '#2e4257', SKYGLASS = '#6f8fae', COWL = '#dcdcd6', TIP = '#f0c23a';
 const HUB = new THREE.Vector3(0, 3.12, 0), TAIL = new THREE.Vector3(-7.35, 2.2, 0.27);
 
-// 「救援」贴字：白底红字（机身下半是白的，贴上去接得上）；整架的其它顶点 uv 都指到左下角的白像素
+// 「应急」贴字：白底红字（机身下半是白的，贴上去接得上）；整架的其它顶点 uv 都指到左下角的白像素
 function decalTexture() {
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
   const g = cv.getContext('2d'); g.fillStyle = WHITE; g.fillRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.fillRect(0, 78, 18, 18);   // 左下角纯白：机身别的顶点都采这里（乘上去不变色）
-  g.fillStyle = RED; g.font = '900 70px "PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('救援', 140, 50);
+  g.fillStyle = RED; g.font = '900 70px "PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('应急', 140, 50);
   g.fillRect(14, 30, 36, 40); g.fillStyle = WHITE; g.fillRect(27, 34, 10, 32); g.fillRect(18, 45, 28, 10);   // 小红十字
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return t;
 }
@@ -69,7 +69,7 @@ function parts(lod = 0) {
   // 尾桨：机身左侧，2 片，绕横轴（z）转
   tail.push(at(new THREE.BoxGeometry(0.15, 1.86, 0.035), TAIL.x, TAIL.y, TAIL.z, DARK));
   if (!L2) tail.push(at(new THREE.CylinderGeometry(0.07, 0.07, 0.1, 8).rotateX(Math.PI / 2), TAIL.x, TAIL.y, TAIL.z - 0.03, '#55585e'));
-  // 「救援」：机舱后段下半（白）两侧
+  // 「应急」：机舱后段下半（白）两侧
   //   贴片按机舱截面弯过去（跟着曲面走，不翘边）
   const hull = (x, y) => {
     let k = 0; while (k < cab.length - 2 && cab[k + 1][0] > x) k++;
