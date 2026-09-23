@@ -101,6 +101,15 @@ class Dashboard:
                         self.end_headers()
                         return self.wfile.write(data)
                     self.send_response(404); self.end_headers(); return
+                if self.path.startswith("/guide/"):     # G 线峰哥导游：<world>.json = 固定话术；<world>/<i>.wav = 预生成语音（只读缓存，不现场合成）
+                    from ..agent import guide, voice
+                    w, _, i = self.path.split("?")[0][len("/guide/"):].partition("/")
+                    if w.endswith(".json") and not i:
+                        return self._json({"lines": guide.lines(w[:-5])})
+                    ls = guide.lines(w)
+                    if i.endswith(".wav") and i[:-4].isdigit() and int(i[:-4]) < len(ls):
+                        return self._file(voice.path(ls[int(i[:-4])]), "audio/wav")
+                    self.send_response(404); self.end_headers(); return
                 if self.path.startswith("/shots/"):
                     return self._file(os.path.join(dash.app.glasses.shots_dir, os.path.basename(self.path.split("?")[0])), "image/jpeg")
                 self.send_response(200)
