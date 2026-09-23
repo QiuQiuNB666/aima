@@ -15,7 +15,7 @@ const STEPS = [['按住手柄 R2', '腿上才有力，松手立刻没力'], ['�
 const LINES = ['来都来了，穿上试试，这是个好事儿啊。', '站着看有什么用，腿是自己的。', '按住扳机，原地踏步，山就归你了。', '上一个人的影子还在山上等你。', '说一句话就能造一座山，恰恰相反，爬上去才难。'];
 const CSS = `
 body.u-idle #tc,body.u-idle #tr,body.u-idle #force,body.u-idle #wait,body.u-idle #hint,body.u-idle #ghostTag,body.u-idle #puppet{display:none!important}
-body.u-play #tl,body.u-play #hint,body.u-summit #tl,body.u-summit #hint{display:none!important}
+body.u-play #tl .panel,body.u-play #hint,body.u-summit #tl .panel,body.u-summit #hint{display:none!important}   /* 换一座山按钮始终留着（9/23 球球：切地图的按键没了） */
 body.u-summit #force,body.u-summit #aicard{opacity:0!important}
 #uidle,#uready,#uqr{display:none}
 body.u-idle #uidle,body.u-idle #uqr,body.u-ready #uready{display:block}
