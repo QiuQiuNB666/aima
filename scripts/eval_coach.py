@@ -1,7 +1,7 @@
 """教练实测：tests/test_interpret.py 的 23 句评委原话逐句发给大脑 /coach，看参数选对、方向对、延迟，对比规则表。
 
   python scripts/eval_coach.py            # --dry（默认）：只打印将要发的请求，不花钱
-  python scripts/eval_coach.py --live     # 真调 Claude：23 + 加试 7 = 30 次
+  python scripts/eval_coach.py --live     # 真调大模型：23 + 加试 7 + 台阶 6 = 36 次
   python scripts/eval_coach.py --live --only 23    # 只跑 23 句
 
 参数选对 = 改动的参数集合非空且都在期望集合里（时机类改 t_push/t_step/t_brake 任意几个都算）；空期望 = 不改。
@@ -37,6 +37,12 @@ EXTRA = [
     ("推得有点猛", {"strength": -1}), ("几乎感受不到在推我", {"strength": +1}), ("It's too weak", {"strength": +1}),
     ("晚一点点，再用力一些", {"strength": +1, "t_push": +1, "t_step": +1, "t_brake": +1}),
     ("推的时机太靠前了", {k: +1 for k in TIMING}), ("力度刚刚好，别动", {}), ("不累", {}),
+]
+
+# 台阶：上台阶是阻力（strength 越大越费劲），下台阶是助力 + 落地那一下的冲击（impact）
+STAIRS = [
+    ("上楼太费劲", {"strength": -1, "width": -1}), ("下楼那一下太冲", {"impact": -1}), ("落地没感觉", {"impact": +1}),
+    ("上楼的阻力来得太早", {"t_step": +1}), ("下楼的时候推得太晚", {"t_brake": -1}), ("台阶那一下太短，一闪就过去了", {"width": +1}),
 ]
 
 
@@ -79,7 +85,7 @@ def main():
     assert score({"strength": 0.5, "width": 1}, {"strength": 0.5}) == (False, True)
     assert score({"strength": -0.5}, {"strength": 0.5}) == (True, False) and score({}, {}) == (True, True)
     assert all(score((by_rule(q, "terrain", P, 110) or {}).get("delta", {}), w)[1] for q, w in cases())
-    rows = [(q, w, "23") for q, w in cases()] + [(q, w, "加试") for q, w in EXTRA]
+    rows = [(q, w, "23") for q, w in cases()] + [(q, w, "加试") for q, w in EXTRA] + [(q, w, "台阶") for q, w in STAIRS]
     rows = rows[:a.only] if a.only else rows
     if not a.live:
         print(f"[dry] 将发 {len(rows)} 次 POST {a.url}/coach，例：")
@@ -89,7 +95,7 @@ def main():
         print("加 --live 真调。")
         return
 
-    res = {"23": [], "加试": []}
+    res = {"23": [], "加试": [], "台阶": []}
     for q, w, g in rows:
         rule = (by_rule(q, "terrain", P, 110) or {}).get("delta", {})
         t0 = time.time()
