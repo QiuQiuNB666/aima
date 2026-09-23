@@ -90,7 +90,7 @@ def build(draft: dict, text: str, source: str):
     a1 = int(draft.get("alt_end", a0 + 300) or a0 + 300)
     w = {"id": wid, "name": str(draft.get("name", "无名山"))[:12], "subtitle": str(draft.get("subtitle", ""))[:60],
          "story": str(draft.get("story", ""))[:120],
-         "note": f"现场生成（{'Claude' if source == 'claude' else '规则模板'}）：「{text[:40]}」",
+         "note": f"现场生成（{draft.get('_model') or '大模型' if source == 'claude' else '规则模板'}）：「{text[:40]}」",
          "alt": [a0, a1 if a1 != a0 else a0 + 1], "unit": tpl.get("unit", "m"), "route": route,
          "summit": {"name": str(draft.get("summit_name", "终点"))[:12], "text": str(draft.get("summit_text", ""))[:60]},
          "theme": dict(tpl["theme"]), "training": False, "generated": source}
@@ -105,9 +105,14 @@ def generate(text: str):
     """返回 (world, source, notes)。"""
     from ..agent import brain
     draft = brain.call("/world", {"text": text, "styles": list(styles()), "kinds": list(KINDS)}, timeout=90.0)
-    source = "claude" if draft else "rule"
-    w, notes = build(draft or by_rule(text), text, source)
-    return w, source, notes
+    if draft:
+        try:
+            w, notes = build(draft, text, "claude")
+            return w, "claude", notes
+        except (TypeError, ValueError, AttributeError) as e:    # MiniMax 的 schema 不严格：步数写成字符串之类
+            brain.status.update(ok=False, kind="error", msg=f"/world 草稿格式坏了：{str(e)[:60]}")
+    w, notes = build(by_rule(text), text, "rule")
+    return w, "rule", notes
 
 
 if __name__ == "__main__":                        # 自检：离线模板 + 恶意草稿都要被裁成能走的路
@@ -121,4 +126,9 @@ if __name__ == "__main__":                        # 自检：离线模板 + 恶�
     assert tot <= MAX_STEPS and sum(s["kind"] == "wait" for s in r) <= 2 and all(s["kind"] in KINDS for s in r)
     assert sum(s["steps"] for s in r if s["kind"].startswith("stairs")) * 2 <= tot + 2, r
     assert w["theme"]["style"] == "dawn_mountain" and w["id"] in WORLDS
+    try:                                          # 步数不是数字 → build 抛错，generate 会退回模板
+        build({"route": [{"kind": "up", "steps": "很多"}]}, "t", "claude")
+        raise AssertionError("应该抛错")
+    except ValueError:
+        pass
     print("ok", tot, notes)
