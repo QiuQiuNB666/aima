@@ -2,12 +2,15 @@
 
   python3 brain/tts.py --clone      # 一次性：把 data/voice/ref/fengge_ref.wav 传给 MiniMax 快速复刻，voice_id 存 data/voice/minimax_voice_id
   python3 brain/tts.py --canned     # 把 shellos/agent/fengge.py 的兜底语录预生成进 data/voice/（断网也有声）
+  python3 brain/tts.py --npc        # 把追兵 NPC 的台词（shellos/agent/voice.py NPC_LINES，预设音色）预生成进 data/voice/npc/
+  python3 brain/tts.py --clone-npc  # 疾风：用配音演员本人现场新录的参考音频（data/voice/ref/jifeng_ref.m4a，npc_intake.py 生成）快速复刻，9.9 元，球球确认后才跑
+  python3 brain/tts.py --npc-candidates   # NPC 候选音色各念 4 句试听，存 data/voice/npc_candidates/<候选名>/，最后打一行 afplay 试听命令
   python3 brain/tts.py              # 起服务，127.0.0.1:8791
 
 展位 MacBook 走同一条 SSH 反向隧道，多转一个口：
   ssh -N -R 8790:127.0.0.1:8790 -R 8791:127.0.0.1:8791 zhongrenfei@100.112.252.66
 
-POST /tts {text} → audio/wav（已缓存直接给；say 兜底出来的带 Cache-Control: no-store，ShellOS 不落缓存）
+POST /tts {text[, voice]} → audio/wav（voice 缺省 = 峰哥复刻音色；给了 = MiniMax 系统预设音色 ID 或 voice_setting 字典，J 线追兵 NPC 用，缓存在 data/voice/npc/）（已缓存直接给；say 兜底出来的带 Cache-Control: no-store，ShellOS 不落缓存）
 GET  /health
 只听 127.0.0.1。
 
@@ -78,10 +81,24 @@ def _mm(path, body, ctype="application/json", timeout=10.0):
 MM_TIMEOUT = 15.0                                # 9/23 实测一句 4–10 s；加上退到 say 的时间，要在 ShellOS 那边 25 s 之内
 
 
-def minimax(text: str) -> bytes:
+VS_KEYS = ("voice_id", "speed", "pitch", "vol", "emotion")   # voice_setting 里允许从外面传进来的字段
+
+
+def _voice_setting(voice):
+    """"" = 峰哥复刻音色；str = 预设音色 ID；dict = voice_setting（只留 VS_KEYS）。"""
+    vs = {"voice_id": _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0}
+    if isinstance(voice, str) and voice:
+        vs["voice_id"] = voice
+    elif isinstance(voice, dict):
+        vs.update({k: voice[k] for k in VS_KEYS if k in voice})
+    return vs
+
+
+def minimax(text: str, voice="") -> bytes:
     j = _mm("/v1/t2a_v2", json.dumps({
-        "model": MM_MODEL, "text": text, "stream": False, "language_boost": "Chinese", "output_format": "hex",
-        "voice_setting": {"voice_id": _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0},
+        "model": MM_MODEL, "text": text, "stream": False, "output_format": "hex",
+        "language_boost": "auto" if voice else "Chinese",   # NPC 台词夹韩语感叹词
+        "voice_setting": _voice_setting(voice),
         "audio_setting": {"sample_rate": 24000, "format": "wav", "channel": 1},
     }, ensure_ascii=False).encode(), timeout=MM_TIMEOUT)
     data = bytes.fromhex(j["data"]["audio"])
@@ -102,46 +119,50 @@ def say(text: str) -> bytes:
             return f.read()
 
 
-def synth(text: str):
-    """文字 → (wav 字节, 能不能缓存)。MiniMax 配好了但这次失败，say 出来的不缓存，免得恢复后还是女声。"""
+def synth(text: str, voice_id=""):
+    """文字 → (wav 字节, 能不能缓存)。MiniMax 配好了但这次失败，say 出来的不缓存，免得恢复后还是女声。
+    voice_id = 系统预设音色（NPC）：不需要复刻过，有 key 就行。"""
     global _mm_down_t
-    if not (os.environ.get("MINIMAX_API_KEY") and _mm_voice_id()):
+    if not (os.environ.get("MINIMAX_API_KEY") and (voice_id or _mm_voice_id())):
         return say(text), True
     if time.time() - _mm_down_t > MM_BACKOFF_S:
         try:
-            return minimax(text), True
+            return minimax(text, voice_id), True
         except Exception as e:  # noqa: BLE001  断网 / 超时 / 限流 / 欠费：退到 say
             _mm_down_t = time.time()
             sys.stderr.write(f"[tts] MiniMax 失败，{MM_BACKOFF_S:.0f} s 内用 say：{str(e)[:200]}\n")
     return say(text), False
 
 
-def get(text: str):
-    path = voice.path(text)
+def get(text: str, voice_id=""):
+    path = voice.path(text, voice_id)
     if os.path.isfile(path):
         with open(path, "rb") as f:
             return f.read(), True
-    data, keep = synth(text)
+    data, keep = synth(text, voice_id)
     if keep:
-        voice.save(text, data)
+        voice.save(text, data, voice_id)
     return data, keep
 
 
-def clone():
-    """上传参考音频 → 快速复刻。花钱：9.9 元/音色，首次用它合成时才扣（MiniMax 按量计费页）。"""
-    if _mm_voice_id():
-        sys.exit(f"已经复刻过：{_mm_voice_id()}（重来就删掉 {VOICE_ID_FILE}）")
+def clone(ref=None, id_file=None, prefix="Fengge"):
+    """上传参考音频 → 快速复刻。花钱：9.9 元/音色，首次用它合成时才扣（MiniMax 按量计费页）。缺省 = 峰哥；--clone-npc = 疾风。"""
+    id_file = id_file or VOICE_ID_FILE
+    if os.path.isfile(id_file):
+        sys.exit(f"已经复刻过：{open(id_file).read().strip()}（重来就删掉 {id_file}）")
     b = uuid.uuid4().hex
-    ref, ctype = (REF_M4A, "audio/mp4") if os.path.exists(REF_M4A) else (REF_WAV, "audio/wav")
+    if ref is None:
+        ref = REF_M4A if os.path.exists(REF_M4A) else REF_WAV
+    ctype = "audio/mp4" if ref.endswith(".m4a") else "audio/wav"
     body = (f"--{b}\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nvoice_clone\r\n"
             f"--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{os.path.basename(ref)}\"\r\n"
             f"Content-Type: {ctype}\r\n\r\n").encode() + open(ref, "rb").read() + f"\r\n--{b}--\r\n".encode()
     file_id = _mm("/v1/files/upload", body, "multipart/form-data; boundary=" + b, timeout=180)["file"]["file_id"]
-    vid = time.strftime("Fengge%m%d%H%M%S")          # 规则：8~256 位，字母开头，不能跟已有的重复
+    vid = time.strftime(prefix + "%m%d%H%M%S")       # 规则：8~256 位，字母开头，不能跟已有的重复
     _mm("/v1/voice_clone", json.dumps({"file_id": file_id, "voice_id": vid,
                                        "need_noise_reduction": True, "need_volume_normalization": True}).encode(), timeout=60)
-    os.makedirs(voice.DIR, exist_ok=True)
-    with open(VOICE_ID_FILE, "w") as f:
+    os.makedirs(os.path.dirname(id_file), exist_ok=True)
+    with open(id_file, "w") as f:
         f.write(vid)
     print("复刻好了", vid, "（7 天内不用会被 MiniMax 删掉）")
 
@@ -170,11 +191,13 @@ class H(BaseHTTPRequestHandler):
         if self.path != "/tts":
             return self._send(b"{}", "application/json", 404)
         n = int(self.headers.get("Content-Length") or 0)
-        text = str(json.loads(self.rfile.read(n) or b"{}").get("text", "")).strip()
+        req = json.loads(self.rfile.read(n) or b"{}")
+        text, vid = str(req.get("text", "")).strip(), req.get("voice") or ""
+        vid = {k: vid[k] for k in VS_KEYS if k in vid} if isinstance(vid, dict) else str(vid)[:64]
         if not text or len(text) > MAX_CHARS:
             return self._send(b'{"error":"text"}', "application/json", 400)
         try:
-            data, keep = get(text)
+            data, keep = get(text, vid)
             self._send(data, "audio/wav", keep=keep)
         except Exception as e:  # noqa: BLE001  ShellOS 看到非 200 就不出声
             self.log_message("合成失败：%s", str(e)[:200])
@@ -191,6 +214,29 @@ if __name__ == "__main__":
         for line in sorted({s for v in CANNED.values() for s in v}):
             _, keep = get(line)
             print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.key(line), line)
+        sys.exit(0)
+    if "--clone-npc" in sys.argv:                       # 配音演员本人当面同意、现场新录的参考音频；不是游戏素材
+        clone(os.path.join(voice.DIR, "ref", "jifeng_ref.m4a"), voice.NPC_CLONE_ID, "Jifeng")
+        sys.exit(0)
+    if "--npc-candidates" in sys.argv:                  # 预设音色，按字数计费：4 候选 × 4 句约 220 计费字符，一两毛钱
+        MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0
+        out = os.path.join(voice.DIR, "npc_candidates")
+        for name, vs in voice.NPC_CANDIDATES.items():
+            if name == "清脆少女":
+                continue
+            os.makedirs(os.path.join(out, name), exist_ok=True)
+            for i, line in enumerate(voice.NPC_AUDITION, 1):
+                data, keep = get(line, vs)                  # 顺手进 npc/ 缓存：选中之后 --npc 不用再花这 4 句的钱
+                with open(os.path.join(out, name, f"{i}.wav"), "wb") as f:
+                    f.write(data)
+                print("ok" if keep else "say（MiniMax 失败）", name, i, line)
+        print(f'试听：cd "{out}" && for d in */; do echo "== $d"; for f in "$d"*.wav; do afplay "$f"; done; sleep 1; done')
+        sys.exit(0)
+    if "--npc" in sys.argv:                             # 预设音色，按字数计费（6 句几十个字，几分钱）
+        MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0
+        for line in voice.NPC_LINES:
+            _, keep = get(line, voice.NPC_VOICE)
+            print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.NPC_VOICE, voice.key(line, voice.NPC_VOICE), line)
         sys.exit(0)
     mm = bool(os.environ.get("MINIMAX_API_KEY") and _mm_voice_id())
     print(f"峰哥语音就绪 127.0.0.1:{PORT}  声音 {'minimax:' + MM_MODEL if mm else 'say:' + SAY_VOICE}")

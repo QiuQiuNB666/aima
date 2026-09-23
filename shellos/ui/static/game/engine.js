@@ -7,6 +7,7 @@ import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP, R
 import { loadAvatar, flexFromFrame, preloadAvatar } from './avatar.js';
 import { dressFengge } from './fengge.js';   // H 线：峰哥头（只给玩家化身，影子不换）；?fengge=0 关
 import { initFenggeHud } from './fengge_hud.js';   // H 线：峰哥画中画头像 + 解说气泡；?fengge=0 关
+import { initNpc } from './npc.js';   // J 线：追兵 NPC「疾风」（只读 /state）；?npc=0 关
 import { makeStepper, makeGhost } from './ghost.js';
 import { makeCamera, defaultRig } from './camera.js';
 import { makeHud } from './hud.js';
@@ -126,6 +127,7 @@ async function main() {
   const cam = makeCamera(camera, route, camRig);
   const fx = makeFx(scene, route, meshes);
   const me = makeStepper();
+  if (Q.get('npc') !== '0') initNpc({ scene, route, me, camera, getS: () => S, preview: !!PREVIEW }).catch(e => err('追兵 NPC 加载失败', e));
 
   // ---------- 状态 ----------
   let T = S.terrain || S._T, lastLaps = T.laps, lastPos = T.pos, summitUntil = 0, flashUntil = [0, 0], prevSent = [0, 0];

@@ -70,7 +70,7 @@ def tts(brain_tts, monkeypatch):
     """起 brain/tts.py 的服务，synth 换成假的，记调用次数。"""
     mod = brain_tts
     calls = []
-    monkeypatch.setattr(mod, "synth", lambda text: (calls.append(text) or WAV, True))
+    monkeypatch.setattr(mod, "synth", lambda text, vid="": (calls.append(text if not vid else (vid, text)) or WAV, True))
     srv = ThreadingHTTPServer(("127.0.0.1", 0), mod.H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     monkeypatch.setattr(voice, "URL", f"http://127.0.0.1:{srv.server_address[1]}")
@@ -181,3 +181,72 @@ def test_clone_without_verification_saves_nothing(brain_tts, minimax):
     with pytest.raises(RuntimeError, match="2038"):
         brain_tts.clone()
     assert not os.path.isfile(brain_tts.VOICE_ID_FILE)
+
+
+def test_npc_route_whitelist_and_separate_cache(tts):
+    """追兵 NPC：只念白名单台词、用预设音色、缓存在 npc/ 子目录，不和峰哥混。"""
+    import re
+    import urllib.parse
+    js = open(os.path.join(os.path.dirname(__file__), "..", "shellos", "ui", "static", "game", "npc.js"), encoding="utf-8").read()
+    body = re.search(r"const LINES = \{(.*?)\};", js, re.S).group(1)
+    assert set(re.findall(r"'([^']+)'", body)) - set(re.findall(r"^\s*(\w+):", body, re.M)) <= set(voice.NPC_LINES)
+    dash = Dashboard(SimpleNamespace(fengge=SimpleNamespace(last={})), port=0)
+    base = f"http://127.0.0.1:{dash.httpd.server_address[1]}/voice/npc.wav?t="
+    try:
+        line = voice.NPC_LINES[2]
+        with urlopen(base + urllib.parse.quote(line)) as r:
+            assert r.status == 200 and r.read() == WAV
+        with urlopen(base + urllib.parse.quote("随便念一句")) as r:
+            assert r.status == 204                                          # 不在白名单：不出声、不花钱
+        assert tts == [(voice.NPC_VOICE, line)]
+        assert os.path.isfile(voice.path(line, voice.NPC_VOICE)) and "npc" in voice.path(line, voice.NPC_VOICE)
+        assert not os.path.isfile(voice.path(line))                          # 峰哥那份没被占
+        os.makedirs(os.path.dirname(voice.real_path(line)), exist_ok=True)
+        open(voice.real_path(line), "wb").write(b"RIFFreal")
+        with urlopen(base + urllib.parse.quote(line)) as r:
+            assert r.read() == b"RIFFreal"                                   # 真人录音优先，不再合成
+        assert len(tts) == 1
+    finally:
+        dash.httpd.shutdown()
+
+
+def test_minimax_preset_voice_needs_no_clone(brain_tts, minimax):
+    minimax.replies["/v1/t2a_v2"] = {"data": {"audio": WAV.hex()}, "base_resp": {"status_code": 0}}
+    assert brain_tts.synth("风起了", "female-shaonv") == (WAV, True)       # 没复刻过也能用预设音色
+    assert json.loads(minimax.seen[0][3])["voice_setting"]["voice_id"] == "female-shaonv"
+
+
+def test_npc_voice_setting_passed_through(brain_tts, minimax, tts):
+    """候选音色：语速 / 音高 / 情绪原样传给 MiniMax（多余字段丢掉），夹韩语用 language_boost=auto；参数不同缓存也分开。"""
+    minimax.replies["/v1/t2a_v2"] = {"data": {"audio": WAV.hex()}, "base_resp": {"status_code": 0}}
+    vs = dict(voice.NPC_CANDIDATES["B_韩语冷漠女孩"], label="不该传")
+    brain_tts.minimax(voice.NPC_AUDITION[1], vs)
+    req = json.loads(minimax.seen[0][3])
+    assert req["voice_setting"] == {"voice_id": "Korean_ColdGirl", "speed": 1.25, "vol": 1, "pitch": 1, "emotion": "disgusted"}
+    assert req["language_boost"] == "auto"
+    a, b = voice.NPC_CANDIDATES["A_嚣张小姐"], dict(voice.NPC_CANDIDATES["A_嚣张小姐"], speed=1.1)
+    assert voice.path("逮到了", a) != voice.path("逮到了", b)
+    assert voice.get("逮到了", voice=a) == WAV and tts == [(a, "逮到了")]   # ShellOS → tts.py 走 HTTP 时字典也原样带过去
+
+
+def test_npc_intake_split_pick_last_and_normalize(monkeypatch, tmp_path):
+    """真人录音切句：两遍之间停 1 s 切成两段、用最后一遍；响度归一到 −18 dBFS 附近、峰值不超 −1 dBFS。"""
+    import math
+    from array import array
+    spec = importlib.util.spec_from_file_location("npc_intake", os.path.join(os.path.dirname(__file__), "..", "brain", "npc_intake.py"))
+    ni = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ni)
+    SR = ni.SR
+    tone = lambda s, amp: [int(amp * math.sin(2 * math.pi * 220 * i / SR)) for i in range(int(s * SR))]
+    quiet = lambda s: [0] * int(s * SR)
+    a = array("h", quiet(0.3) + tone(0.8, 3000) + quiet(0.3) + tone(0.4, 3000) + quiet(1.2) + tone(1.0, 9000) + quiet(0.5))
+    segs = ni.segments(a)
+    assert len(segs) == 2                                                    # 句内 0.3 s 停顿不切，两遍之间 1.2 s 切开
+    assert abs((segs[1][1] - segs[1][0]) / SR - (1.0 + 2 * ni.PAD_S)) < 0.05
+    n = ni.normalize(a[segs[1][0]:segs[1][1]])
+    assert abs(ni._db(n) - ni.TARGET_DB) < 1.5 and max(abs(v) for v in n) <= 0.9 * 32768
+    monkeypatch.setattr(voice, "DIR", str(tmp_path))
+    ni.use(9, n, "")
+    import wave
+    with wave.open(voice.real_path(voice.NPC_LINES[8])) as w:
+        assert (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (24000, 1, 2)
