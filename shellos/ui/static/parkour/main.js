@@ -20,6 +20,7 @@ import { makeCity } from './city.js';
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
 const Q = new URLSearchParams(location.search);
 const DEMO = Q.has('demo'), MANUAL = DEMO && Q.has('manual'), CAM = Q.get('cam'), CAD_DEMO = +(Q.get('cad') || 150);
+const TALK = Q.get('npctalk') === '1';   // 9/24 球球「跑酷还是有捷风的废话」：和主游戏一样缺省不说话（不出气泡不出声），?npctalk=1 才开
 const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : DEMO ? 1 : 0, MUTE = Q.get('voice') === '0' || DEMO;
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
 const LEG_READY_S = 5;          // 走满 5 s（anim.js 学完零点）才认高抬腿 / 下蹲：零点没学出来时穿戴偏屈 15–20°，正常走路会被当成高抬腿
@@ -116,7 +117,10 @@ async function main() {
     S = { t: clock, frame: { l: -a, r: -b, ldps: -va * f, rdps: -vb * f }, gait: { moving: on, cadence: on ? CAD_DEMO : 0, phase_l: pl, phase_r: (pl + 0.5) % 1 }, sim: { on: false }, terrain: { hs_phase: 0.5 } };
   }
   const say = key => {
-    jfSaid = key; $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
+    jfSaid = key;
+    const ic = $('jfIcon'); ic.classList.remove('ping'); void ic.offsetWidth; ic.classList.add('ping');   // 不说话时只剩右上角小图标亮一下
+    if (!TALK) return;
+    $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
     if (MUTE || AUTO) return;
     if (audio) audio.pause();
     audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(JF[key])); audio.play().catch(() => {});

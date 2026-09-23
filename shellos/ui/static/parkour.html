@@ -37,6 +37,10 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #tr .big small{font-size:1rem;color:var(--dim);margin-left:.3rem}
 #jf{margin-top:.6rem;font-size:1rem;text-align:left}
 #jf b{color:var(--jf)}
+/* 追兵提示：只留一个小图标（钴蓝风纹圆点），她开追 / 逼近 / 追上 / 被甩开时亮一下（单次 1.2 s，不闪） */
+#jfIcon{display:inline-block;width:.9rem;height:.9rem;border-radius:50%;margin-right:.4rem;vertical-align:-.1rem;background:radial-gradient(circle at 35% 35%,#fff 0 18%,var(--jf) 40%,transparent 72%);opacity:.55}
+#jfIcon.ping{animation:jfPing 1.2s ease-out}
+@keyframes jfPing{0%{opacity:1;box-shadow:0 0 0 0 var(--jf)}100%{opacity:.55;box-shadow:0 0 0 .9rem transparent}}
 #jfTrack{height:.55rem;border-radius:.3rem;background:rgba(255,255,255,.14);overflow:hidden;margin-top:.3rem}
 #jfBar{height:100%;width:0;background:linear-gradient(90deg,var(--jf),var(--bad));transition:width .2s}
 body.danger #tr{border-color:var(--bad);box-shadow:0 0 1.2rem var(--bad)}
@@ -80,7 +84,7 @@ body.clean .hud{display:none!important}
 <div class="hud panel" id="tr">
   <div class="big"><span id="spd">0</span><small>km/h</small></div>
   <div class="big" style="font-size:1.4rem"><span id="cad">—</span><small>步/分</small></div>
-  <div id="jf"><b>捷风</b> 在身后 <span id="jfM">—</span><div id="jfTrack"><div id="jfBar"></div></div></div>
+  <div id="jf"><i id="jfIcon"></i><b>捷风</b> 在身后 <span id="jfM">—</span><div id="jfTrack"><div id="jfBar"></div></div></div>
 </div>
 <div class="hud panel" id="jfSay"></div>
 <div class="hud" id="hint"></div>
