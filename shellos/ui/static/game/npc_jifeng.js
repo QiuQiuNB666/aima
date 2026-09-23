@@ -260,7 +260,9 @@ function statueMaterial(S) {
     Object.assign(sh.uniforms, U);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimK, uSelf;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        float fr = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+        // clamp：正对镜头时 |dot| 会因为舍入略大于 1，pow(负数, …) 在 GLSL 里没有定义（Metal 给 NaN）。防御性写法；
+        //   9/23 在 M2 无头 Chrome 上验证过：它不是展位黑块的原因（黑块根因还没查清，见指挥板 J 行）
+        float fr = clamp(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0);
         totalEmissiveRadiance += diffuseColor.rgb * uSelf + uRim * pow(fr, 2.2) * uRimK;`);
   };
   m.customProgramCacheKey = () => 'jett-statue';
