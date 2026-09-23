@@ -13,6 +13,7 @@ import { makeJifeng } from '/game/npc_jifeng.js';
 import { PALETTE, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
 import { makeRunner } from './runner.js';
+import { makeCloth } from './cloth.js';
 import { TUNE, rng, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
 
@@ -63,6 +64,7 @@ async function main() {
   if (Q.get('fengge') !== '0') try { await dressFengge(av); } catch (e) { err('峰哥头加载失败，用原头盔', e); }
   scene.add(av.group);
   const runner = Q.get('runner') === '0' ? null : makeRunner(av);
+  const cloth = runner ? makeCloth(scene, av) : null;             // 在第一次摆姿势之前建：按绑定姿态找挂点
   const jf = await makeJifeng(scene);
   if (Q.get('hud') === '0') document.body.classList.add('clean');
 
@@ -149,7 +151,7 @@ async function main() {
 
   // ---------- 每帧 ----------
   const P = new THREE.Vector3(), camP = new THREE.Vector3(), look = new THREE.Vector3(), dir = new THREE.Vector3(1, 0, 0), jfP = new THREE.Vector3();
-  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, clock = DEMO ? 0 : last / 1000;
+  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, lastZ = 0, clock = DEMO ? 0 : last / 1000;
   const HINT = { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！' };
   function frame(dtFix) {
     if (!MANUAL) requestAnimationFrame(() => frame());
@@ -190,14 +192,15 @@ async function main() {
     const slide = run.slideT > 0;
     // 根节点：滑铲后仰 0.6 rad（绕脚转，再把人往下放 0.3，屁股贴着地；腿怎么摆在 runner.js），腾空微前倾
     tilt += ((slide ? 0.6 : run.air ? -0.12 : 0) - tilt) * (1 - Math.exp(-dtR * 14));
-    av.group.rotation.set(0, 0, tilt);
+    av.group.rotation.set(runner ? runner.roll : 0, runner ? runner.yaw : 0, tilt);
     av.group.position.y -= 0.5 * Math.max(0, tilt);
     av.group.visible = !(run.invuln > 0 && Math.floor(t * 12) % 2);
     if (runner) {                                   // 前方马上要跳（楼缝 / 矮障碍）：0.35 s 内开始预判下沉，到边上蹲到 1
       if (gy !== null && !run.air) lastG = gy;       // 离地高度按起跳那栋楼算（空中飞过楼缝时脚下没地）
       const th = run.started && !run.air ? nextThreat(run, level, 8) : null;
       const ttc = th && th.what === 'jump' ? th.dx / Math.max(run.speed, 1) : 9;
-      runner.set({ v: run.speed, air: run.air, vy: run.vy, h: run.y - lastG, pre: Math.max(0, Math.min(1, (0.35 - ttc) / 0.3)), slide });
+      const vz = (run.z - lastZ) / Math.max(dtR, 1e-3); lastZ = run.z;
+      runner.set({ v: run.speed, lat: run.laneZ(run.lane) - run.z, vz, air: run.air, vy: run.vy, h: run.y - lastG, pre: Math.max(0, Math.min(1, (0.35 - ttc) / 0.3)), slide });
       av.group.position.y += runner.rootDy;
     }
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
@@ -233,6 +236,7 @@ async function main() {
       look.set(run.x + 7, Math.max(camY, run.y - 0.5) + 1.0 + dip, run.z * 0.3);
     }
     camera.lookAt(look);
+    if (cloth) cloth.update(dtR, camera.position);
     moonL.position.set(run.x - 30, 60, -40); moonL.target.position.set(run.x, 0, 0);
     renderer.render(scene, camera);
 

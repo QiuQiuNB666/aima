@@ -22,6 +22,8 @@ export const RUN = {         // 现场调这里
   PLANT: [0.035, 0.07],      // 起跳后脚先钉在地上多久、再用多久追上物理位置（秒）——看起来是「蹬出去」
   LAND_W: 2.1, LAND_Z: 0.45, LAND_K: 20,   // 落地压缩弹簧：频率 Hz、阻尼比、每单位冲击的初速度（峰值 ≈ −0.9 在 0.1 s，0.38 s 回弹过冲 ≈ +0.18）
   CAM_DIP: 0.08,             // 落地镜头跟着沉（米 / 单位压缩）
+  // 第 3 轮：换道先倾——身体先往新车道那边倒（弹簧追目标，回正时有过冲），再跟着过去；头抵掉 70% 保持水平
+  ROLL_K: 0.3, ROLL_MAX: 0.3, ROLL_W: 2.4, ROLL_Z: 0.42, YAW_K: 0.8,
 };
 
 export function makeRunner(av) {
@@ -31,7 +33,8 @@ export function makeRunner(av) {
   // 第 2 轮：动作阶段。ts / tl = 起跳 / 落地后多久；comp = 落地压缩弹簧（负 = 压下去）；w* = 各阶段权重（平滑过）
   let wasAir = false, ts = 9, tl = 9, lastVy = 0, lead = 0, comp = 0, compV = 0, rootDy = 0;
   const W = { crouch: 0, push: 0, tuck: 0, reach: 0, slide: 0 };
-  const info = { v: 0, air: false, vy: 0, h: 0, pre: 0, slide: false };
+  let roll = 0, rollV = 0, yaw = 0;
+  const info = { v: 0, air: false, vy: 0, h: 0, pre: 0, slide: false, lat: 0, vz: 0 };
   body.update = (dt, t, d) => {
     dt = clamp(dt, 0, 0.1);
     // ---- 跑步程度、加速度 ----
@@ -99,12 +102,17 @@ export function makeRunner(av) {
     // 脚先钉在地上 PLANT[0] 秒，再用 PLANT[1] 秒追上物理位置：蹬地的感觉（物理不动，只挪画面）
     const k = ts < RUN.PLANT[0] ? 1 : clamp(1 - (ts - RUN.PLANT[0]) / RUN.PLANT[1], 0, 1);
     rootDy = air ? -Math.max(0, info.h) * k : 0;
+    // 换道：目标倾角 ∝ 离目标车道还差多少（一按就先倒过去），二阶弹簧追，到位时回正带一点过冲
+    const rT = clamp(info.lat * RUN.ROLL_K, -RUN.ROLL_MAX, RUN.ROLL_MAX), wr = 2 * Math.PI * RUN.ROLL_W;
+    for (let n = Math.ceil(dt / 0.008), i = 0; i < n; i++) { rollV += (wr * wr * (rT - roll) - 2 * RUN.ROLL_Z * wr * rollV) * dt / n; roll += rollV * dt / n; }
+    yaw = ease(yaw, -Math.atan2(info.vz, Math.max(info.v, 2)) * RUN.YAW_K, dt, 0.05);
   }
   // 姿态目标：混进 P（pose = 覆盖，按权重插值；crouch / comp = 叠加）
   const legTo = (P, k, hip, knee, w) => { if (k === 0) { P.hipL = mix(P.hipL, hip, w); P.kneeL = mix(P.kneeL, knee, w); } else { P.hipR = mix(P.hipR, hip, w); P.kneeR = mix(P.kneeR, knee, w); } };
   const armTo = (a, swing, down, elbow, w) => { a[0] = mix(a[0], swing, w); a[1] = mix(a[1], down, w); a[2] = mix(a[2], elbow, w); };
   const leanBy = (P, deg) => { P.spine[2] += deg * 0.45; P.chest[2] += deg * 0.55; P.head[2] -= deg * 0.9; };
   function actionLayer(P) {
+    P.head[0] -= roll * 57.3 * 0.7;                                   // 换道身子倒了，头基本还是正的
     // 蓄力下沉：骨盆降、屈髋屈膝、上身前压、双臂往后拉
     const c = W.crouch;
     if (c > 0.001) { P.bob -= RUN.CROUCH * c; P.hipL += 28 * c; P.hipR += 28 * c; P.kneeL += 55 * c; P.kneeR += 55 * c; P.ankL -= 12 * c; P.ankR -= 12 * c; leanBy(P, 14 * c);
@@ -128,7 +136,7 @@ export function makeRunner(av) {
   }
   return {
     info, RUN,
-    get r() { return r; }, get g() { return g; }, get comp() { return comp; }, get rootDy() { return rootDy; }, W,
+    get r() { return r; }, get g() { return g; }, get comp() { return comp; }, get rootDy() { return rootDy; }, get roll() { return roll; }, get yaw() { return yaw; }, W,
     // 每帧 av.animate 之前调：v = 跑速 m/s，air / vy / h（离地高度）/ pre（0..1，前方马上要跳）/ slide
     set(o) { Object.assign(info, o); },
   };
