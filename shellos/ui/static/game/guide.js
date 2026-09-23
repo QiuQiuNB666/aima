@@ -13,7 +13,7 @@ import { STEP } from './path.js';
 import { bus } from './voice_bus.js';     // 峰哥声道仲裁：导游讲解期间占住声道，事件 / 地标台词不插嘴
 
 const Q = new URLSearchParams(location.search);
-const GAP_MS = 350, CPS = 4.5, PRELOAD_MS = 6000, READY_MS = 600;   // 句间停顿；没声音时按每秒 4.5 字估时长；预加载最多等 6 s（等不到的播的时候再说）
+const GAP_MS = 350, CPS = 4.5, PRELOAD_MS = 6000, READY_MS = 600, STALL_MS = 4000;   // 句间停顿；没声音时按每秒 4.5 字估时长；预加载最多等 6 s（等不到的播的时候再说）
 // 镜头三段（秒）：0–t1 正面对着峰哥慢慢推近（像导游对着你说话）；t1–t2 从头顶摇臂翻到身后（只走路线上方，不擦两边的楼）；
 //   t2 以后在身后高处，看前方的山路 / 景点，慢慢升高后退。看点压在脸下面：脸在画面上三分之一，不被正中偏下的「按住 R2」挡住。
 const CAM = { t1: 9, t2: 17, front: [3.0, 2.4], fh: 1.5, look: 1.0, back: 3.8, bh: 3.4, peak: 4.8, ahead: 14, side: 0.5, clear: 0.9, drift: [0.06, 0.05] };
@@ -52,8 +52,15 @@ export async function initGuide({ world, route, camera, me, getS }) {
     audio = clips[i]; audio.currentTime = 0;
     audio.onended = () => end('ended'); audio.onerror = () => setTimeout(end, est, 'nowav');
     audio.play().then(() => note(i, 'play'), e => setTimeout(end, est, e.name));   // 浏览器不让自动出声 / 放不了：照样按时长出气泡
-    const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 + 1500 : est + 4000;
-    setTimeout(end, dur, 'stuck');                      // 兜底：声音卡住也不停在这一句（知道时长就按时长 + 1.5 s）
+    // 兜底：看播放进度，不看墙上时间——机器忙的时候声音会顿几秒再接着放（按时长掐会把句尾切掉，9/24 第 3 轮压测 2/8 轮）。
+    //   进度 STALL_MS 不动才算卡住，跳下一句；再加一个总上限（估的时长 + 15 s）
+    const a = audio; let lastT = -1, moved = performance.now();
+    const wd = setInterval(() => {
+      if (fin) return clearInterval(wd);
+      if (a.currentTime !== lastT) { lastT = a.currentTime; moved = performance.now(); }
+      else if (performance.now() - moved > STALL_MS) { clearInterval(wd); end('stuck'); }
+    }, 250);
+    setTimeout(end, est + 15000, 'stuck-cap');
   });
 
   const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };

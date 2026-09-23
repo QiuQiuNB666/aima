@@ -1,6 +1,7 @@
 // 峰哥导游压测：无头 Chrome 反复跑「进 /game → Enter 关标题屏 → 等导游 → 走路打断 / 听完 → 复位 → 再来」，自动给每一轮分类。
 //   node scripts/guide_stress.mjs <base=http://127.0.0.1:8857> <轮数=20> [--policy=user|none] [--worlds=a,b] [--mix]
-//   只发 /sim、/demo/reset、/terrain、/hold（模拟器自己的端口）；别对着接了真外骨骼的 ShellOS 跑。
+//   会发 /sim、/demo/reset、/terrain、/hold、/estop、/rearm、/wearer：只对自己起的 --sim 跑（开跑前查 /state.sim.on，不是模拟器就退出）；
+//   先确认端口是自己的（9/24 G 线误打过别人 8862 上的模拟器）。
 //   --policy=doc（缺省）= 桌面 Chrome 默认：页面收到过一次按键 / 点击之后才能出声；strict = 每次 play 都要紧跟着手势（Safari / 手机那种）；
 //     none = 展位 Chrome 带 --autoplay-policy=no-user-gesture-required。Enter 用 CDP 的真实按键发（算手势）。
 //   --mix：轮流换场景：enter-listen（听完）/ enter-walk（半路走开）/ r2（按住 R2 直接开走 = 跳过）/ reload（不出标题屏直接进，没手势）/
@@ -20,6 +21,9 @@ const POLICY = flag('policy', 'doc'), WORLDS = flag('worlds', 'tokyo_night').spl
 const OUT = flag('out', '');
 const SCEN = MIX ? ['enter-listen', 'enter-walk', 'r2', 'reload', 'inject', 'idle', 'estop', 'nowav', 'summit', 'enter-walk'] : (flag('scen', '') ? flag('scen').split(',') : ['enter-walk']);
 
+// 安全：只对模拟器跑（会发 /estop、/hold、/terrain、/demo/reset）。/state.sim.on 不是 true（接着真外骨骼 / 连不上）就不跑
+{ const S0 = await fetch(BASE + '/state').then(r => r.json()).catch(() => null);
+  if (!S0 || !S0.sim || S0.sim.on !== true) { console.error(`${BASE} 不是 --sim（或连不上），不跑`); process.exit(3); } }
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const dir = mkdtempSync(join(tmpdir(), 'gstress-'));
 const ch = spawn(CHROME, ['--headless=new', '--window-size=1280,720', '--mute-audio', `--autoplay-policy=${{ none: 'no-user-gesture-required', strict: 'user-gesture-required' }[POLICY] || 'document-user-activation-required'}`,
@@ -81,7 +85,7 @@ function judge(g, scen) {             // 这一轮哪里不对：返回失败类
   const guideSrc = probe.filter(p => /\/guide\/(?!\w+_fx\/)/.test(p[2]));
   if (probe.some(p => /^reject:NotAllowed/.test(p[1]) && !/muted/.test(p[1]) && /\/guide\//.test(p[2]))) f.push('①自动播放被拦');
   if (scen !== 'nowav' && log.some(x => /:nowav$|:NotSupportedError$/.test(x))) f.push('②缺 wav');
-  if (log.some(x => /:stuck$/.test(x))) f.push('②卡住等兜底');
+  if (log.some(x => /:stuck(-cap)?$/.test(x))) f.push('②卡住等兜底');
   if (overlaps(probe)) f.push('③叠着念');
   const played = guideSrc.filter(p => p[1] === 'playing').length;   // 同一句重讲会再 playing 一次，按次数数，不按网址去重
   if (says.length && played < says.length - (scen === 'nowav' ? 1 : 0) && !f.includes('①自动播放被拦')) f.push('①有句没声音');
