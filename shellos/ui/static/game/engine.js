@@ -1,25 +1,28 @@
 // 「山的记忆」游戏引擎：只读 /state（10 Hz），60 fps 插值；动作只发 /sim、/demo/reset、/ctl、/terrain。
-// 离线预览：/game?preview=<world_id>&pos=<n>&ghost=<n>[&who=名字][&summit=1][&aa=0] —— 不轮询，用 /worlds.json 摆静态画面（截图/精加工地图用）。
-// 主题插件：themes/<theme.style>.js，export build(scene, ctx) 和 update(dt, st)（见 themes/kit.js 顶部注释）。
+// 离线预览：/game?preview=<world_id>&pos=<n>&ghost=<n>[&who=名字][&summit=1][&still=秒（红灯站定计时）][&aa=0] —— 不轮询，用 /worlds.json 摆静态画面（截图/精加工地图用）。
+// 主题插件：themes/<theme.style>.js，export build(scene, ctx)、update(dt, st)、可选 pathMaterials(ctx)——接口见 docs/游戏主题接口.md。
+// 截图/自检：出错写进 <pre id="errlog">（game.html），第一帧画完 <body data-ready="1" data-calls data-tris data-scene-tris>；scripts/dom.sh 读。
 import * as THREE from 'three';
-import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP } from './path.js';
+import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP, ROAD_W } from './path.js';
 import { loadAvatar, flexFromFrame } from './avatar.js';
 import { makeStepper, makeGhost } from './ghost.js';
-import { makeCamera } from './camera.js';
+import { makeCamera, defaultRig } from './camera.js';
 import { makeHud } from './hud.js';
 import { makeFx } from './fx.js';
 import { bindInput } from './input.js';
 import * as kit from './themes/kit.js';
+import * as util from './util.js';
 
 const Q = new URLSearchParams(location.search);
 const PREVIEW = Q.get('preview');
 const POLL_MS = 100, LAG = 0.13;             // 髋角插值：落后最新样本 130 ms，两帧之间线性插
-const AV_LAT = 0.35, GH_LAT = -0.6;          // 化身靠左（离镜头近），影子靠右
+const AV_LAT = 0.35, GH_LAT = -0.5;          // 化身靠左（离镜头近），影子靠右；主题可设 theme.ghostLat（夹在路沿内 0.4）
 const SUMMIT_HOLD = 6.0;
 const SUMMIT_BREAK = 3;                      // 登顶卡期间 pos 到这一步或碰到红灯 → 提前收起（第 2 圈起东京 4 步就是红灯）
 const GH_FADE = [1.5, 2.5];                  // 影子落后化身 1.5 步开始变淡、2.5 步全隐藏：再往后它就在镜头和化身之间，贴脸一个大头（按镜头距离分不开：台阶上并排的影子离镜头也才 ~4）
 const post = (p, b) => fetch(p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json()).catch(() => null);
 const getState = () => fetch('/state', { cache: 'no-store' }).then(r => r.json());
+const err = (m, e) => { console.error(m, e); if (window.__err) window.__err(`${m}${e ? '：' + (e.stack || e) : ''}`); };
 
 // ---------- 世界数据 ----------
 function routeFromStatus(T) {             // /worlds.json 里找不到时，用 /state 的 segments + profile 拼路线
@@ -36,7 +39,8 @@ function statusFor(world, pos, ghost, who) {   // 预览用：按 terrain.status
   for (let j = i + 1; j < R.length; j++) if (R[j].kind !== R[i].kind) { next = { label: R[j].label, kind: R[j].kind, in: R.slice(i, j).reduce((a, s) => a + s.steps, 0) - off }; break; }
   const hmax = Math.max(...hs) || 1, [a0, a1] = world.alt || [0, 0];
   return {
-    preset: world.id, world, pos, total, laps: 0, segment: R[i].kind, label: R[i].label, next, wait_still: null,
+    preset: world.id, world, pos, total, laps: 0, segment: R[i].kind, label: R[i].label, next,
+    wait_still: R[i].kind === 'wait' && Q.has('still') ? +Q.get('still') : null, wait_need: 1.5,
     altitude: Math.round(a0 + (a1 - a0) * (hs[pos] / hmax)), force: null, segments: R.map(s => [s.kind, s.steps]),
     elapsed: +(pos * 0.62).toFixed(1), best: null, last_lap: null,
     ghost_pos: ghost == null ? null : Math.max(0, Math.min(total, ghost | 0)), ghost_who: who,
@@ -94,18 +98,23 @@ async function main() {
 
   const seed = hashStr(world.id);
   const route = makeRoute(world.route, seed);
-  const meshes = buildPathMeshes(scene, route, theme);
   const c = kit.routeCenter(route); sun.target.position.copy(c); sun.position.set(c.x - 20, 30, c.z + 12);
-  const ctx = { THREE, scene, world, theme, route, meshes, lights: { hemi, sun }, camera, renderer, kit, preview: !!PREVIEW, rand: rng(seed) };
+  const camRig = defaultRig(); camRig.summit.center = route.at(route.N + 1.2).pos.clone();
+  const ctx = { THREE, scene, world, theme, route, steps: route.steps, meshes: null, lights: { hemi, sun }, camera, camRig, renderer, kit, util, preview: !!PREVIEW, rand: rng(seed) };
   let themeMod;
-  try { themeMod = await import(`./themes/${theme.style || 'grid'}.js`); } catch (e) { console.warn('theme load failed, fallback grid', e); themeMod = await import('./themes/grid.js'); }
-  themeMod.build(scene, ctx);
+  try { themeMod = await import(`./themes/${theme.style || 'grid'}.js`); } catch (e) { err(`主题 ${theme.style} 加载失败，改用 grid`, e); themeMod = await import('./themes/grid.js'); }
+  let mats = {};
+  if (themeMod.pathMaterials) try { mats = themeMod.pathMaterials(ctx) || {}; } catch (e) { err('pathMaterials 出错', e); }
+  const meshes = ctx.meshes = buildPathMeshes(scene, route, theme, mats);
+  try { themeMod.build(scene, ctx); } catch (e) { err(`主题 ${theme.style} build 出错（场景可能缺东西）`, e); }
+  let themeErr = false;
 
   const ghOp = theme.ghostOpacity || 0.4;
-  const [av, gh] = await Promise.all([loadAvatar(), loadAvatar({ ghost: true, color: theme.ghost || '#bff3ff', opacity: ghOp })]);
+  const ghLat = -Math.min(ROAD_W / 2 - 0.4, Math.abs(theme.ghostLat ?? GH_LAT));   // build 之后读：主题可以在 build 里改 ctx.theme
+  const [av, gh] = await Promise.all([loadAvatar({ look: theme.avatar }), loadAvatar({ ghost: true, color: theme.ghost || '#bff3ff', opacity: ghOp })]);
   scene.add(av.group, gh.group);
   const ghost = makeGhost(gh, hud);
-  const cam = makeCamera(camera);
+  const cam = makeCamera(camera, route, camRig);
   const fx = makeFx(scene, route, meshes);
   const me = makeStepper();
 
@@ -185,7 +194,8 @@ async function main() {
     requestAnimationFrame(frame);
     const nowMs = performance.now(), dt = Math.min(0.1, (nowMs - last) / 1000), t = nowMs / 1000; last = nowMs;
     const summit = t < summitUntil;
-    if (!summit && summitUntil) { summitUntil = 0; hud.summit(false); me.set(T.pos, t, true); }
+    let cut = false;                           // 登顶收起：化身从山顶回到当前步（登顶期间可能已走了几步）——硬切 + 淡入，镜头/朝向一起跳，不从山顶飞下来
+    if (!summit && summitUntil) { summitUntil = 0; hud.summit(false); me.set(T.pos, t, true); cut = true; yaw = null; hud.cut(); }
     const moving = !!(S.gait && S.gait.moving) && !!S.terrain && T.segment !== 'wait';
     const s = summit ? Math.min(route.N + 1.2, me.s + dt * 2) : (PREVIEW ? me.s : me.frame(dt, t, moving));
     if (summit) me.jump(s);
@@ -199,15 +209,20 @@ async function main() {
     const g = PREVIEW ? (ghost.visible ? { s: ghost.stepper.s, rel: '' } : null) : ghost.frame(dt, t, route.N);
     if (PREVIEW && ghost.visible) gh.pose(-8, 22);
     if (g) {
-      route.at(g.s, GH_LAT, G);
+      route.at(g.s, ghLat, G);
       gh.group.position.copy(G.pos);
       gyaw = gyaw === null ? -G.heading : lerpAng(gyaw, -G.heading, 1 - Math.exp(-dt * 6));
       gh.group.rotation.y = gyaw;
     }
-    if (!window.__camHold) cam.update(dt, A, summit ? 'summit' : 'follow', PREVIEW);   // __camHold：调试时手动摆镜头
+    if (!window.__camHold) cam.update(dt, A, summit ? 'summit' : 'follow', PREVIEW || cut, s);   // __camHold：调试时手动摆镜头
     fx.update(dt, t);
-    themeMod.update(dt, { t, dt, s, progress: Math.max(0, Math.min(1, s / route.N)), pos: T.pos, total: T.total, avatar: A.pos, terrain: T, summit, camera });
+    if (themeMod.update && !themeErr) try { themeMod.update(dt, { t, dt, s, progress: Math.max(0, Math.min(1, s / route.N)), pos: T.pos, total: T.total, avatar: A.pos, heading: A.heading, kind: A.kind, ghost: g ? G.pos : null, terrain: T, summit, preview: !!PREVIEW, camera }); }
+      catch (e) { themeErr = true; err(`主题 ${theme.style} update 出错（之后不再调用）`, e); }
     renderer.render(scene, camera);
+    if (!document.body.dataset.ready) {        // 第一帧画完：给 dom.sh / 截图脚本读就绪与预算
+      const r = util.stats(renderer), a = util.sceneStats(scene), b = document.body.dataset;
+      b.calls = r.calls; b.tris = r.triangles; b.sceneTris = a.triangles; b.sceneObjs = a.objects; b.ready = '1';
+    }
 
     if (g) {                                   // 影子头顶标签：投影到屏幕；出画/贴镜头时钉在下缘
       gh.headWorld(head);
@@ -225,8 +240,8 @@ async function main() {
   }
   hud.ready();
   frame();
-  window.__game = { route, scene, camera, S: () => S, me, ghost, av, gh };   // 调试
+  window.__game = { route, scene, camera, camRig, renderer, S: () => S, me, ghost, av, gh, stats: () => ({ ...util.stats(renderer), scene: util.sceneStats(scene) }) };   // 调试
 }
 function relText(T) { const d = T.ghost_pos - T.pos; return d > 0 ? `领先 ${d} 步` : d < 0 ? `落后 ${-d} 步` : '并排'; }
 
-main().catch(e => { console.error(e); const b = document.getElementById('banner'); b.style.display = 'block'; b.textContent = '游戏启动失败：' + e.message; });
+main().catch(e => { err('游戏启动失败', e); const b = document.getElementById('banner'); b.style.display = 'block'; b.textContent = '游戏启动失败：' + e.message; });

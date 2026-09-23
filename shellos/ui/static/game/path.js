@@ -37,8 +37,18 @@ export function makeRoute(route, seed = 1) {
       H.push(hd);
     }
   }
+  // 中心线 = 平滑朝向 headingAt 的积分（每步 SUB 段）。以前是 P[i]→P[i+1] 折线 + 平滑朝向的路沿，
+  //   两者不一致，Z 字坡每个步边界路沿都折一下（富士山 9/23 截图的锯齿）。P[i] 取积分点，其它代码照旧用 P。
+  const SUB = 8, Q = [[0, 0]];
+  for (let k = 1, x = 0, z = 0; k <= N * SUB; k++) { const h = headingAt((k - 0.5) / SUB); x += STEP / SUB * Math.cos(h); z += STEP / SUB * Math.sin(h); Q.push([x, z]); }
   const P = [new THREE.Vector3(0, 0, 0)];
-  for (let i = 0; i < N; i++) P.push(new THREE.Vector3(P[i].x + STEP * Math.cos(H[i]), steps[i].h1, P[i].z + STEP * Math.sin(H[i])));
+  for (let i = 0; i < N; i++) P.push(new THREE.Vector3(Q[(i + 1) * SUB][0], steps[i].h1, Q[(i + 1) * SUB][1]));
+  // 每步的世界坐标（主题摆道具用）：p0/p1 = 步起止中心点，mid = 踏面中心（台阶取顶面），heading = 朝向（rotation.y = -heading）
+  steps.forEach((st, i) => {
+    const top = st.kind.startsWith('stairs') ? Math.max(st.h0, st.h1) : (st.h0 + st.h1) / 2;
+    st.i = i; st.p0 = P[i]; st.p1 = P[i + 1]; st.heading = H[i]; st.top = top;
+    st.mid = new THREE.Vector3().lerpVectors(P[i], P[i + 1], 0.5).setY(top);
+  });
   const dirOf = hdg => new THREE.Vector3(Math.cos(hdg), 0, Math.sin(hdg));
   const H0 = H[0] || 0, HN = H[N - 1] || 0;
   const hmax = Math.max(0.001, ...P.map(p => p.y));
@@ -63,7 +73,7 @@ export function makeRoute(route, seed = 1) {
     let hdg;
     if (s <= 0) { hdg = H0; pos.copy(P[0]).addScaledVector(dirOf(H0), s * STEP); }
     else if (s >= N) { hdg = HN; pos.copy(P[N]).addScaledVector(dirOf(HN), (s - N) * STEP); }
-    else { const i = Math.floor(s); pos.lerpVectors(P[i], P[i + 1], s - i); hdg = headingAt(s); }
+    else { const u = s * SUB, k = Math.floor(u), f = u - k, a = Q[k], b = Q[k + 1]; pos.set(a[0] + (b[0] - a[0]) * f, 0, a[1] + (b[1] - a[1]) * f); hdg = headingAt(s); }
     pos.y = heightAt(s);
     const dir = (out.dir || new THREE.Vector3()).set(Math.cos(hdg), 0, Math.sin(hdg));
     const left = (out.left || new THREE.Vector3()).set(dir.z, 0, -dir.x);
@@ -75,7 +85,7 @@ export function makeRoute(route, seed = 1) {
   // 地面采样用：路线折线（含两端平台），[x,z,y]
   const poly = [];
   for (let s = -APRON / STEP; s <= N + APRON / STEP; s += 1) { const a = at(s); poly.push([a.pos.x, a.pos.z, s < 0 ? 0 : s > N ? P[N].y : Math.min(P[Math.floor(s)].y, P[Math.min(N, Math.floor(s) + 1)].y)]); }
-  return { N, steps, segs, P, H, hmax, heightAt, headingAt, at, poly, dirOf };
+  return { N, steps, segs, P, H, hmax, heightAt, headingAt, at, poly, dirOf, center: Q };
 }
 
 // 最近路线点：给地面高度场/摆道具。返回 {d 距离, side 左正右负, y 路面高度, s 近似步数}
@@ -92,18 +102,22 @@ export function nearest(route, x, z) {
 }
 
 // 路面：平地/坡 = 连续带；台阶 = InstancedMesh 方块；刻度线 + 路沿线；红灯段 = 停止线 + 信号灯；起点营地；山顶旗
-export function buildPathMeshes(scene, route, theme) {
+// mats（可选，主题模块 export pathMaterials(ctx) 给的）：{ road, stairs } 替换缺省材质；
+//   引擎仍会在 road 上加 polygonOffset / DoubleSide，在 stairs 上开 vertexColors（踏面/立面明暗）。
+// theme.stairs（世界 JSON，可选）= 台阶踏面颜色，缺省用 theme.path。
+export function buildPathMeshes(scene, route, theme, mats = {}) {
   const { N, steps, P, at } = route;
   const acc = (theme.accent || ['#ffffff', '#88ccff', '#ffd000']).map(c => new THREE.Color(c));
-  const roadCol = new THREE.Color(theme.path || '#444');
+  const roadCol = new THREE.Color(theme.path || '#444'), stairCol = new THREE.Color(theme.stairs || theme.path || '#444');
   const group = new THREE.Group(); group.name = 'path'; scene.add(group);
   const out = { group, signals: [], acc };
 
   // 1) 连续路面（含两端平台），跳过台阶步
-  const pos = [], idx = [];
-  const addQuad = (a0, a1) => {
+  // uv（世界单位）：u = 横向，左沿 +1.1 → 右沿 −1.1；v = 沿路距离 s × STEP（起点 0，营地平台为负）。贴图用 repeat 调密度
+  const pos = [], idx = [], uvs = [];
+  const addQuad = (s0, s1) => {
     const hw = ROAD_W / 2, b = pos.length / 3;
-    for (const a of [a0, a1]) for (const sgn of [1, -1]) pos.push(a.pos.x + a.left.x * hw * sgn, a.pos.y, a.pos.z + a.left.z * hw * sgn);
+    for (const s of [s0, s1]) { const a = at(s); for (const sgn of [1, -1]) { pos.push(a.pos.x + a.left.x * hw * sgn, a.pos.y, a.pos.z + a.left.z * hw * sgn); uvs.push(hw * sgn, s * STEP); } }
     idx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
   };
   const S0 = -APRON / STEP, S1 = N + APRON / STEP;
@@ -111,34 +125,43 @@ export function buildPathMeshes(scene, route, theme) {
     const i = Math.floor(s);
     if (i >= 0 && i < N && steps[i].kind.startsWith('stairs')) continue;
     const n = (i >= 0 && i < N && steps[i].kind !== 'flat' && steps[i].kind !== 'wait') ? 4 : 1;   // 坡细分一点
-    for (let k = 0; k < n; k++) addQuad(at(s + k / n), at(s + (k + 1) / n));
+    for (let k = 0; k < n; k++) addQuad(s + k / n, s + (k + 1) / n);
   }
   const rg = new THREE.BufferGeometry();
-  rg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); rg.setIndex(idx); rg.computeVertexNormals();
+  rg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); rg.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); rg.setIndex(idx); rg.computeVertexNormals();
   // polygonOffset：转弯内侧地面顶点偶尔取到相邻（更高）一段路的高度，差几厘米，让路面在深度上赢
-  out.road = new THREE.Mesh(rg, new THREE.MeshLambertMaterial({ color: roadCol, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const roadMat = mats.road || new THREE.MeshLambertMaterial({ color: roadCol });
+  Object.assign(roadMat, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  out.road = new THREE.Mesh(rg, roadMat);
   out.road.name = 'road'; group.add(out.road);
 
   // 2) 台阶方块
   const stairIdx = [];
   for (let i = 0; i < N; i++) if (steps[i].kind.startsWith('stairs')) stairIdx.push(i);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), c = new THREE.Vector3(), yAx = new THREE.Vector3(0, 1, 0);
-  out.stairs = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffffff }), Math.max(1, stairIdx.length));   // 颜色走 instanceColor
+  // 踏面 1.0、立面 0.6 的顶点色（和 instanceColor 相乘）：暗色主题里台阶也能一眼看出一级一级
+  const box = new THREE.BoxGeometry(1, 1, 1), bn = box.attributes.normal, bc = new Float32Array(bn.count * 3);
+  for (let v = 0; v < bn.count; v++) bc.fill(bn.getY(v) > 0.5 ? 1 : 0.6, v * 3, v * 3 + 3);
+  box.setAttribute('color', new THREE.BufferAttribute(bc, 3));
+  const stairMat = mats.stairs || new THREE.MeshLambertMaterial({ color: 0xffffff });
+  stairMat.vertexColors = true;
+  out.stairs = new THREE.InstancedMesh(box, stairMat, Math.max(1, stairIdx.length));   // 颜色走 instanceColor
   out.stairs.count = stairIdx.length; out.stairs.name = 'stairs'; out.stairIndex = stairIdx;
   stairIdx.forEach((i, n) => {
     const st = steps[i], top = Math.max(st.h0, st.h1), bot = Math.min(st.h0, st.h1) - 0.9;
     c.lerpVectors(P[i], P[i + 1], 0.5); c.y = (top + bot) / 2;
     q.setFromAxisAngle(yAx, -route.H[i]); sc.set(STEP + 0.02, top - bot, ROAD_W);
     out.stairs.setMatrixAt(n, m4.compose(c, q, sc));
-    out.stairs.setColorAt(n, roadCol.clone().multiplyScalar(n % 2 ? 1.0 : 0.88));
+    out.stairs.setColorAt(n, stairCol.clone().multiplyScalar(n % 2 ? 1.0 : 0.88));
   });
   if (stairIdx.length) out.stairs.instanceColor.needsUpdate = true;
   group.add(out.stairs);
 
-  // 3) 线：每步刻度（accent[1]）+ 两侧路沿（accent[0]）
-  const lp = [], lc = [];
+  // 3) 线：lines = 每步刻度（第 i 条 = 第 i 步起点，顶点 2i/2i+1；accent[1]，台阶 accent[2]，顶点色）；edges = 两侧路沿（accent[0]，材质色）
+  //    WebGL 线恒为 1 px，3 米外看不清——要醒目的步点/路沿请主题用路面 uv 画色带，或把这两个 visible=false 自己做
+  const lp = [], lc = [], ep = [];
   const line = (a, b, col) => { lp.push(a.x, a.y, a.z, b.x, b.y, b.z); lc.push(col.r, col.g, col.b, col.r, col.g, col.b); };
-  const tick = acc[1].clone().multiplyScalar(0.55), edge = acc[0];
+  const tick = acc[1].clone().multiplyScalar(0.55), edge = acc[0].clone();
   const hw = ROAD_W / 2, e = 0.012;
   for (let i = 0; i <= N; i++) {
     const st = steps[Math.min(i, N - 1)], stairs = i < N && st.kind.startsWith('stairs');
@@ -152,7 +175,7 @@ export function buildPathMeshes(scene, route, theme) {
       const a = at(s), i = Math.floor(s);
       const y = (i >= 0 && i < N && steps[i].kind.startsWith('stairs')) ? Math.max(steps[i].h0, steps[i].h1) : a.pos.y;
       const p = new THREE.Vector3(a.pos.x + a.left.x * hw * sgn, y + e, a.pos.z + a.left.z * hw * sgn);
-      if (prev) line(prev, p, edge);
+      if (prev) ep.push(prev.x, prev.y, prev.z, p.x, p.y, p.z);
       prev = p;
     }
   }
@@ -160,6 +183,9 @@ export function buildPathMeshes(scene, route, theme) {
   lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
   out.lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8 }));
   out.lines.name = 'lines'; group.add(out.lines);
+  const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.Float32BufferAttribute(ep, 3));
+  out.edges = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: edge, transparent: true, opacity: 0.45 }));
+  out.edges.name = 'edges'; group.add(out.edges);
 
   // 4) 红灯：停止线 + 信号灯（灯杆在路左侧）
   for (const sg of route.segs) {
@@ -178,7 +204,7 @@ export function buildPathMeshes(scene, route, theme) {
     const b = at(sg.start + sg.steps);     // 灯在斑马线对面、路右侧，灯面朝走过来的人；停在停止线时正好在前方
     g.position.copy(b.pos).addScaledVector(b.left, -(hw + 0.5)); g.rotation.y = -b.heading;
     group.add(g);
-    const sig = { seg: sg, group: g, red, green, state: '' };
+    const sig = { seg: sg, group: g, stop: stopG, red, green, state: '' };   // 主题换自己的信号灯：group.visible = false，每帧读 sig.state
     sig.set = st => { if (st === sig.state) return; sig.state = st; red.material.color.set(st === 'red' ? 0xff2030 : 0x2a0a0c); green.material.color.set(st === 'green' ? 0x20ff80 : 0x0a2a14); };
     sig.set('red'); out.signals.push(sig);
   }
@@ -191,9 +217,9 @@ export function buildPathMeshes(scene, route, theme) {
   camp.position.copy(a0.pos); group.add(camp); out.camp = camp;
   const startLine = new THREE.Mesh(new THREE.PlaneGeometry(0.18, ROAD_W), new THREE.MeshBasicMaterial({ color: acc[1] }));
   const a1 = at(0); startLine.rotation.set(-Math.PI / 2, 0, 0); const sl = new THREE.Group(); sl.add(startLine);
-  sl.position.copy(a1.pos).setY(0.014); sl.rotation.y = -a1.heading; group.add(sl);
+  sl.position.copy(a1.pos).setY(0.014); sl.rotation.y = -a1.heading; group.add(sl); out.startLine = sl;
 
-  const aN = at(N + 2.2, 0.9);
+  const aN = at(N + 2.2, -(ROAD_W / 2 + 0.3));   // 路右沿外：别立在行进中线上（化身/影子/镜头都不碰）
   const flag = new THREE.Group(); flag.name = 'flag';
   const fp = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.4, 8), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
   fp.position.y = 1.2; flag.add(fp);

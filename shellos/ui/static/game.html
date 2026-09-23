@@ -1,9 +1,24 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>山的记忆</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+// 错误收集：运行时错误、未处理的 Promise、脚本/资源加载失败都写进隐藏的 pre#errlog，scripts/dom.sh 用 --dump-dom 读
+(function () {
+  var L = [];
+  function flush() { var e = document.getElementById('errlog'); if (e) e.textContent = L.join('\n'); }
+  window.__err = function (m) { if (L.length < 60) L.push(String(m)); flush(); };
+  addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t !== window && t.tagName) return __err('加载失败：' + (t.src || t.href || '<' + t.tagName.toLowerCase() + '> 里 import 的模块（文件不存在或语法错）'));
+    __err(e.error && e.error.stack ? e.error.stack : (e.message || '?') + ' @' + (e.filename || '') + ':' + (e.lineno || ''));
+  }, true);
+  addEventListener('unhandledrejection', function (e) { var r = e.reason; __err('unhandledrejection: ' + (r && r.stack ? r.stack : r)); });
+  document.addEventListener('DOMContentLoaded', flush);
+})();
+</script>
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
 <style>
-:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.58);--line:rgba(255,255,255,.12);--acc:#29e7ff;--acc0:#ff2e88}
+:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.76);--line:rgba(255,255,255,.12);--acc:#29e7ff;--acc0:#ff2e88}
 html{font-size:clamp(13px,1.04vw,44px)}
 *{box-sizing:border-box}
 body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;user-select:none}
@@ -48,13 +63,14 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #wait .bar{margin-top:.6rem;height:.7rem}
 #wait .bar::after{display:none}
 #wait .bar i{left:0;background:#3ddc84}
-#summit{left:50%;top:15%;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:1.6rem 3rem}
-#summit.show{opacity:1;transform:translate(-50%,0) scale(1)}
+#summit{left:50%;bottom:9%;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:1.1rem 2.6rem;max-width:44rem}
+#summit.show{opacity:1;transform:translate(-50%,0) scale(1);transition-delay:2s}
+body.summit #hint{display:none!important}
 #summit .t1{font-size:1.2rem;letter-spacing:.4em;color:var(--dim)}
-#summit .t2{font-size:3.6rem;font-weight:900;letter-spacing:.12em}
+#summit .t2{font-size:3rem;font-weight:900;letter-spacing:.12em}
 #summit .t3{font-size:1.4rem;margin-top:.3rem}
-#summit .t4{font-size:1.5rem;margin-top:.8rem;font-variant-numeric:tabular-nums}
-#summit .t5{font-size:1.25rem;margin-top:.9rem;color:var(--acc)}
+#summit .t4{font-size:1.5rem;margin-top:.5rem;font-variant-numeric:tabular-nums}
+#summit .t5{font-size:1.2rem;margin-top:.5rem;color:var(--acc)}
 #cards{right:1.4rem;top:13rem;width:24rem;display:flex;flex-direction:column;gap:.6rem}
 .card{transform:translateX(120%);transition:transform .45s cubic-bezier(.2,.9,.3,1.2),opacity .6s;font-size:1rem}
 .card.in{transform:none}
@@ -62,7 +78,7 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 .card .k{font-size:.85rem;color:var(--acc);letter-spacing:.15em}
 .card .q{font-size:1.2rem;margin:.2rem 0}
 .card .d{font-size:.9rem;color:var(--dim)}
-#ghostTag{transform:translate(-50%,-100%);font-size:1rem;white-space:nowrap;padding:.25rem .7rem;border-radius:.6rem;background:rgba(0,0,0,.45);border:1px solid rgba(159,232,255,.5);color:#cfefff;display:none}
+#ghostTag{transform:translate(-50%,-100%);font-size:1.05rem;font-weight:700;white-space:nowrap;padding:.3rem .8rem;border-radius:.6rem;background:rgba(4,8,14,.86);border:2px solid rgba(159,232,255,.8);color:#dff6ff;display:none;box-shadow:0 2px 10px rgba(0,0,0,.5)}
 #ghostTag small{color:var(--dim);margin-left:.4rem}
 #banner{left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:1.3rem;display:none;pointer-events:auto}
 #banner button{margin-top:.8rem;font:inherit;font-weight:700;padding:.5rem 1.2rem;border-radius:.7rem;border:0;cursor:pointer}
@@ -74,9 +90,12 @@ body.puppet #tc,body.puppet #tr,body.puppet #br,body.puppet #wait,body.puppet #s
 body.puppet #puppet{display:block}
 #str{font-size:.95rem;color:var(--dim);font-variant-numeric:tabular-nums}
 #str b{color:var(--fg)}
+#errlog{display:none}
+#cut{inset:0;background:#000;opacity:0}
 #tag{left:50%;top:50%;transform:translate(-50%,-50%);font-size:1.2rem;color:var(--dim)}
 </style></head><body>
 <canvas id="c"></canvas>
+<div class="hud" id="cut"></div>
 <div class="hud" id="tl"><a id="back" href="/worlds">← 换一座山</a><div class="panel"><div id="wname">…</div><div id="wsub"></div></div></div>
 <div class="hud panel" id="tc"><div id="seg">…</div><div id="next"></div></div>
 <div class="hud panel" id="tr"><div id="alt">—<small></small></div><div id="step"></div><div id="prog"><i></i></div></div>
@@ -86,7 +105,7 @@ body.puppet #puppet{display:block}
   <div id="str"></div>
   <div id="safe"><span class="dot"></span><span id="safeT">—</span><small id="safeR"></small></div>
 </div>
-<div class="hud panel" id="br"><span>用时</span><b id="time">0.0 s</b><span>最佳</span><b id="best">—</b><span>登顶</span><b id="laps">0 次</b><span>穿戴者</span><b id="wearer">—</b><span id="ghostK" style="display:none">影子</span><b id="ghostV" style="display:none">—</b></div>
+<div class="hud panel" id="br"><span>用时</span><b id="time">0.0 s</b><span>最佳</span><b id="best">—</b><span>登顶</span><b id="laps">0 次</b><span>穿戴者</span><b id="wearer">—</b><span id="ghostK">影子</span><b id="ghostV">—</b></div>
 <div class="hud panel" id="hint">模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 慢/中/快 · <kbd>R</kbd> 回山脚 <span id="hintS"></span></div>
 <div class="hud panel" id="wait"><div class="big">● 红灯</div><div class="sub" id="waitT">站定 2 秒放行</div><div class="bar"><i id="waitB"></i></div></div>
 <div class="hud panel" id="summit"><div class="t1">登顶</div><div class="t2" id="sName"></div><div class="t3" id="sText"></div><div class="t4" id="sTime"></div><div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div></div>
@@ -96,5 +115,6 @@ body.puppet #puppet{display:block}
 <div class="hud panel" id="banner"></div>
 <div class="hud" id="fps"></div>
 <div class="hud" id="tag">加载中…</div>
+<pre id="errlog" hidden></pre>
 <script type="module" src="/game/engine.js"></script>
 </body></html>

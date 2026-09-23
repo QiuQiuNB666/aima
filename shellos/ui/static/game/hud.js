@@ -5,6 +5,7 @@ export const KC = { flat: '#8a95a3', up: '#3ddc84', down: '#4fc3f7', stairs_up: 
 const $ = id => document.getElementById(id);
 const fmt = s => s == null ? '—' : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 const PEAK_S = 1.5;          // 力矩条 = 最近 1.5 s（≥ 一个步态周期）的峰值保持：/state 10 Hz 采样落在脉冲哪里是随机的，瞬时值看不出强弱
+const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner'];   // 影子标签要让开的 HUD 面板
 const SAFE = { ACTIVE: ['#3ddc84', '有力'], ARMED: ['#ffc53d', '待命（死人开关松开）'], CONNECTED: ['#ffc53d', '已连接'], PREVIEW: ['#8a95a3', '离线预览'] };
 
 export function makeHud(world) {
@@ -29,10 +30,12 @@ export function makeHud(world) {
       if (T && !summit) {
         const kind = T.segment;
         $('seg').innerHTML = ''; $('seg').append(T.label || KIND_NAME[kind] || kind);
-        const chip = document.createElement('span'); chip.className = 'chip'; chip.style.background = KC[kind] || '#888'; chip.textContent = KIND_NAME[kind] || kind; $('seg').append(chip);
+        const chip = document.createElement('span'); chip.className = 'chip'; chip.style.background = KC[kind] || '#888'; chip.textContent = KIND_NAME[kind] || kind;
+        if ((T.label && T.label !== chip.textContent) || T.force) $('seg').append(chip);   // 段名就是类型名（训练场）：别写两遍
         if (T.force) chip.textContent += '（强制）';
         const n = T.next;
-        $('next').innerHTML = n ? `<b>${n.in}</b> 步后：${KIND_NAME[n.kind] || n.kind} · ${esc(n.label)}` : `前方：${esc(world.summit ? world.summit.name : '终点')}`;
+        const nk = n ? KIND_NAME[n.kind] || n.kind : '';
+        $('next').innerHTML = n ? `<b>${n.in}</b> 步后：${nk}${n.label && n.label !== nk ? ' · ' + esc(n.label) : ''}` : `前方：${esc(world.summit ? world.summit.name : '终点')}`;
       }
       if (T) {
         $('alt').innerHTML = `${T.altitude ?? '—'}<small>${world.unit || 'm'}</small>`;
@@ -84,17 +87,29 @@ export function makeHud(world) {
         }
       }
     },
-    // off = 影子不在画面里（或贴着镜头）：标签钉在画面下缘，带 ↓；右下统计面板里的「影子」一行不依赖投影
+    // off = 影子不在画面里（或贴着镜头）：标签钉在画面下缘，带 ↓；右下统计面板里的「影子」一行常驻（没影子 = —），面板宽度不跳
     ghostTag(x, y, show, who, rel, off) {
       const g = $('ghostTag');
       g.style.display = show ? 'block' : 'none';
-      $('ghostK').style.display = $('ghostV').style.display = show ? '' : 'none';
-      if (!show) return;
-      if (off) { x = innerWidth / 2; y = innerHeight * 0.84; } else y = Math.min(y, innerHeight * 0.76);   // 别压到右下统计面板
-      g.style.left = x + 'px'; g.style.top = y + 'px';
+      if (!show) { if (g.dataset.t) { g.dataset.t = ''; $('ghostV').textContent = '—'; } return; }
       const key = `${who}|${rel}|${off ? 1 : 0}`;
       if (g.dataset.t !== key) { g.dataset.t = key; g.innerHTML = `${off ? '↓ ' : ''}上一位：${esc(who)}<small>${esc(rel)}</small>`; $('ghostV').textContent = `${rel || '—'} · ${who}`; }
+      if (off) { x = innerWidth / 2; y = innerHeight * 0.84; } else y = Math.min(y, innerHeight * 0.76);   // 别压到右下统计面板
+      // 标签（锚点在底边中点）和上方面板（红灯 / 路段 / 海拔 / 登顶卡…）重叠就挪到面板下面；左右不出屏
+      const w = g.offsetWidth, h = g.offsetHeight, m = 8;
+      x = Math.max(w / 2 + m, Math.min(innerWidth - w / 2 - m, x));
+      for (let pass = 0; pass < 3; pass++) {
+        let moved = false;
+        for (const id of AVOID) {
+          const e = $(id); if (!e || (id === 'summit' && !e.classList.contains('show'))) continue;
+          const r = e.getBoundingClientRect(); if (!r.width) continue;   // display:none
+          if (x + w / 2 > r.left - m && x - w / 2 < r.right + m && y > r.top - m && y - h < r.bottom + m) { y = r.bottom + m + h > innerHeight - m ? r.top - m : r.bottom + m + h; moved = true; }
+        }
+        if (!moved) break;
+      }
+      g.style.left = x + 'px'; g.style.top = y + 'px';
     },
+    cut() { const c = $('cut'); if (!c) return; c.style.transition = 'none'; c.style.opacity = '1'; void c.offsetWidth; c.style.transition = 'opacity .5s'; c.style.opacity = '0'; },
     puppet(on) { document.body.classList.toggle('puppet', !!on); },
     summit(show, T, prevBest) {
       const s = $('summit');
@@ -104,7 +119,7 @@ export function makeHud(world) {
         const best = T.last_lap != null && (prevBest == null || T.last_lap < prevBest - 1e-6);
         $('sTime').textContent = T.last_lap != null ? `用时 ${fmt(T.last_lap)}${best ? ' · 新纪录' : `（最佳 ${fmt(T.best)}）`} · 第 ${T.laps} 次登顶` : '';
       }
-      s.classList.toggle('show', !!show);
+      s.classList.toggle('show', !!show); document.body.classList.toggle('summit', !!show);
     },
     banner(html) { const b = $('banner'); b.style.display = html ? 'block' : 'none'; if (html) b.innerHTML = html; },
     fps(v, extra) { $('fps').textContent = `${v.toFixed(0)} fps${extra || ''}`; },

@@ -1,47 +1,75 @@
-// 赛博东京·夜行 —— 基础版：夜空渐变 + 紫雾 + 暗地面 + 远处楼群剪影（少量霓虹条）。
-// 精细地图（霓虹招牌、自动售货机、鸟居、雨）下一轮只改这个文件。
+// 赛博东京·夜行：雨夜霓虹。涩谷街头（竖排霓虹招牌、贩卖机、大屏）→ 红灯斑马线（步行者信号跟 wait_still 联动、红灯时车流）
+//   → 天桥（桥下挖出一条大街）→ 道玄坂（低层商铺、电线杆）→ 爱宕神社石阶（鸟居、石灯笼、杉树影）。
+// 子模块在 cyber_night/：city（楼/招牌/商铺/电线/路灯/贩卖机）、street（路口/信号/天桥/车流）、shrine、rain、lib（公用）。
+import * as THREE from 'three';
 import { ROAD_W } from '../path.js';
+import { radialTex } from './cyber_night/lib.js';
+import { buildCity, updateCity } from './cyber_night/city.js';
+import { buildStreet, updateStreet } from './cyber_night/street.js';
+import { buildShrine, updateShrine } from './cyber_night/shrine.js';
+import { buildRain, updateRain } from './cyber_night/rain.js';
+
+// 路面：湿沥青（Phong 高光吃点光源 → 地上有霓虹色的反光）
+export function pathMaterials({ theme }) {
+  return { road: new THREE.MeshPhongMaterial({ color: theme.path, specular: '#4a4468', shininess: 60, emissive: '#07060e' }) };
+}
+
+function asphaltTex(util, rand) {
+  return util.canvasTexture(512, 512, (g, w, h) => {
+    g.fillStyle = '#7a7e8a'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 5000; k++) { const v = 90 + rand() * 70 | 0; g.fillStyle = `rgb(${v},${v},${v + 8})`; g.fillRect(rand() * w, rand() * h, 2, 2); }
+    for (let k = 0; k < 14; k++) {                      // 水洼：更亮更蓝、边缘软（specularMap 也用这张 → 水洼更反光）
+      const x = rand() * w, y = rand() * h, r = 30 + rand() * 70, gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, 'rgba(200,212,245,.9)'); gr.addColorStop(0.6, 'rgba(170,185,230,.5)'); gr.addColorStop(1, 'rgba(170,185,230,0)');
+      g.save(); g.translate(x, y); g.scale(1, 0.45 + rand() * 0.4); g.translate(-x, -y); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); g.restore();
+    }
+  }, { repeat: true });
+}
+
 export function build(scene, ctx) {
-  const { THREE, theme, kit, lights, route } = ctx;
-  kit.sky(scene, theme.sky[0], theme.sky[1]);
-  kit.fog(scene, theme.fog, 10, 75);
-  lights.hemi.color.set('#6a5cff'); lights.hemi.groundColor.set('#1a0b2e'); lights.hemi.intensity = 1.1;
-  lights.sun.color.set('#ff7ad0'); lights.sun.intensity = 0.8;
-  kit.terrain(ctx, { amp: 0, rough: 0, reach: 4 });
-  // 楼群：沿路两侧 8–40 单位外的一排方块（InstancedMesh，一次绘制）
-  const n = 140, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#0d0f1c' }), n);
-  const neon = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: '#ffffff' }), n);
-  const acc = theme.accent.map(c => new THREE.Color(c));
-  for (let i = 0; i < n; i++) {
-    const sgn = i % 2 ? 1 : -1, sAlong = ctx.rand() * (route.N + 24) - 12, a = route.at(sAlong);
-    const off = 6 + ctx.rand() * 30, w = 2 + ctx.rand() * 4, h = 4 + ctx.rand() * ctx.rand() * 30;
-    p.copy(a.pos).addScaledVector(a.left, sgn * (off + w / 2)); p.y = a.pos.y + h / 2 - 0.1;
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a.heading); s.set(w, h, w);
-    blocks.setMatrixAt(i, m4.compose(p, q, s));
-    p.y = a.pos.y + h * (0.3 + 0.6 * ctx.rand()); s.set(w * 1.02, 0.12, w * 1.02);
-    neon.setMatrixAt(i, m4.compose(p, q, s)); neon.setColorAt(i, acc[i % acc.length]);
+  const { theme, kit, lights, route, util } = ctx, acc = theme.accent;
+  kit.sky(scene, theme.sky[0], '#2e1448', { exponent: 0.42 });        // 地平线一圈城市光污染的紫，楼和电线的剪影靠它
+  kit.fog(scene, theme.fog, 16, 85);
+  lights.hemi.color.set('#6a5cff'); lights.hemi.groundColor.set('#1a0b2e'); lights.hemi.intensity = 0.95;
+  lights.sun.color.set('#ff7ad0'); lights.sun.intensity = 0.55;
+
+  const asphalt = asphaltTex(util, ctx.rand), groundColor = new THREE.Color(theme.ground);
+  const ground = kit.terrain(ctx, { amp: 0, rough: 0, reach: 4, map: asphalt, uvScale: 6 });
+  ground.material = new THREE.MeshPhongMaterial({ vertexColors: true, map: asphalt, specularMap: asphalt, specular: '#3a3450', shininess: 50 });
+  const E = { ground, asphalt, groundColor, radial: radialTex(util) };
+
+  // 霓虹色点光源（4 盏，不开阴影）：打在湿地面上的彩色反光
+  for (const [s, lat, y, col, k] of [[-4, 3.2, 3.2, acc[1], 7], [3, -2.8, 3, acc[0], 7], [23.5, 2.6, 3, '#ff8a3a', 6], [33, 0, 3.6, '#ffb070', 9]]) {
+    const a = route.at(s, lat), L = new THREE.PointLight(col, k, 14, 1.6);
+    L.position.set(a.pos.x, a.pos.y + y, a.pos.z); scene.add(L);
   }
-  neon.instanceColor.needsUpdate = true;
-  scene.add(blocks, neon);
+
+  buildStreet(scene, ctx, E);           // 先挖天桥下的大街（改地面），再摆别的
+  buildCity(scene, ctx, E);
+  buildShrine(scene, ctx, E);
+  buildRain(scene, ctx);
 
   const M = ctx.meshes;
-  if (M.camp) M.camp.visible = false;          // 城市里没有帐篷
-  // 台阶在紫色低光下和平坡一样黑：踏面提亮 + 微弱自发光 + 每级台阶边缘一条霓虹亮条（台阶 = 腿上脉冲，得让评委看出来）
+  if (M.camp) M.camp.visible = false;   // 城市里没有帐篷
+  // 台阶：天桥 = 钢灰蓝、神社 = 石灰；踏面比地面亮很多 + 每级边缘一条霓虹亮条（台阶 = 腿上脉冲，得让评委看出来）
   const st = M.stairs, idx = M.stairIndex || [];
   if (st && idx.length) {
-    st.material.emissive = acc[2].clone().multiplyScalar(0.08);
-    const col = new THREE.Color(), white = new THREE.Color('#ffffff');
-    for (let k = 0; k < idx.length; k++) { st.getColorAt(k, col); st.setColorAt(k, col.lerp(white, 0.3)); }
+    st.material.emissive = new THREE.Color('#141018');
+    const bridge = new THREE.Color('#66718e'), stone = new THREE.Color('#aaa69c'), col = new THREE.Color();
+    idx.forEach((i, k) => st.setColorAt(k, col.copy(i < 22 ? bridge : stone).multiplyScalar(k % 2 ? 1 : 0.9)));
     st.instanceColor.needsUpdate = true;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
     const nose = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: acc[2] }), idx.length);
     idx.forEach((i, k) => {
       const S = route.steps[i], up = S.kind === 'stairs_up';
       const e = up ? route.P[i] : route.P[i + 1], y = Math.max(S.h0, S.h1);   // 上台阶：立面在步起点；下台阶：落差在步终点
-      p.set(e.x, y + 0.012, e.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -route.H[i]); s.set(0.05, 0.03, ROAD_W);
+      p.set(e.x, y + 0.012, e.z); q.setFromAxisAngle(Y, -route.H[i]); s.set(0.05, 0.03, ROAD_W);
       nose.setMatrixAt(k, m4.compose(p, q, s));
     });
     nose.name = 'stairNose'; scene.add(nose);
   }
 }
-export function update(dt, st) {}
+
+export function update(dt, st) {
+  updateStreet(dt, st); updateCity(dt, st); updateShrine(dt, st); updateRain(dt, st);
+}
