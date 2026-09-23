@@ -2,9 +2,15 @@
 //   ① 四脚机甲「ヨンソク-04」：自己设计的扁六角身 + 四条蜘蛛腿 + 单眼，趴在天桥右侧检修平台上；化身走近它转头看、离得近就撑起身子抬头
 //   ② 港式出挑招牌：临街楼面伸出来的竖招牌（双面字，正面镜头回看也是正字），青绿 + 品红霓虹
 //   ③ 楼面空调外机 + 横穿街道的垂线（九龙城寨 / 旺角的密度）
+// 彩蛋（只看进度 / 站定 / 靠近触发）：
+//   ④ 站定 3 s → 峰哥光学迷彩（半透明 + 青色轮廓光），一动 0.15 s「啪」地恢复。P 线 fengge.js 有 setCamo(k) 就交给它，没有就这里临时改材质参数
+//   ⑤ 走过坂道上那块「ゴースト」出挑招牌 → 故障字幕 0.6 s（U 线 hud 有 window.__hud.glitch(text) 就交给它，没有就镜头前 3D 字）；
+//      只错位跳一次（≤ 2 Hz，不频闪），3 s 冷却
+//   ⑥ 登顶 → 拝殿前浮现「2029」（全息字，压在画面最上层）+ 两记合成太鼓（心跳）
 // 全部程序生成，不下载模型。
 import * as THREE from 'three';
 import { shade } from './lib.js';
+import * as FG from '../../fengge.js';
 
 const B = (x, y, z) => new THREE.BoxGeometry(x, y, z);
 const seg = (parts, a, b, t, color) => {                         // a→b 一根方棒
@@ -70,11 +76,13 @@ export function buildGits(scene, ctx, E) {
   const near = [...(E.near || []), ...(E.rear || []).filter(b => b.sc > 17 && b.sc < 30)].filter(b => b.h > 3.4);
   const WORDS = ['義体整備', '電脳診療', '光学迷彩', 'ゴースト', '大押', '酒家', '麻雀', '藥行', '冰室', '情報屋', '電脳カフェ', '義肢修理', '夜市', '九龍'];
   const COLS = ['#29e7ff', '#ff2e88', '#00ffc6', '#ff4fd8', '#e8f6ff'];
-  const signs = [], ac = [], wp = [];
+  const signs = [], ac = [], wp = [], trig = [];
   near.forEach((b, k) => {
-    const t = WORDS[k % WORDS.length], col = COLS[(k * 3) % COLS.length], h = 1.1 + [...t].length * 0.36;
+    const want = b.sc > 5 && !trig.length;                                   // 坂道上第一块出挑牌 =「ゴースト」，彩蛋触发牌
+    const t = want ? 'ゴースト' : WORDS[k % WORDS.length], col = COLS[(k * 3) % COLS.length], h = 1.1 + [...t].length * 0.36;
     const y = b.y0 + Math.min(b.h - h / 2 - 0.3, 3.0 + h / 2 + (k % 3) * 0.6);
     const a = route.at(b.sc + (k % 2 ? 0.25 : -0.25) * b.ds, b.side * (b.front - 0.95));
+    if (y - h / 2 > b.y0 + 2.4 && want) trig.push({ s: b.sc, text: t });
     if (y - h / 2 > b.y0 + 2.4) signs.push({ text: t, p: a.pos.clone().setY(y), ry: -a.heading + Math.PI / 2, h, color: col, bg: '#07040c', border: col, glow: 1, vertical: true, weight: 900 });
     for (let j = 0, n = LOW ? 1 : 2 + (k % 3); j < n; j++) {                   // 空调外机：挂在楼面上，离地 1.4 往上
       const q = route.at(b.sc + (rand() - 0.5) * b.ds * 0.7, b.side * (b.front - 0.18));
@@ -92,6 +100,76 @@ export function buildGits(scene, ctx, E) {
   }
   if (wp.length) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#05040a' })); m.name = 'streetCables'; scene.add(m); }
 
+  // ---------- 彩蛋用的故障字：品红 / 青两层左右错开（加色）+ 白字；组的朝向跟镜头，本地 x = 屏幕右 ----------
+  const DX = [-0.035, 0.035, 0];
+  const glitchText = (text, h, top) => {
+    const tex = util.textTexture(text, { size: 160, weight: 900, color: '#ffffff' }), g = new THREE.Group();
+    ['#ff2e88', '#29e7ff', '#ffffff'].forEach((c, i) => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: c, transparent: true, depthWrite: false, depthTest: !top, fog: false, toneMapped: false, blending: i < 2 ? THREE.AdditiveBlending : THREE.NormalBlending }));
+      sp.scale.set(h * tex.userData.aspect, h, 1); sp.renderOrder = top ? 999 : 5; g.add(sp);
+    });
+    g.set = (op, jx = 0) => { g.children.forEach((sp, i) => { sp.material.opacity = op * (i < 2 ? 0.8 : 1); sp.position.x = (DX[i] * (1 + 6 * Math.abs(jx)) + (i === 2 ? jx : 0)) * h; }); g.visible = op > 0.01; };
+    g.set(0); g.name = 'glitch:' + text; scene.add(g);
+    return g;
+  };
+
+  // ④ 光学迷彩：材质原值存一份，k = 0 时原样放回
+  let av = null, camoMats = null, rimU = null, rim0 = null, rimK0 = 0, camoK = 0, stillT = 0, lastS = null;
+  const CAMO = new THREE.Color('#7ff6ff');
+  const setCamo = k => {
+    if (FG.setCamo) return FG.setCamo(k);
+    if (!camoMats) {
+      camoMats = new Map(); av.traverse(o => { if (o.isMesh && !camoMats.has(o.material)) { camoMats.set(o.material, { t: o.material.transparent, o: o.material.opacity, d: o.material.depthWrite }); if (o.material.userData.look) rimU = o.material.userData.look; } });
+      if (rimU) { rim0 = rimU.uRim.value.clone(); rimK0 = rimU.uRimK.value; }
+    }
+    for (const [m, o] of camoMats) {
+      const on = k > 0.001;
+      if (m.transparent !== (on || o.t)) { m.transparent = on || o.t; m.needsUpdate = true; }
+      m.opacity = o.o * (1 - 0.84 * k); m.depthWrite = on ? k < 0.5 : o.d;
+    }
+    if (rimU) { rimU.uRim.value.copy(rim0).lerp(CAMO, k); rimU.uRimK.value = rimK0 + 2.6 * k; }
+  };
+  const camo = (dt, st) => {
+    av ||= scene.getObjectByName('avatar'); if (!av) return;
+    stillT = lastS !== null && Math.abs(st.s - lastS) < 0.002 && !st.summit && !st.preview && st.s > 0.5 ? stillT + dt : 0;
+    const want = stillT > 3 ? 1 : 0, was = camoK;
+    camoK = want ? Math.min(1, camoK + dt / 0.8) : Math.max(0, camoK - dt / 0.15);
+    if (was === 0 && camoK > 0) kit.sfx('camo', 0.55);
+    else if (was === 1 && camoK < 1) kit.sfx('click', 0.5, { pitch: 1.4 });
+    if (camoK !== was) setCamo(camoK);
+  };
+
+  // ⑤ 故障字幕
+  const HUDG = {}; for (const q of trig) HUDG[q.text] ||= glitchText(q.text, 0.24, true);
+  let gl = null, glT = 0, glCd = 0;
+  const fwd = new THREE.Vector3(), up = new THREE.Vector3();
+  const glitch = (dt, st) => {
+    glCd -= dt;
+    if (lastS !== null && glCd <= 0) for (const q of trig) if (lastS < q.s - 1.5 && st.s >= q.s - 1.5) {
+      glCd = 3; kit.sfx('glitch', 0.5);
+      if (window.__hud && window.__hud.glitch) window.__hud.glitch(q.text); else { if (gl) gl.set(0); gl = HUDG[q.text]; glT = 0.6; }
+      break;
+    }
+    if (!gl) return;
+    glT -= dt; if (glT <= 0 || !st.camera) { gl.set(0); gl = null; return; }
+    const u = 1 - glT / 0.6, cam = st.camera;
+    cam.getWorldDirection(fwd); up.set(0, 1, 0).applyQuaternion(cam.quaternion);
+    gl.position.copy(cam.position).addScaledVector(fwd, 1.6).addScaledVector(up, 0.4); gl.quaternion.copy(cam.quaternion);
+    gl.set(u < 0.1 ? u / 0.1 : u > 0.75 ? (1 - u) / 0.25 : 1, u > 0.35 && u < 0.5 ? 0.09 : 0);   // 只错位跳一次
+  };
+
+  // ⑥ 登顶「2029」+ 太鼓
+  const Y29 = E.haiden ? glitchText('2029', 1.0, true) : null, top = kit.edge();
+  let t29 = -1;
+  const y2029 = (dt, st) => {
+    if (top(!!st.summit)) { t29 = 0; kit.sfx('taiko', 1); setTimeout(() => kit.sfx('taiko', 0.6, { pitch: 0.92 }), 340); }
+    if (!Y29 || t29 < 0) return;
+    t29 = st.summit ? t29 + dt : -1;
+    const e = Math.min(1, t29 / 1.4), ease = 1 - (1 - e) ** 3;
+    Y29.position.set(E.haiden.x, E.haiden.y + 3.1 + 0.5 * ease, E.haiden.z); if (st.camera) Y29.quaternion.copy(st.camera.quaternion);
+    Y29.set(t29 < 0 ? 0 : ease, t29 > 0.9 && t29 < 1.05 ? 0.06 : 0);
+  };
+
   // ---------- 每帧 ----------
   const tmp = new THREE.Vector3();
   out.update = (dt, st) => {
@@ -107,6 +185,8 @@ export function buildGits(scene, ctx, E) {
       M.g.position.y = M.base.y + 0.35 * M.up; M.head.rotation.set(0, M.yaw, M.pitch);
       M.eyeMat.color.setRGB(0.16 + 0.6 * watch, 0.9, 1).multiplyScalar(0.75 + 0.25 * Math.sin(st.t * (watch ? 6 : 1.5)));
     }
+    if (st.s != null) { camo(dt, st); glitch(dt, st); lastS = st.s; }
+    y2029(dt, st);
   };
   return out;
 }
