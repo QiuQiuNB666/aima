@@ -2,8 +2,9 @@
 //   镜头从峰哥正面慢慢拉远、绕着他转，把景区带进画面。一按 R2 / 开始走 / 离开「准备」→ 立刻打断，镜头交还引擎。
 // 状态机（window.__guide.state()）：off（没词 / 关了）→ armed（等一位新玩家听）→ playing → done（讲完 / 被打断 / 没听就走了）。
 //   变回 armed = 来了新的一位：页面刚载入（进图 / 切世界）、出过标题屏或待机、换了穿戴者、登顶或复位后回到山脚（步数变小）。
-//   armed → playing：「准备」界面稳定 0.6 s、没开菜单、在山脚、没在走 / 没按 R2、语音预加载完、声音已解锁（没解锁就提示按任意键，先不讲）。
-//   armed → done：没听就走出了山脚（步数 ≥ 1）——这一位跳过，别等他半山腰歇脚时突然开讲。在山脚走动 / 按着 R2 只是先不讲。
+//   armed → playing：「准备」界面稳定 0.6 s、没开菜单、在山脚（前 3 步）、没在走 / 没按 R2、语音预加载完、声音已解锁（没解锁就提示按任意键，先不讲）。
+//   armed → done：没听就走出了山脚（步数 ≥ 3），或者走动 / 按着 R2 连续超过 2 s——这一位已经开玩了，跳过，别等他歇脚时突然开讲。
+//     登顶后回到山脚那一两步收脚（< 2 s）不算。
 //   playing → done：讲完；或走动 / 按 R2 / 急停 / 开菜单 / 离开「准备」→ 立刻停（body 的 class 一变就停，不等下一次轮询）。之后不会自己重讲。
 // 话术固定：GET /guide/<world>.json（shellos/agent/guide.py）；语音：/guide/<world>/<i>.wav（只读缓存，没有就只出气泡）。
 // 用到别人的接口：window.__fenggeHud.say（H 线气泡）、#fg .av（H 线头像，放大用本文件的 CSS）、window.__camHold（引擎：跳过它的镜头）。
@@ -13,7 +14,9 @@ import { STEP } from './path.js';
 import { bus } from './voice_bus.js';     // 峰哥声道仲裁：导游讲解期间占住声道，事件 / 地标台词不插嘴
 
 const Q = new URLSearchParams(location.search);
-const GAP_MS = 350, CPS = 4.5, PRELOAD_MS = 6000, READY_MS = 600;   // 句间停顿；没声音时按每秒 4.5 字估时长；预加载最多等 6 s（等不到的播的时候再说）
+const GAP_MS = 350, CPS = 4.5, PRELOAD_MS = 6000, READY_MS = 600, STALL_MS = 4000;   // 句间停顿；没声音时按每秒 4.5 字估时长；预加载最多等 6 s（等不到的播的时候再说）
+// 山脚 = 前 START_MAX 步：登顶那一步走完回到山脚时人常常还多迈一两步（和引擎收登顶卡的 SUMMIT_BREAK 一样按 3 步算），再往前才算「没听就走了」
+const START_MAX = 3, GO_SKIP_MS = 2000;   // 在走 / 按着 R2 连续超过 2 s = 这一位已经开玩了（登顶后收脚那一两步不算）
 // 镜头三段（秒）：0–t1 正面对着峰哥慢慢推近（像导游对着你说话）；t1–t2 从头顶摇臂翻到身后（只走路线上方，不擦两边的楼）；
 //   t2 以后在身后高处，看前方的山路 / 景点，慢慢升高后退。看点压在脸下面：脸在画面上三分之一，不被正中偏下的「按住 R2」挡住。
 const CAM = { t1: 9, t2: 17, front: [3.0, 2.4], fh: 1.5, look: 1.0, back: 3.8, bh: 3.4, peak: 4.8, ahead: 14, side: 0.5, clear: 0.9, drift: [0.06, 0.05] };
@@ -23,7 +26,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
   if (Q.get('guide') === '0') return null;
   const lines = ((await fetch(`/guide/${world.id}.json`).then(r => r.json()).catch(() => null)) || {}).lines || [];
   if (!lines.length) return null;             // 现场造的山（gen_*）没有导游词
-  const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
+  const css = document.createElement('style'); css.textContent = CSS; document.head.append(css);
   const body = document.body, mute = Q.get('voice') === '0';
   const clips = mute ? [] : lines.map((_, i) => Object.assign(new Audio(`/guide/${world.id}/${i}.wav`), { preload: 'auto' }));   // 先下好，句与句之间不卡
   bus.bless(clips);                          // Safari / 严格自动播放策略：第一次按键时把这几段预热一遍，之后不靠手势也能播
@@ -52,8 +55,15 @@ export async function initGuide({ world, route, camera, me, getS }) {
     audio = clips[i]; audio.currentTime = 0;
     audio.onended = () => end('ended'); audio.onerror = () => setTimeout(end, est, 'nowav');
     audio.play().then(() => note(i, 'play'), e => setTimeout(end, est, e.name));   // 浏览器不让自动出声 / 放不了：照样按时长出气泡
-    const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 + 1500 : est + 4000;
-    setTimeout(end, dur, 'stuck');                      // 兜底：声音卡住也不停在这一句（知道时长就按时长 + 1.5 s）
+    // 兜底：看播放进度，不看墙上时间——机器忙的时候声音会顿几秒再接着放（按时长掐会把句尾切掉，9/24 第 3 轮压测 2/8 轮）。
+    //   进度 STALL_MS 不动才算卡住，跳下一句；再加一个总上限（估的时长 + 15 s）
+    const a = audio; let lastT = -1, moved = performance.now();
+    const wd = setInterval(() => {
+      if (fin) return clearInterval(wd);
+      if (a.currentTime !== lastT) { lastT = a.currentTime; moved = performance.now(); }
+      else if (performance.now() - moved > STALL_MS) { clearInterval(wd); end('stuck'); }
+    }, 250);
+    setTimeout(end, est + 15000, 'stuck-cap');
   });
 
   const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
@@ -75,7 +85,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
     camera.position.copy(pos); camera.lookAt(look);
   }
 
-  let st = 'armed', readySince = 0, lastWearer, lastPos = null;
+  let st = 'armed', readySince = 0, goSince = 0, lastWearer, lastPos = null;
   const setSt = (v, why) => { if (st !== v) { note('st', v, why); st = v; } };
   async function play() {
     stop(); setSt('playing', 'start');
@@ -114,7 +124,9 @@ export async function initGuide({ world, route, camera, me, getS }) {
     }
     if (fresh && st !== 'armed') setSt('armed', fresh);
     if (st !== 'armed') return;
-    if (T.pos != null && T.pos >= 1) { if (!cls.contains('u-title') && !cls.contains('u-idle')) setSt('done', 'skipped'); return; }   // 没听就走出山脚了：这一位跳过
+    if (T.pos != null && T.pos >= START_MAX) { if (!cls.contains('u-title') && !cls.contains('u-idle')) setSt('done', 'skipped'); return; }   // 没听就走出山脚了：这一位跳过
+    if (!go) goSince = 0; else if (!goSince) goSince = now;
+    if (go && now - goSince > GO_SKIP_MS && !cls.contains('u-title') && !cls.contains('u-idle')) { setSt('done', 'skipped-go'); return; }
     if (go) return;                              // 在走 / 按着 R2：先不讲（登顶那一步走完回到山脚时人还在迈步，停下来再讲）
     if (ready && now - readySince > READY_MS && preloaded) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲，提示按任意键
   }

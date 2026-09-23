@@ -1,6 +1,8 @@
 """G 线峰哥导游：每个内置世界都有导游词；/guide/* 只读缓存，没缓存不现场合成。"""
 import json
 import os
+import shutil
+import subprocess
 from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.request import urlopen
@@ -51,3 +53,12 @@ def test_missing_and_check(monkeypatch, tmp_path, capsys):
     miss = guide.check()
     assert len(miss) == n - sum(s == line for ls in guide.GUIDE.values() for s in ls)
     assert "tokyo_night/1" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="没装 node")
+@pytest.mark.parametrize("f", ["guide.js", "voice_bus.js", "fengge_hud.js", "engine.js"])
+def test_js_parses_as_module(f):
+    """按 ES 模块查语法（node --check 直接查 .js 会漏掉同一作用域重复声明这类错，9/24 第 4 轮就栽在这）。"""
+    src = open(os.path.join(os.path.dirname(__file__), "..", "shellos", "ui", "static", "game", f), encoding="utf-8").read()
+    r = subprocess.run(["node", "--input-type=module", "--check"], input=src, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr

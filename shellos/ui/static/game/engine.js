@@ -8,7 +8,7 @@ import { loadAvatar, flexFromFrame, preloadAvatar } from './avatar.js';
 import { dressFengge } from './fengge.js';   // H 线：峰哥头（只给玩家化身，影子不换）；?fengge=0 关
 import { initFenggeHud } from './fengge_hud.js';   // H 线：峰哥画中画头像 + 解说气泡；?fengge=0 关
 import { initNpc } from './npc.js';   // J 线：追兵 NPC「捷风」（只读 /state）；?npc=0 关
-import { initGuide } from './guide.js';   // G 线：峰哥导游开场（「准备」状态逐句讲景区 + 语音 + 环视镜头）；?guide=0 关
+import './voice_bus.js';   // G 线：峰哥声道仲裁（导游 > 地标 > 事件，同一时刻只放一段）+ 自动播放解锁；越早装越好
 import { makeStepper, makeGhost } from './ghost.js';
 import { makeCamera, defaultRig } from './camera.js';
 import { makeHud } from './hud.js';
@@ -132,7 +132,7 @@ async function main() {
   const fx = makeFx(scene, route, meshes);
   const me = makeStepper();
   if (Q.get('npc') !== '0') initNpc({ scene, route, me, camera, getS: () => S, preview: !!PREVIEW }).catch(e => err('追兵 NPC 加载失败', e));
-  initGuide({ world, route, camera, me, getS: () => S }).catch(e => err('峰哥导游加载失败', e));
+  import('./guide.js').then(m => m.initGuide({ world, route, camera, me, getS: () => S })).catch(e => err('峰哥导游加载失败', e));   // G 线：峰哥导游开场；?guide=0 关。动态 import：导游代码出错也拖不垮游戏
 
   // ---------- 状态 ----------
   let T = S.terrain || S._T, lastLaps = T.laps, lastPos = T.pos, summitUntil = 0, flashUntil = [0, 0], prevSent = [0, 0];

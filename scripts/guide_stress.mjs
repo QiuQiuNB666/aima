@@ -1,6 +1,7 @@
 // 峰哥导游压测：无头 Chrome 反复跑「进 /game → Enter 关标题屏 → 等导游 → 走路打断 / 听完 → 复位 → 再来」，自动给每一轮分类。
 //   node scripts/guide_stress.mjs <base=http://127.0.0.1:8857> <轮数=20> [--policy=user|none] [--worlds=a,b] [--mix]
-//   只发 /sim、/demo/reset、/terrain、/hold（模拟器自己的端口）；别对着接了真外骨骼的 ShellOS 跑。
+//   会发 /sim、/demo/reset、/terrain、/hold、/estop、/rearm、/wearer：只对自己起的 --sim 跑（开跑前查 /state.sim.on，不是模拟器就退出）；
+//   先确认端口是自己的（9/24 G 线误打过别人 8862 上的模拟器）。
 //   --policy=doc（缺省）= 桌面 Chrome 默认：页面收到过一次按键 / 点击之后才能出声；strict = 每次 play 都要紧跟着手势（Safari / 手机那种）；
 //     none = 展位 Chrome 带 --autoplay-policy=no-user-gesture-required。Enter 用 CDP 的真实按键发（算手势）。
 //   --mix：轮流换场景：enter-listen（听完）/ enter-walk（半路走开）/ r2（按住 R2 直接开走 = 跳过）/ reload（不出标题屏直接进，没手势）/
@@ -20,6 +21,9 @@ const POLICY = flag('policy', 'doc'), WORLDS = flag('worlds', 'tokyo_night').spl
 const OUT = flag('out', '');
 const SCEN = MIX ? ['enter-listen', 'enter-walk', 'r2', 'reload', 'inject', 'idle', 'estop', 'nowav', 'summit', 'enter-walk'] : (flag('scen', '') ? flag('scen').split(',') : ['enter-walk']);
 
+// 安全：只对模拟器跑（会发 /estop、/hold、/terrain、/demo/reset）。/state.sim.on 不是 true（接着真外骨骼 / 连不上）就不跑
+{ const S0 = await fetch(BASE + '/state').then(r => r.json()).catch(() => null);
+  if (!S0 || !S0.sim || S0.sim.on !== true) { console.error(`${BASE} 不是 --sim（或连不上），不跑`); process.exit(3); } }
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const dir = mkdtempSync(join(tmpdir(), 'gstress-'));
 const ch = spawn(CHROME, ['--headless=new', '--window-size=1280,720', '--mute-audio', `--autoplay-policy=${{ none: 'no-user-gesture-required', strict: 'user-gesture-required' }[POLICY] || 'document-user-activation-required'}`,
@@ -41,9 +45,9 @@ const key = async (code, k) => { for (const type of ['keyDown', 'keyUp']) await 
 // 探针：记下每个 <audio> 的 play / playing / ended / pause / 被拒，判断有没有两段峰哥语音叠着放
 await call('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
   const P = HTMLMediaElement.prototype, orig = P.play, ev = window.__probe = [], T = () => Math.round(performance.now());
-  P.play = function () { const s = this.currentSrc || this.src || ''; ev.push([T(), 'play', s]);
+  P.play = function () { const s = this.currentSrc || this.src || '', mu = this.muted ? '(muted)' : ''; ev.push([T(), 'play' + mu, s]);
     if (!this.__pr) { this.__pr = 1; for (const k of ['playing', 'ended', 'pause', 'error']) this.addEventListener(k, () => ev.push([T(), k + (this.muted ? ':muted' : ''), this.currentSrc || this.src || ''])); }
-    const p = orig.apply(this, arguments); if (p && p.then) p.then(null, e => ev.push([T(), 'reject:' + e.name, s])); return p; };
+    const p = orig.apply(this, arguments); if (p && p.then) p.then(null, e => ev.push([T(), 'reject:' + e.name + mu, s])); return p; };
 })();` });
 await call('Page.enable'); await call('Runtime.enable');
 // 拦截请求：nowav 让第 3 句 404；inject 用第 1 句导游 wav 顶替 /voice/last.wav（模拟 voice.js 念一句事件）
@@ -79,9 +83,9 @@ function judge(g, scen) {             // 这一轮哪里不对：返回失败类
   if (g.err) f.push('页面报错');
   const says = log.filter(x => /:say$/.test(x)).map(x => +x.split(':')[1]);
   const guideSrc = probe.filter(p => /\/guide\/(?!\w+_fx\/)/.test(p[2]));
-  if (probe.some(p => /^reject:NotAllowed/.test(p[1]) && /\/guide\//.test(p[2]))) f.push('①自动播放被拦');
+  if (probe.some(p => /^reject:NotAllowed/.test(p[1]) && !/muted/.test(p[1]) && /\/guide\//.test(p[2]))) f.push('①自动播放被拦');
   if (scen !== 'nowav' && log.some(x => /:nowav$|:NotSupportedError$/.test(x))) f.push('②缺 wav');
-  if (log.some(x => /:stuck$/.test(x))) f.push('②卡住等兜底');
+  if (log.some(x => /:stuck(-cap)?$/.test(x))) f.push('②卡住等兜底');
   if (overlaps(probe)) f.push('③叠着念');
   const played = guideSrc.filter(p => p[1] === 'playing').length;   // 同一句重讲会再 playing 一次，按次数数，不按网址去重
   if (says.length && played < says.length - (scen === 'nowav' ? 1 : 0) && !f.includes('①自动播放被拦')) f.push('①有句没声音');
@@ -107,12 +111,12 @@ for (let k = 0; k < +N; k++) {
     if (g1 || await guiding()) f.push('④R2 开走的还开讲了');
   } else {
     if (scen !== 'reload') await key('Enter', 'Enter');
-    else if (POLICY !== 'none') {       // 没按过键：不该哑着开讲，要出「按任意键开启峰哥声音」；按个不相干的键（Shift）之后带声音开讲
+    else if (POLICY !== 'none') {       // 没按过键：不该哑着开讲，要出「按任意键开启峰哥声音」；按个游戏里没用的字母键（K）之后带声音开讲
       await sleep(4000);
       row.hint = await ev("!!document.getElementById('vbHint')");
       if (await guiding()) f.push('①没解锁就开讲');
       if (!row.hint) f.push('①没出「按任意键」提示');
-      await key('ShiftLeft', 'Shift');
+      await key('KeyK', 'k');           // 注意：Shift / Ctrl 这类修饰键 Chrome 不算用户操作，解不了锁；K 在游戏里没用
     }
     row.startMs = await until(guiding, 20000);
     if (row.startMs == null) f.push('④没开讲');
@@ -131,8 +135,8 @@ for (let k = 0; k < +N; k++) {
       await ev(`(() => { const a = new Audio('/voice/last.wav?_=' + Date.now()); a.play().catch(() => {}); window.__fenggeHud && window.__fenggeHud.say('red', '（压测插的一句事件）');
         return import('/game/themes/snow_summit/lines.js').then(m => m.fgSay('yak')).catch(() => 0); })()`);
       await sleep(1500);
-      row.bubble = await ev("(document.querySelector('#fg small') || {}).textContent");
-      if (!/导游|解说/.test(row.bubble || '')) f.push('③气泡被抢');
+      row.bubble = await ev("(document.querySelector('#fg span') || {}).textContent");
+      if (!(await ev(`window.__guide.lines.includes(${JSON.stringify(row.bubble || '')})`))) f.push('③气泡被抢');
       await sleep(3000); await post('/sim', { walk: true }); await until(async () => !(await guiding()), 5000, 50); await sleep(500); await post('/sim', { walk: false });
     } else if (scen === 'summit') {     // 打断 → 一路走到山顶（红灯站 2.5 s）→ 回山脚站住：下一位应该重新讲
       await sleep(2000); await post('/sim', { cadence: 200 }); await post('/sim', { walk: true });
