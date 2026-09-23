@@ -16,7 +16,7 @@ TTS_PORT=${SHELLOS_TTS_PORT:-8791}
 "$PY" -u brain/tts.py &                              # 峰哥语音：key 从 brain/.env 读；没配就用 say
 PIDS="$PIDS -$!"
 trap 'trap - INT TERM EXIT; kill -- $PIDS 2>/dev/null; exit' INT TERM EXIT
-for i in $(seq 60); do curl -s -m 1 "127.0.0.1:$PORT/health" >/dev/null && break; sleep 0.5; done   # 冷启动 import anthropic 要好几秒
+for i in $(seq 240); do curl -s -m 1 "127.0.0.1:$PORT/health" >/dev/null && break; sleep 0.5; done   # 冷启动 import anthropic 要好几秒
 curl -s -m 1 "127.0.0.1:$PORT/health" || { echo "大脑没起来"; exit 1; }
 echo
 
