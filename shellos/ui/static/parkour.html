@@ -76,6 +76,14 @@ body.title #hint,body.over #hint{display:none}
 #fps{left:.5rem;bottom:.3rem;font-size:.75rem;color:rgba(255,255,255,.45)}
 #errlog{display:none}
 body.clean .hud{display:none!important}
+/* 免手换道（?lane=knee）：底部正中两个膝盖图标，抬过阈值点亮（紫），保持进度从下往上填，0.3 s 满 = 换道 */
+#knees{left:50%;bottom:1.4rem;transform:translateX(-50%);display:none;gap:1.2rem}
+body.knee #knees{display:flex}
+#knees>div{position:relative;width:3.2rem;height:3.2rem;border-radius:.8rem;border:2px solid var(--line);background:var(--panel);overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
+#knees>div i{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--acc);opacity:.75}
+#knees>div span{position:relative;font-size:.8rem;font-weight:800;margin-bottom:.35rem;color:var(--dim)}
+#knees>div.on{border-color:var(--acc);box-shadow:0 0 .8rem var(--acc)}
+#knees>div.on span{color:#fff}
 </style></head><body class="title">
 <canvas id="c"></canvas>
 <div class="hud" id="flash"></div>
@@ -88,6 +96,7 @@ body.clean .hud{display:none!important}
 </div>
 <div class="hud panel" id="jfSay"></div>
 <div class="hud" id="hint"></div>
+<div class="hud" id="knees"><div id="kneeL"><i></i><span>左膝</span></div><div id="kneeR"><i></i><span>右膝</span></div></div>
 <div class="hud panel" id="bl">
   <div class="leg"><span>左腿</span><div class="bar"><i id="barL"></i></div></div>
   <div class="leg"><span>右腿</span><div class="bar"><i id="barR"></i></div></div>
