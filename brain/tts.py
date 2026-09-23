@@ -3,7 +3,7 @@
   python3 brain/tts.py --clone      # 一次性：把 data/voice/ref/fengge_ref.wav 传给 MiniMax 快速复刻，voice_id 存 data/voice/minimax_voice_id
   python3 brain/tts.py --canned     # 把 shellos/agent/fengge.py 的兜底语录预生成进 data/voice/（断网也有声）
   python3 brain/tts.py --npc        # 把追兵 NPC 的台词（shellos/agent/voice.py NPC_LINES，预设音色）预生成进 data/voice/npc/
-  python3 brain/tts.py --clone-npc  # 疾风：用配音演员本人现场新录的参考音频（data/voice/ref/jifeng_ref.m4a，npc_intake.py 生成）快速复刻，9.9 元，球球确认后才跑
+  python3 brain/tts.py --clone-npc  # 捷风：用配音演员本人现场新录的参考音频（data/voice/ref/jifeng_ref.m4a，npc_intake.py 生成）快速复刻，9.9 元，球球确认后才跑
   python3 brain/tts.py --npc-candidates   # NPC 候选音色各念 4 句试听，存 data/voice/npc_candidates/<候选名>/，最后打一行 afplay 试听命令
   python3 brain/tts.py              # 起服务，127.0.0.1:8791
 
@@ -146,7 +146,7 @@ def get(text: str, voice_id=""):
 
 
 def clone(ref=None, id_file=None, prefix="Fengge"):
-    """上传参考音频 → 快速复刻。花钱：9.9 元/音色，首次用它合成时才扣（MiniMax 按量计费页）。缺省 = 峰哥；--clone-npc = 疾风。"""
+    """上传参考音频 → 快速复刻。花钱：9.9 元/音色，首次用它合成时才扣（MiniMax 按量计费页）。缺省 = 峰哥；--clone-npc = 捷风。"""
     id_file = id_file or VOICE_ID_FILE
     if os.path.isfile(id_file):
         sys.exit(f"已经复刻过：{open(id_file).read().strip()}（重来就删掉 {id_file}）")

@@ -114,8 +114,9 @@ class Dashboard:
                 full = os.path.normpath(os.path.join(base, path.lstrip("/")))
                 if not full.startswith(base) or not os.path.isfile(full):
                     self.send_response(404); self.end_headers(); return
-                ctype = ("application/javascript" if full.endswith(".js") else "model/gltf-binary" if full.endswith(".glb")
-                         else "image/jpeg" if full.endswith(".jpg") else "application/octet-stream")
+                ctype = {".js": "application/javascript", ".glb": "model/gltf-binary", ".gltf": "model/gltf+json",
+                         ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
+                         ".json": "application/json", ".wav": "audio/wav"}.get(os.path.splitext(full)[1].lower(), "application/octet-stream")
                 data = open(full, "rb").read()
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)

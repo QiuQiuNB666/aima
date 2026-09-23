@@ -1,23 +1,36 @@
-// J 线追兵 NPC 的造型和特效。原创致敬角色：「风系、白发、蓝色短外套、风刃、冲刺拖尾」这一类，不照搬任何游戏角色的设计 / 名字 / 台词 / logo。
-// 底模 = avatar.js 的 CesiumMan（Khronos glTF 样例，CC-BY 4.0，已在仓库里）换装：分区纯色（深蓝腿、蓝外套、白头）+ 往后吹的白发 + 白色高领。
-//   没下 Quaternius：多一个 glb 要多解析一次、骨骼名也不同，pose 接不上 A2 的动作；CesiumMan 换装一张图就够认。
-// 面数：CesiumMan ~3.3k 三角 + 头发/领 ~100 + 拖尾 3×2×24 + 风刃 2×32，一个 NPC 一共约 4k、7 次绘制。
+// J 线追兵 NPC「捷风」的造型和特效。
+// 9/23 球球决定（方案 A，总指挥转达）：名字用「捷风」，模型用 Sketchfab 用户 BojanV06 上传的「Jett (Fighting Stance)」（标 CC-BY，
+//   2.15 万三角面，很可能是从游戏里提取的，原始 IP 属于 Riot Games；风险球球知情）。模型由球球自己登录下载，解压到
+//   static/models/jett/（.gitignore 里，不进 git、不上 GitHub，只由 deploy.sh 同步到展位机）——见 docs/提交/素材授权.md。
+// 模型文件不在 / 加载失败 → 自动退回原创造型（CesiumMan 换装：深蓝腿、蓝外套、白头 + 往后吹的白发 + 白色高领），页面不报错。
+// 捷风模型的骨骼名和 CesiumMan 不一样，A2 的 anim.js 用不上：这里按骨骼名匹配大腿 / 小腿 / 上臂 / 脊柱 / 头，左右按绑定姿态位置分，
+//   摆动轴按「人物左右方向」换算到每根骨骼的局部坐标，所以不依赖具体骨架的命名和轴向。自带的格斗站姿动画用在「追上后站定」和「登顶抓到」。
+// 面数：捷风 ~2.15 万三角；原创造型 ~3.4k；特效（拖尾 3×2×24 + 风刃 2×32）两种都有。
+// 调试：?npcmodel=<url> 换模型文件（比如 /models/CesiumMan.glb 测骨骼匹配），?npcyaw=<弧度> 修正朝向，?npcmodel=0 强制原创造型。
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
-import { loadAvatar } from './avatar.js';
+import { loadAvatar, AVATAR_H } from './avatar.js';
 
-// ↓↓ 球球改名改这里（屏幕上的名字牌、气泡抬头都读它）；也可以临时用 ?npcname=xxx
-export const 角色名 = new URLSearchParams(location.search).get('npcname') || '疾风';
+const Q = new URLSearchParams(location.search);
+// ↓↓ 角色名改这里（屏幕上的名字牌、气泡抬头都读它）；也可以临时用 ?npcname=xxx
+export const 角色名 = Q.get('npcname') || '捷风';
 export const LOOK = { leg: '#27344c', body: '#2f7fe0', head: '#f2f6fb', rim: '#bfeeff', rimK: 0.55, self: 0.28, headScale: 0.86, exo: false, pointK: 0.35 };
 export const WIND = '#9ff3ff';            // 拖尾 / 风刃颜色
+const MODEL = Q.get('npcmodel') || '/models/jett/scene.gltf';
 
 const TRAIL_N = 24;                       // 拖尾历史点数
 const STREAKS = [[0.26, 1.18, 0.07], [-0.26, 1.02, 0.06], [0.0, 0.62, 0.09]];   // [横向, 离地, 半宽]：肩两侧 + 腰后三条风线
 
 export async function makeJifeng(scene) {
-  const av = await loadAvatar({ look: LOOK });
-  av.group.name = 'npc_jifeng';
-  dress(av);
+  let av = null;
+  if (MODEL !== '0') try { av = await loadModel(MODEL); } catch (e) { console.warn('捷风模型加载失败，用原创造型', e); }
+  if (!av) {
+    av = await loadAvatar({ look: LOOK });
+    av.group.name = 'npc_jifeng';
+    dress(av);
+    av.stance = () => false; av.tick = () => {};
+  }
 
   // ---- 冲刺拖尾：世界坐标里的三条带子，顶点每帧按历史位置重写；加色混合 + 顶点色渐隐（黑 = 看不见，不用排序）
   const tg = new THREE.BufferGeometry(), V = STREAKS.length * TRAIL_N * 2;
@@ -49,10 +62,12 @@ export async function makeJifeng(scene) {
   let glow = 0;
 
   return {
-    av, group: av.group, pose: av.pose, headWorld: av.headWorld,
+    av, group: av.group, pose: av.pose, headWorld: av.headWorld, model: !!av.model,
+    stance: on => av.stance(on),            // true = 播自带的格斗站姿（有的话），返回是否在播
     burst() { burstT = 0; },
     // dash 0..1 = 冲刺强度（拖尾亮度、风刃）；pos/dir = 这一帧的世界位置 / 前进方向
     update(dt, pos, dir, dash) {
+      av.tick(dt);
       glow += (dash - glow) * (1 - Math.exp(-dt * 6));
       if (!hist.length || hist[0].p.distanceToSquared(pos) > 0.0025) { hist.unshift({ p: pos.clone(), d: dir.clone() }); if (hist.length > TRAIL_N) hist.pop(); }
       for (let k = 0; k < STREAKS.length; k++) {
@@ -103,4 +118,84 @@ function dress(av) {
       new THREE.MeshLambertMaterial({ color: '#e8f4ff', emissive: '#8fb7d9', emissiveIntensity: 0.4, side: THREE.DoubleSide }));
     m.frustumCulled = false; neck.attach(m);
   }
+}
+
+// ---- 外部模型（捷风）：GLTFLoader 读 scene.gltf，缩放到化身身高、脚底落地、正面转到局部 +X，程序化摆腿 / 摆臂 / 前倾 ----
+async function loadModel(url) {
+  const g = await new Promise(res => new GLTFLoader().load(url, res, undefined, () => res(null)));   // 没下载模型（404）/ 坏文件：静默退回原创造型
+  if (!g) return null;
+  const model = g.scene, outer = new THREE.Group(); outer.name = 'npc_jifeng';
+  model.rotation.y = Math.PI / 2 + (+Q.get('npcyaw') || 0);   // glTF 约定正面 +Z → 局部 +X（同 avatar.js 的 MODEL_YAW）
+  outer.add(model); outer.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(model, true);     // precise：蒙皮后的顶点
+  if (bb.isEmpty()) return null;
+  const c = bb.getCenter(new THREE.Vector3()), k = AVATAR_H / Math.max(1e-3, bb.max.y - bb.min.y);
+  model.scale.multiplyScalar(k); model.position.set(-c.x * k, -bb.min.y * k, -c.z * k);
+  outer.updateMatrixWorld(true);
+  let tris = 0;
+  model.traverse(o => {
+    if (!o.isMesh) return;
+    o.frustumCulled = false;
+    tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    for (const m of [].concat(o.material)) if (m.map && m.emissive) { m.emissiveMap = m.map; m.emissive.setScalar(0.35); }   // 夜景里别黑成一团：贴图当自发光打底
+  });
+
+  // 骨骼：名字匹配 + 绑定姿态位置分左右（人物朝 +X，左 = −Z）；同名多根取层级最高的
+  const bones = []; model.traverse(o => { if (o.isBone) bones.push(o); });
+  const W = b => b.getWorldPosition(new THREE.Vector3()), depth = b => { let d = 0; for (let p = b.parent; p; p = p.parent) d++; return d; };
+  const side = b => { const z = W(b).z; return z < -0.02 ? 'L' : z > 0.02 ? 'R' : 'C'; };
+  const pick = (re, sd, not) => bones.filter(b => re.test(b.name) && !(not && not.test(b.name)) && (!sd || side(b) === sd)).sort((a, b) => depth(a) - depth(b))[0] || null;
+  const child = b => b && b.children.find(o => o.isBone) || null;
+  const NOT_LEG = /low|calf|shin|knee|foot|toe|ankle|twist|end|nub/i, NOT_ARM = /fore|low|hand|twist|clav|shoulder|finger|end|nub/i;
+  const J = {};
+  for (const sd of ['L', 'R']) {
+    J['thigh' + sd] = pick(/thigh|up_?leg|upper_?leg|femur/i, sd) || pick(/leg/i, sd, NOT_LEG);
+    J['knee' + sd] = pick(/calf|shin|knee|low(er)?_?leg|leg.*2/i, sd) || child(J['thigh' + sd]);
+    J['arm' + sd] = pick(/upper_?arm|up_?arm/i, sd) || pick(/arm/i, sd, NOT_ARM);
+  }
+  J.spine = pick(/spine|chest|torso/i);
+  J.head = pick(/head/i, null, /end|top|nub/i);
+  if (!J.thighL || !J.thighR) { console.warn('捷风模型没找到腿骨，用原创造型', bones.map(b => b.name)); return null; }
+  // 每根骨骼：绑定姿态四元数 + 世界轴换算到骨骼局部（X = 前，Z = 左右）
+  const rest = new Map(), axis = new Map(), qw = new THREE.Quaternion();
+  const local = (b, a) => a.clone().applyQuaternion(b.getWorldQuaternion(qw).invert());
+  for (const b of Object.values(J)) if (b) { rest.set(b, b.quaternion.clone()); axis.set(b, { z: local(b, new THREE.Vector3(0, 0, 1)), x: local(b, new THREE.Vector3(1, 0, 0)) }); }
+  const armDown = {};                     // T 字姿势（上臂水平）→ 放下 70°；本来就垂着就不动
+  for (const sd of ['L', 'R']) {
+    const a = J['arm' + sd], e = child(a);
+    armDown[sd] = a && e && Math.abs(W(e).sub(W(a)).normalize().y) < 0.5 ? (sd === 'L' ? -1 : 1) * 70 : 0;
+  }
+  const d2r = Math.PI / 180, qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
+  const rot = (b, ax, deg, ax2, deg2) => {
+    if (!b) return;
+    b.quaternion.copy(rest.get(b));
+    if (ax2 && deg2) b.quaternion.multiply(qb.setFromAxisAngle(axis.get(b)[ax2], deg2 * d2r));
+    b.quaternion.multiply(qa.setFromAxisAngle(axis.get(b)[ax], deg * d2r));
+  };
+  // 自带动画（格斗站姿）
+  const mixer = g.animations.length ? new THREE.AnimationMixer(model) : null;
+  const act = mixer ? mixer.clipAction(g.animations[0]) : null;
+  let playing = false;
+  const head = J.head, tmp = new THREE.Vector3();
+  console.info(`捷风模型：${Math.round(tris)} 三角，动画 ${g.animations.length} 段，骨骼`, Object.fromEntries(Object.entries(J).map(([n, b]) => [n, b && b.name])));
+  return {
+    group: outer, bones: J, model: true, mats: [],
+    // 和 avatar.js 的 pose 同一个约定：flex 度，正 = 前抬；lean 由 npc.js 转整个 group
+    pose(fl, fr) {
+      if (playing) return;
+      fl = Math.max(-35, Math.min(70, fl)); fr = Math.max(-35, Math.min(70, fr));
+      rot(J.thighL, 'z', fl); rot(J.thighR, 'z', fr);
+      rot(J.kneeL, 'z', -(Math.max(0, fl) * 0.9 + 8)); rot(J.kneeR, 'z', -(Math.max(0, fr) * 0.9 + 8));
+      const sw = (fr - fl) / 2 * 0.7;
+      rot(J.armL, 'z', sw, 'x', armDown.L); rot(J.armR, 'z', -sw, 'x', armDown.R);
+    },
+    stance(on) {
+      if (!act || on === playing) return playing;
+      playing = on;
+      if (on) act.reset().play(); else act.stop();       // stop 后 mixer 会把骨骼还原成绑定姿态，下一帧 pose() 接着摆
+      return playing;
+    },
+    tick(dt) { if (playing) mixer.update(dt); },
+    headWorld(out = tmp) { if (head) head.getWorldPosition(out); else outer.getWorldPosition(out).setY(outer.position.y + 1.4); return out; },
+  };
 }
