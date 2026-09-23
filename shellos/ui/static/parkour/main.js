@@ -214,7 +214,7 @@ async function main() {
       const terrainOn = S.ctl && S.ctl.name === 'terrain';
       const held = S.safety && S.safety.deadman > 0.05;
       $('force').textContent = !terrainOn ? '腿上的力：关（控制律不是 terrain）' : away ? '腿上的力：暂停（页面没焦点，点一下画面）'
-        : `腿上的力：${{ up: '上坡 · 后面推', down: '落地 · 制动', stairs_up: '准备起跳 · 帮抬腿' }[forceSent] || '平地'}`;
+        : `腿上的力：${{ up: '上坡 · 后面推', down: '落地 · 制动', lift: '准备起跳 · 帮抬腿' }[forceSent] || '平地'}`;
       $('r2').textContent = isSim() ? '模拟模式' : held ? 'R2 按住 · 有力' : '按住 R2 才有力';
       $('r2').className = held || isSim() ? 'ok' : '';
       $('legs').textContent = legWalk >= LEG_READY_S ? '腿：高抬腿 = 跳 · 下蹲 = 滑铲' : `腿：校准中，先走 ${Math.ceil(LEG_READY_S - legWalk)} s`;

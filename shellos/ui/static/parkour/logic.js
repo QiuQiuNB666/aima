@@ -158,15 +158,16 @@ export function makeRun(level, T = TUNE) {
 
 // ---------- 腿上的力 ----------
 // 只返回 /terrain/force 的 kind（null = 不强制，Terrain 自己的路段 / 平地 = 0）。大小仍由 Guard + R2 管。
-//   上斜板 = 'up'（后面推一把）；刚落地 0.5 s = 'down'（制动 = 落地的顿挫）；前方 0.9 s 内要跳（矮障碍 / 楼缝）= 'stairs_up'（摆动期帮着抬腿）
+//   上斜板 = 'up'（后面推一把）；刚落地 0.5 s = 'down'（制动 = 落地的顿挫）；前方 0.9 s 内要跳（矮障碍 / 楼缝）= 'lift'（只在摆动期帮着抬腿）。
+//   别用 stairs_up：9/23 球球真机反馈后它改成了支撑期阻力
 export function forceKind(S, level, T = TUNE) {
   if (!S.started || S.over || S.air || S.speed < 0.5) return null;
   if (S.t - S.landT < 0.5) return 'down';
   const s = level.seg(S.x);
   if (s && s.kind === 'ramp') return 'up';
   const ahead = S.x + S.speed * 0.9;
-  for (const q of level.segs) if (q.kind === 'gap' && q.x0 > S.x && q.x0 < ahead) return 'stairs_up';
-  for (const o of level.obs) if (!o.hit && o.type === 'low' && o.x > S.x && o.x < ahead && o.lanes.includes(S.lane)) return 'stairs_up';
+  for (const q of level.segs) if (q.kind === 'gap' && q.x0 > S.x && q.x0 < ahead) return 'lift';
+  for (const o of level.obs) if (!o.hit && o.type === 'low' && o.x > S.x && o.x < ahead && o.lanes.includes(S.lane)) return 'lift';
   return null;
 }
 
