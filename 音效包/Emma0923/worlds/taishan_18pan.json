@@ -1,0 +1,73 @@
+{
+  "name": "泰山·十八盘",
+  "subtitle": "中天门 → 慢十八 → 紧十八 → 南天门 → 玉皇顶",
+  "story": "全程石阶，越往上越陡。你的腿会感到台阶一级级变密。",
+  "note": "按真实路段比例压缩；海拔为约数（玉皇顶约 1545 m）",
+  "alt": [
+    850,
+    1545
+  ],
+  "unit": "m",
+  "route": [
+    {
+      "kind": "flat",
+      "steps": 3,
+      "label": "中天门"
+    },
+    {
+      "kind": "up",
+      "steps": 5,
+      "label": "缓坡"
+    },
+    {
+      "kind": "stairs_up",
+      "steps": 8,
+      "label": "慢十八"
+    },
+    {
+      "kind": "stairs_up",
+      "steps": 8,
+      "label": "不紧不慢又十八"
+    },
+    {
+      "kind": "stairs_up",
+      "steps": 10,
+      "label": "紧十八"
+    },
+    {
+      "kind": "flat",
+      "steps": 2,
+      "label": "南天门"
+    },
+    {
+      "kind": "up",
+      "steps": 3,
+      "label": "天街"
+    }
+  ],
+  "summit": {
+    "name": "玉皇顶",
+    "text": "会当凌绝顶，一览众山小。"
+  },
+  "theme": {
+    "style": "dawn_mountain",
+    "sky": [
+      "#f6c177",
+      "#6d8fb3"
+    ],
+    "fog": "#d9dfe8",
+    "ground": "#6b7b5c",
+    "path": "#9a958c",
+    "accent": [
+      "#c0392b",
+      "#f1c40f",
+      "#2e7d32"
+    ],
+    "props": [
+      "pine",
+      "stone_gate",
+      "cloud_sea"
+    ]
+  },
+  "id": "taishan_18pan"
+}
