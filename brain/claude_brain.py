@@ -12,7 +12,8 @@
 POST /coach  {quote, controller, params:{k:[cur,lo,hi]}, profile}  → {changes:[{param,delta}], confidence, why}
 POST /world  {text, styles:[...], kinds:[...]}                      → 世界草稿（ShellOS 再校验、裁剪、套主题）
 POST /fengge {event: summit|red|world|ghost, ctx}                     → {line}：峰哥口吻一句解说
-GET  /health
+GET  /health  → {ok, model, key}：key 只是布尔（有没有凭据），不回显 key
+失败统一 502 {error, kind}，kind ∈ no_key / auth / refusal / timeout / rate_limit / overloaded / net / error，ShellOS 仪表盘据此显示是哪一种。
 只听 127.0.0.1。
 """
 from __future__ import annotations
@@ -131,6 +132,22 @@ def world(b: dict) -> dict:
     return ask(prompt, schema, effort="medium", max_tokens=16000)
 
 
+def has_key() -> bool:
+    return bool(client.api_key or client.auth_token or client.credentials)
+
+
+def kind(e: Exception) -> str:
+    """异常 → 一个词，给仪表盘看是哪种失败。"""
+    if isinstance(e, TypeError) and "authentication" in str(e):
+        return "no_key"                        # 没 export key、也没 ant auth login
+    for cls, k in ((anthropic.AuthenticationError, "auth"), (anthropic.PermissionDeniedError, "auth"),
+                   (anthropic.APITimeoutError, "timeout"), (anthropic.RateLimitError, "rate_limit"),
+                   (anthropic.InternalServerError, "overloaded"), (anthropic.APIConnectionError, "net")):
+        if isinstance(e, cls):
+            return k
+    return "refusal" if str(e).startswith("refusal") else "error"
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):
         sys.stderr.write("[brain] " + fmt % a + "\n")
@@ -145,7 +162,7 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._json({"ok": True, "model": MODEL})
+            return self._json({"ok": True, "model": MODEL, "key": has_key()})
         self._json({"error": "not found"}, 404)
 
     def do_POST(self):
@@ -157,10 +174,10 @@ class H(BaseHTTPRequestHandler):
         try:
             self._json(fn(body))
         except Exception as e:  # noqa: BLE001  ShellOS 看到非 200 就走规则兜底
-            self.log_message("%s 失败：%s", self.path, str(e)[:200])
-            self._json({"error": str(e)[:200]}, 502)
+            self.log_message("%s 失败（%s）：%s", self.path, kind(e), str(e)[:200])
+            self._json({"error": str(e)[:200], "kind": kind(e)}, 502)
 
 
 if __name__ == "__main__":
-    print(f"大脑就绪 127.0.0.1:{PORT}  模型 {MODEL}")
+    print(f"大脑就绪 127.0.0.1:{PORT}  模型 {MODEL}  凭据 {'有' if has_key() else '没有（export ANTHROPIC_API_KEY 或 ant auth login）'}")
     ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()
