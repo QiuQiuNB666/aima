@@ -45,22 +45,26 @@ export function buildHead(av) {
   const head = av.bones['Skeleton_neck_joint_2']; if (!head) return null;
   av.group.updateMatrixWorld(true);
   const [rx, ry, rz] = HEAD.r, c = head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.006, ry * 0.7, 0));
-  // ① 头型：二十面体细分 2 次（320 面），下半截收成尖一点的下巴；前半球给脸的 uv
-  const hg = new THREE.IcosahedronGeometry(1, 2), P = hg.attributes.position;
-  const uv = new Float32Array(P.count * 2);
-  for (let i = 0; i < P.count; i++) {
-    let x = P.getX(i), y = P.getY(i), z = P.getZ(i);
-    if (y < 0) { z *= 1 - 0.34 * -y; x *= 1 - 0.1 * -y; }
-    P.setXYZ(i, x * rx, y * ry, z * rz);
-    if (x > 0.05) { uv[2 * i] = 0.5 - z * 0.54; uv[2 * i + 1] = 0.5 + y * 0.51; } else { uv[2 * i] = 0.02; uv[2 * i + 1] = 0.02; }   // 模型朝 +X、左 = −Z
-  }
-  hg.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); hg.translate(c.x, c.y, c.z); hg.computeVertexNormals();
-  const face = new THREE.Mesh(hg, mat('#ffffff', { map: faceTexture(), emissive: '#000000', emissiveIntensity: 0 }));
+  // ① 头型：二十面体细分（近 2 次 = 320 面 / 中 1 次 = 80 / 远 0 次 = 20，第 9 轮 LOD），下半截收成尖一点的下巴；前半球给脸的 uv
+  const headGeo = detail => {
+    const hg = new THREE.IcosahedronGeometry(1, detail), P = hg.attributes.position, uv = new Float32Array(P.count * 2);
+    for (let i = 0; i < P.count; i++) {
+      let x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+      if (y < 0) { z *= 1 - 0.34 * -y; x *= 1 - 0.1 * -y; }
+      P.setXYZ(i, x * rx, y * ry, z * rz);
+      if (x > 0.05) { uv[2 * i] = 0.5 - z * 0.54; uv[2 * i + 1] = 0.5 + y * 0.51; } else { uv[2 * i] = 0.02; uv[2 * i + 1] = 0.02; }   // 模型朝 +X、左 = −Z
+    }
+    hg.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); hg.translate(c.x, c.y, c.z); hg.computeVertexNormals();
+    return hg;
+  };
+  const face = new THREE.Mesh(headGeo(2), mat('#ffffff', { map: faceTexture(), emissive: '#000000', emissiveIntensity: 0 }));
   face.material.onBeforeCompile = sh => {                     // 脸也要自发光打底（emissive 不能乘贴图，这里在片元里补）
     sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * 0.24;');
   };
   face.material.customProgramCacheKey = () => 'asst-face';
   face.name = 'assistantHead';
+  const lod = new THREE.LOD(); lod.name = 'assistantHeadLOD';               // 近 < 5 m 全精度、5–12 m 80 面、12 m 外 20 面（renderer 每帧自己切）
+  lod.addLevel(face, 0); lod.addLevel(new THREE.Mesh(headGeo(1), face.material), 5); lod.addLevel(new THREE.Mesh(headGeo(0), face.material), 12);
   // ② 头发：发帽（前面到发际线，后面 / 两侧盖到耳下）+ 斜刘海三片 + 两侧鬓发
   const hair = [], put = (geo, p, rot, s) => { geo.applyMatrix4(new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromEuler(new THREE.Euler(...(rot || [0, 0, 0]))), s || new THREE.Vector3(1, 1, 1))); return geo; };
   const cap = (t0, t1, p0, p1) => put(new THREE.SphereGeometry(1, 12, 5, p0, p1, t0, t1 - t0), c, null, new THREE.Vector3(rx * 1.08, ry * 1.06, rz * 1.12));
@@ -88,6 +92,6 @@ export function buildHead(av) {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(radii[k], radii[k + 1], lens[k], 5).translate(0, -lens[k] / 2, 0), hairM);
     pv.add(m); parent.add(pv); pivots.push(pv); parent = pv;
   }
-  for (const m of [face, hairMesh, root]) { m.traverse(o => { o.frustumCulled = false; }); head.attach(m); }
+  for (const m of [lod, hairMesh, root]) { m.traverse(o => { o.frustumCulled = false; }); head.attach(m); }
   return { ponytail: { root, pivots, lens, rest } };
 }

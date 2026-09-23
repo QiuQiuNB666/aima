@@ -13,6 +13,7 @@ const Q = new URLSearchParams(location.search);
 // ↓↓ 名字占位，球球 / anni 定了改这里；也可以临时 ?npcname=xxx
 export const 名字 = Q.get('npcname') || '助理';
 export const SCALE = 0.96;                 // 比峰哥矮一点
+export const FAR = 12;                     // 米：再远就不算马尾 / 衣角甩动、不做待机小动作
 
 // 身体材质：平面着色的 Lambert（body.js 给的）+ 自发光打底 + 白色轮廓光，夜景里看得清
 function tune(m, more) {
@@ -24,7 +25,7 @@ function tune(m, more) {
   };
 }
 
-export async function makeAssistant(scene) {
+export async function makeAssistant(scene, camera) {
   const av = await loadAvatar({ look: { exo: false, headScale: 1 } });
   av.group.name = 'npc_assistant';
   let cm = null; av.group.traverse(o => { if (o.isSkinnedMesh && !cm) cm = o; });
@@ -44,7 +45,10 @@ export async function makeAssistant(scene) {
     act: actor(av),
     idle: idler(av),
     headWorld: (out = tmp) => av.headWorld(out),
-    stance: () => false, update(dt) { swing(dt); }, burst() {}, resetTrail() {},
+    stance: () => false, burst() {}, resetTrail() {},
+    // 第 9 轮：离镜头 12 m 外不算甩动、不做待机小动作（头的三级 LOD 由 THREE.LOD 自己切）
+    get far() { return !!camera && camera.position.distanceTo(av.group.position) > FAR; },
+    update(dt) { if (!this.far) swing(dt); },
     set visible(v) { av.group.visible = v; }, get visible() { return av.group.visible; },
   };
 }

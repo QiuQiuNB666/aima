@@ -51,7 +51,7 @@ const CSS = `
 
 export async function initNpc({ scene, route, me, camera, getS, preview }) {
   const LEGACY = Q.get('npc') === 'jifeng';
-  const npc = LEGACY ? await makeJifeng(scene) : await makeAssistant(scene);
+  const npc = LEGACY ? await makeJifeng(scene) : await makeAssistant(scene, camera);
   const assist = LEGACY ? null : makeAssist(route);
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const tag = document.createElement('div'); tag.className = 'hud'; tag.id = 'npcTag';
@@ -159,7 +159,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       npc.animate(dt, t, { fl: l, fr: r, wl: wl * rate, wr: wr * rate, kind: A.kind, summit: ending === 'caught' });
       if (npc.point) npc.point(pointW);                                  // 助理指路：动作之后再抬右臂
       if (npc.act && actA) npc.act(actA);                                // 助理互动：递氧气 / 挡前 / 击掌
-      if (npc.idle) npc.idle(t, dt, walkV < 0.05 && pointW < 0.01 && !(actA && (actA.oxygen || actA.guard || actA.five)));   // 助理待机小动作
+      if (npc.idle && !npc.far) npc.idle(t, dt, walkV < 0.05 && pointW < 0.01 && !(actA && (actA.oxygen || actA.guard || actA.five)));   // 助理待机小动作
     }
     else if (ending === 'shaken') npc.pose(30 + 4 * Math.sin(t * 5), 30 + 4 * Math.sin(t * 5 + 1));   // 撑膝喘气
     else if (walkV < 0.05) npc.pose(-4, 6);
