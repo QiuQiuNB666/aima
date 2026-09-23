@@ -243,3 +243,37 @@ export function beaconFlag() {
   m.name = 'beaconFlag';
   return { mesh: m, set(u, t) { U.uU.value = u; U.uT.value = t % 1000; } };
 }
+
+// 登顶的「风吹雪烟」（评审 r1 #8：替掉满天彩纸；考据 §7「风吹雪烟」）：顶峰雪脊上被西风一缕缕扯出去的雪烟。
+//   一个 Points（1 次绘制），位置全在着色器里按时间算（出生点沿雪脊 ±1.8、顺风飘、往上翻、边飘边散开变淡），CPU 只改几个 uniform。
+//   start(origin, crestDir, windDir) 开始；update(t, k, camera, viewH)：k = 0..1 整体浓淡（登顶淡入 / 收起淡出）
+export function spindrift(scene, { n = 150 } = {}) {
+  const pos = new Float32Array(n * 3), seed = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) { const h = k => hsh(i, k, i * 0.37, 5); seed.set([h(1) * 2 - 1, h(2) * 3.5, 1.1 + h(3) * 1.6, 0.8 + h(4) * 0.9], i * 4); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aS', new THREE.BufferAttribute(seed, 4));
+  const U = { uT: { value: 0 }, uK: { value: 0 }, uO: { value: new THREE.Vector3() }, uC: { value: new THREE.Vector3(1, 0, 0) }, uW: { value: new THREE.Vector3(0, 0, 1) }, uScale: { value: 600 } };
+  const m = new THREE.Points(g, new THREE.ShaderMaterial({
+    uniforms: U, transparent: true, depthWrite: false, fog: false,
+    vertexShader: `attribute vec4 aS; uniform float uT, uK, uScale; uniform vec3 uO, uC, uW; varying float vA;
+      void main(){
+        float life = 2.4 + aS.w, age = mod(uT + aS.y, life), u = age / life;               // 一缕接一缕：循环出生
+        vec3 side = normalize(cross(uW, vec3(0.0, 1.0, 0.0)));
+        vec3 p = uO + uC * (aS.x * 1.8) + uW * (aS.z * age) + vec3(0.0, 0.18 + 0.45 * age - 0.05 * age * age, 0.0) + side * sin(age * 2.6 + aS.x * 6.0) * 0.12 * age;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
+        vA = uK * smoothstep(0.0, 0.12, u) * (1.0 - smoothstep(0.45, 1.0, u)) * 0.5;
+        gl_PointSize = (0.25 + 0.9 * u) * aS.w * uScale / max(0.3, -mv.z);
+      }`,
+    fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); float a = vA * smoothstep(0.5, 0.08, d); if (a < 0.01) discard; gl_FragColor = vec4(0.95, 0.97, 1.0, a);
+      #include <colorspace_fragment>
+      }`,
+  }));
+  m.name = 'spindrift'; m.frustumCulled = false; m.renderOrder = 4; scene.add(m);
+  return {
+    mesh: m,
+    start(origin, crest, wind) { U.uO.value.copy(origin); U.uC.value.copy(crest).setY(0).normalize(); U.uW.value.copy(wind).setY(0).normalize(); },
+    update(t, k, camera, viewH) {
+      U.uT.value = t % 1000; U.uK.value = k;
+      if (camera) U.uScale.value = viewH / (2 * Math.tan(camera.fov * Math.PI / 360));
+    },
+  };
+}

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 import { loft, colored, tube, at } from './geo.js';
 
-const FUR = '#5e4636', FUR_D = '#44322a', HORN = '#efe6d2', HORN_T = '#6b5a48', MUZ = '#9a8570', HOOF = '#1c1612', RED = '#c8322a', GOLD = '#c9a64a';
+export const FUR = '#2a221d'; const FUR_D = '#1c1614', HORN = '#efe6d2', HORN_T = '#6b5a48', MUZ = '#9a8570', HOOF = '#1c1612', RED = '#c8322a', GOLD = '#c9a64a';
 const HIP = [0.55, 0.95, 0.19], NECK = [0.86, 1.02, 0], TAILR = [-1.0, 1.04, 0];
 const V = (...a) => new THREE.Vector3(...a);
 

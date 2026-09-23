@@ -5,17 +5,19 @@
 //   第一头开始让路那一帧 onYield（峰哥说一句）。只读 s，不碰控制。模型见 yak_model.js：整群 1 次绘制（+ 冰川上阴影 1 次），约 7k 三角形。
 //   每头大小、胖瘦、毛色、驮包颜色都不一样（实例属性）。?fx=low 整个不建（snow_summit.js 里判）。
 import * as THREE from 'three';
-import { yakGeo, yakMaterials } from './yak_model.js';
+import { yakGeo, yakMaterials, FUR } from './yak_model.js';
 
-const LAT = -1.9, ASIDE = -2.9, SPEED = 0.55, SIDE_V = 0.6, STRIDE = 0.85, TURN = 0.55;   // 横向位置（负 = 路右）、下山速度（步 / s）、侧步速度（单位 / s）、步幅、转头角
+const LAT = -1.9, ASIDE = -2.9, SPEED = 0.4, SIDE_V = 0.6, STRIDE = 0.7, TURN = 0.55;   // 评审 r1：0.55 / 0.85 看着像小跑   // 横向位置（负 = 路右）、下山速度（步 / s）、侧步速度（单位 / s）、步幅、转头角
 const Y = new THREE.Vector3(0, 1, 0);
-const FURS = [[1, 1, 1], [0.72, 0.7, 0.72], [1.38, 1.18, 1.02], [1.12, 1.02, 0.95], [0.85, 0.8, 0.8], [1.55, 1.45, 1.35], [1.25, 1.08, 0.98]];   // 黑褐 / 纯黑 / 棕 / 灰白…
+// 毛色（评审 r1 #4、考据 §2 §9-9：以黑为主）：4 黑、1 棕、1 深灰、1 灰白。实例属性是乘在 FUR 上的系数，按线性色算（目标色 / FUR）
+const FURS = ['#231c18', '#1b1613', '#6a4a34', '#2a221d', '#55504c', '#1f1915', '#c9c4bb'].map(h => { const c = new THREE.Color(h), b = new THREE.Color(FUR); return [c.r / b.r, c.g / b.g, c.b / b.b]; });
 const PACKS = ['#c8322a', '#e0a93a', '#3f6fb0', '#2f8f4e', '#e8781c', '#8a5a9a', '#d8d2c2'].map(c => new THREE.Color(c));
 
 export function buildYaks(ctx, { Z, hAt, onYield }) {
   const { route, scene, kit } = ctx, R = ctx.rand, gl = Z.glacier;
   if (!gl) return null;
-  const n = 7, s0 = gl.start + gl.steps * 0.5, geos = [0, 1, 2].map(l => yakGeo(kit, l)), geo = geos[0], M = yakMaterials();   // LOD 三级：离镜头最近那头 < 14 全细节、< 30 中、再远粗
+  const n = 7, s0 = gl.start + gl.steps * 0.3,   // 间距拉到 2.4 后整队 17 步长：起点往下挪，最后一头也在前进营地以下（考据 §9-9：牦牛只到 ABC）
+    geos = [0, 1, 2].map(l => yakGeo(kit, l)), geo = geos[0], M = yakMaterials();   // LOD 三级：离镜头最近那头 < 14 全细节、< 30 中、再远粗
   const fur = new Float32Array(n * 3), pack = new Float32Array(n * 3), anim = new Float32Array(n * 4);
   for (let k = 0; k < n; k++) { fur.set(FURS[k % FURS.length], k * 3); const c = PACKS[(k * 3) % PACKS.length]; pack.set([c.r, c.g, c.b], k * 3); }
   const aFur = new THREE.InstancedBufferAttribute(fur, 3), aPack = new THREE.InstancedBufferAttribute(pack, 3), aAnim = new THREE.InstancedBufferAttribute(anim, 4);
@@ -23,8 +25,9 @@ export function buildYaks(ctx, { Z, hAt, onYield }) {
   let lod = 0;
   const body = new THREE.InstancedMesh(geo, M.mat, n);
   body.customDepthMaterial = M.depth; body.name = 'yaks'; body.frustumCulled = false; scene.add(body);
-  const herd = () => Array.from({ length: n }, (_, k) => ({ s: s0 + k * 1.6 + R() * 0.4, base: LAT + 0.25 * Math.sin(k * 2.1), cl: LAT + 0.25 * Math.sin(k * 2.1), ph: R() * 6, tp: R() * 6, flick: 0, bell: R() * 1.5, pitch: 0.88 + R() * 0.28,
-    sc: 0.74 + R() * 0.18, fat: 0.92 + R() * 0.16, walk: 0, st: 'walk', t: 0, byaw: 0, hyaw: 0 }));
+  const herd = () => Array.from({ length: n }, (_, k) => ({ s: s0 + k * 2.4 + R() * 0.4,   // 间距 2.4 步（测试报告：1.6 迎面挤成一团）
+    base: LAT + 0.25 * Math.sin(k * 2.1), cl: LAT + 0.25 * Math.sin(k * 2.1), ph: R() * 6, tp: R() * 6, flick: 0, bell: R() * 1.5, pitch: 0.88 + R() * 0.28,
+    sc: 0.74 + R() * 0.18, fat: 0.92 + R() * 0.16, walk: 0, st: 'walk', t: 0, byaw: 0, hyaw: 0, aside: ASIDE - 0.22 * (k % 3) }));   // 让开的位置错开（别站成一堵墙）
   let yk = herd(), yielded = false, lastS = 0, bellT = 0;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3(), A = {};
 
@@ -45,14 +48,14 @@ export function buildYaks(ctx, { Z, hAt, onYield }) {
         else if (ahead <= -1.5 && (y.st === 'look' || y.st === 'step' || y.st === 'stand')) { y.st = 'resume'; y.t = 0; }
         y.t += dt;
         if (y.st === 'look' && y.t > 0.6) { y.st = 'step'; y.t = 0; }
-        else if (y.st === 'step' && Math.abs(ASIDE - y.cl) < 0.02) { y.st = 'stand'; y.t = 0; }
+        else if (y.st === 'step' && Math.abs(y.aside - y.cl) < 0.02) { y.st = 'stand'; y.t = 0; }
         else if (y.st === 'resume' && Math.abs(y.base - y.cl) < 0.02 && y.t > 0.8) y.st = 'walk';
         let v = 0, tl = y.base, bodyT = 0, headT = 0.05 * Math.sin(y.ph) * y.walk;
         if (y.st === 'walk') v = active ? SPEED : 0;
         else if (y.st === 'look') headT = TURN * so;
-        else if (y.st === 'step') { tl = ASIDE; bodyT = 0.6 * so; headT = TURN * so; }
+        else if (y.st === 'step') { tl = y.aside; bodyT = 0.6 * so; headT = TURN * so; }
         else if (y.st === 'stand') {                                                 // 站住，头跟着化身转
-          tl = ASIDE; bodyT = 0.25 * so;
+          tl = y.aside; bodyT = 0.25 * so;
           if (st.avatar) { const yw = base + y.byaw, dx = st.avatar.x - A.pos.x, dz = st.avatar.z - A.pos.z; headT = Math.max(-0.9, Math.min(0.9, Math.atan2(-dx * Math.sin(yw) - dz * Math.cos(yw), dx * Math.cos(yw) - dz * Math.sin(yw)))); }
         } else if (y.st === 'resume') { bodyT = -0.35 * so; v = active ? SPEED * 0.6 : 0; }
         y.s -= v * dt;
