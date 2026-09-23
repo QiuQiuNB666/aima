@@ -17,7 +17,7 @@ import { stairNoses } from './cliff_path/props.js';
 import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
-import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
+import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, rockGeo, revealable, beaconFlag, crevasseGeo, iceSheen } from './snow_summit/props.js';
 import { climberGeo, climberMaterials } from './snow_summit/climber_model.js';
 import { sfx as play } from './kit.js';
 import { popIcon } from './cliff_path/interact.js';
@@ -99,7 +99,7 @@ export function pathMaterials(ctx) {
   ctx.theme.stairsRiser = 0.5;                          // 立面压暗：雪地里一级一级也看得出
   return {
     road: new THREE.MeshLambertMaterial({ color: '#ffffff', map: trailTexture(util, kit), vertexColors: true }),   // 顶点色在 build 里按路段给（碛石 → 雪）
-    stairs: new THREE.MeshLambertMaterial({ color: '#ffffff', map: grainTexture(util, kit) }),
+    stairs: iceSheen(new THREE.MeshLambertMaterial({ color: '#ffffff', map: grainTexture(util, kit) }), 1, 'blue'),   // 冰壁那几级（偏蓝的）有冰面反光，岩台阶没有
   };
 }
 
@@ -247,15 +247,17 @@ export function build(scene, ctx) {
   for (let k = 0, tries = 0; k < (LOW ? 30 : 55) && tries < 1500; tries++) {       // 冰塔林：只在右侧冰川面上，成片（噪声高处）
     const s = mix(7, Z.snowS - 0.5, R()), lat = -(4.5 + Math.pow(R(), 1.2) * 13), a = route.at(s, lat);
     if (kit.fbm(a.pos.x * 0.12 + 5, a.pos.z * 0.12, 3) < 0.5 || !clearOfRoad(a.pos.x, a.pos.z, 2.8)) continue;
-    const hgt = (0.9 + 1.7 * R()) * (0.7 + 0.4 * smooth(4, 12, -lat));
+    const hgt = (1.1 + 2.2 * R()) * (0.7 + 0.5 * smooth(4, 12, -lat));          // 离路越远越高（冰塔林往冰川中间越来越密越高）
     spires.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) - 0.15, a.pos.z], ry: R() * 6.28, s: [0.45 + 0.4 * R(), hgt, 0.45 + 0.4 * R()] }); k++;
   }
-  if (spires.length) { const sm = util.instanced(spireGeo(3), revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#10202c' }), revLow), spires); sm.name = 'icePinnacles'; scene.add(sm); hideLow.push(sm); }
+  if (spires.length) { const sm = util.instanced(spireGeo(3), iceSheen(revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#10202c' }), revLow), 1), spires); sm.name = 'icePinnacles'; scene.add(sm); hideLow.push(sm); }
   const stones = [], crags = [];
-  for (let k = 0, tries = 0; k < (LOW ? 110 : 200) && tries < 1500; tries++) {                  // 碛石：大本营 → 前进营地
-    const s = -12 + R() * (Z.snowS + 12), side = R() < 0.5 ? 1 : -1, lat = side * (1.55 + Math.pow(R(), 1.6) * 12), a = route.at(s, lat);
+  // 碛石：大本营 → 前进营地。一多半堆在冰川两侧的侧碛带里（随路弯弯曲曲）、一部分沿冰川中间一条中碛、剩下零散；大小是长尾（碎石多、大块少）
+  for (let k = 0, tries = 0; k < (LOW ? 110 : 220) && tries < 1800; tries++) {
+    const s = -12 + R() * (Z.snowS + 12), side = R() < 0.5 ? 1 : -1, mode = R();
+    const lat = mode < 0.55 ? side * (4.2 + 3.2 * R() + 1.3 * Math.sin(s * 0.35 + side)) : mode < 0.8 ? -(7 + 1.6 * Math.sin(s * 0.22)) + (R() - 0.5) * 1.3 : side * (1.55 + Math.pow(R(), 1.6) * 12), a = route.at(s, lat);
     if (!clearOfRoad(a.pos.x, a.pos.z, 0.4)) continue;
-    const sz = 0.08 + R() * R() * 0.5;
+    const sz = 0.06 + Math.pow(R(), 3) * 0.75;
     if (side > 0 && lat < 3 && sz > 0.45) continue;
     stones.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) + sz * 0.15, a.pos.z], q: new THREE.Quaternion().setFromEuler(new THREE.Euler(R() * 3, R() * 3, R() * 3)), s: [sz * (1 + R() * 0.7), sz * (0.55 + R() * 0.4), sz], color: new THREE.Color('#857d71').multiplyScalar(0.8 + 0.35 * R()) });
     k++;
@@ -283,8 +285,23 @@ export function build(scene, ctx) {
       if (R() < 0.5) put(1.7 + R() * 0.8, 0.3 + 0.25 * R(), 0.3 + 0.6 * R());   // 左侧 < 1.0
       if (R() < 0.35) put(3.8 + R() * 3, 0.6 + 0.5 * R(), 0.8 + 1.4 * R());
     }
-    const sm = util.instanced(seracGeo(5), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: '#0e1c28' }), seracs); sm.name = 'seracs'; scene.add(sm);
+    const sm = util.instanced(seracGeo(5), iceSheen(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: '#0e1c28' }), 1.2), seracs); sm.name = 'seracs'; scene.add(sm);
     for (const m of fixedRope(ctx, [[Z.wall.start - 1, N - 1.5]], { lat: -1.5, every: 2 })) scene.add(m);   // 路右沿外：镜头在左边，别从镜头底下穿过去
+  }
+  // 冰裂缝：北坳上下两侧的雪坡上（不压帐篷、冰塔、停机坪，彼此隔开），横着坡走向（和路大致垂直）、贴着地面斜度；离路 ≥ 1.1
+  {
+    const cr = [], nrm = new THREE.Vector3(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), s0 = Z.snowS + 2, s1 = Z.col ? Z.col.start + 5 : Z.snowS + 10;
+    for (let k = 0, tries = 0; k < (LOW ? 8 : 16) && tries < 900; tries++) {
+      const s = mix(s0, s1, R()), side = R() < 0.5 ? 1 : -1, lat = side * (2.6 + Math.pow(R(), 1.4) * 6.5), a = route.at(s, lat);
+      const far = (arr, r) => !arr.some(t => Math.hypot((t.p ? t.p[0] : t.x) - a.pos.x, (t.p ? t.p[2] : t.z) - a.pos.z) < r + (t.r || 0));
+      if (!clearOfRoad(a.pos.x, a.pos.z, 1.1) || !far(tents, 2.6) || !far(seracs, 1.4) || !far(CAMP.blockers, 1.0) || !far(cr, 2.6)) continue;   // 路绕回来时别落到停机坪边上；彼此隔开，不叠成一簇
+      const x = a.pos.x, z = a.pos.z, e = 0.4, h0 = hAt(x, z);
+      nrm.set(hAt(x - e, z) - hAt(x + e, z), 2 * e, hAt(x, z - e) - hAt(x, z + e)).normalize();
+      qa.setFromUnitVectors(new THREE.Vector3(0, 1, 0), nrm); qb.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a.heading + Math.PI / 2 + (R() - 0.5) * 0.6);
+      cr.push({ p: [x, h0 + 0.03, z], q: qa.clone().multiply(qb), s: [2.2 + 3.2 * R(), 1, 0.26 + 0.34 * R()] }); k++;
+    }
+    const cm = util.instanced(crevasseGeo(), new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), cr);
+    cm.name = 'crevasses'; scene.add(cm);
   }
 
   // ---------- 岩石台阶（第一 / 第二台阶）：两侧一堆扎进地里的岩块（第一台阶偏黄 = 黄带那种石灰岩），左侧 3 以内 ≤ 1.2；
