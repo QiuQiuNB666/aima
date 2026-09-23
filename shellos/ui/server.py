@@ -192,7 +192,7 @@ class Dashboard:
         g, f, st = a.guard, a.link.latest(), a.gait.state
         return {
             "t": time.time(),
-            "safety": {"state": g.state, "reason": g.last_reason, "deadman": round(g.deadman, 2),
+            "safety": {"state": g.state, "reason": g.last_reason, "deadman": round(g.deadman, 2), "deadman_forced": "forced" in getattr(g, "_deadman_src", {}),
                        "sent": [round(x, 3) for x in g.last_sent], "cap": g.soft_cap,
                        "sources": {k: round(v, 2) for k, v in g._deadman_src.items() if v > 0}},
             "pad": {"connected": bool(getattr(a, "pad", None) and a.pad.connected), "r2": round(getattr(getattr(a, "pad", None), "r2", 0.0) or 0.0, 2)},
