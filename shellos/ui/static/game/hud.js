@@ -17,6 +17,7 @@ export function lampOf(sf) {
 }
 
 export function makeHud(world, preview = false) {
+  document.body.classList.toggle('debug', new URLSearchParams(location.search).get('debug') === '1');
   $('wname').textContent = world.name; $('wsub').textContent = world.subtitle || '';
   const acc = (world.theme && world.theme.accent) || [];
   if (acc[1]) document.documentElement.style.setProperty('--acc', acc[1]);

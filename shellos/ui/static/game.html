@@ -69,7 +69,8 @@ body.summit #hint{display:none!important}
 #ghostTag small{color:var(--dim);margin-left:.4rem}
 #banner{left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:1.3rem;display:none;pointer-events:auto}
 #banner button{margin-top:.8rem;font:inherit;font-weight:700;padding:.5rem 1.2rem;border-radius:.7rem;border:0;cursor:pointer}
-#fps{left:.5rem;bottom:.3rem;font-size:.75rem;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+#fps{left:.5rem;bottom:.3rem;font-size:.75rem;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums;display:none}
+body.debug #fps{display:block}   /* 帧率 / loop 调试行：大屏默认藏，?debug=1 才显示 */
 #puppet{left:50%;top:1.2rem;transform:translateX(-50%);text-align:center;display:none;border-color:rgba(41,231,255,.5)}
 #puppet .t{font-size:2.6rem;font-weight:900;letter-spacing:.12em}
 #puppet .s{font-size:1.2rem;color:var(--dim);margin-top:.3rem}
