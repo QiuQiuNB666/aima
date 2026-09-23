@@ -115,7 +115,7 @@ export function buildHeliMesh() {
     return m;
   };
   const mat = spin(new THREE.MeshLambertMaterial({ vertexColors: true, map: decalTexture() })), depth = spin(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
-  const lodObj = new THREE.LOD(), meshes = [0, 1, 2].map(l => { const m = new THREE.Mesh(heliGeo(l), mat); m.customDepthMaterial = depth; m.name = 'heliBody'; m.frustumCulled = false; return m; });
+  const lodObj = new THREE.LOD(), meshes = [0, 1, 2].map(l => { const m = new THREE.Mesh(heliGeo(l), mat); m.customDepthMaterial = depth; m.name = 'heliBody'; return m; });
   lodObj.addLevel(meshes[0], 0); lodObj.addLevel(meshes[1], 22); lodObj.addLevel(meshes[2], 55); lodObj.name = 'heliLOD';
   return { mesh: lodObj, meshes, setSpin(rot, tail) { U.uRot.value = rot % (Math.PI * 2); U.uTail.value = tail % (Math.PI * 2); }, nose: new THREE.Vector3(1.85, 0.55, 0).multiplyScalar(S), rotorR: 5.34 * S, hubY: HUB.y * S };
 }

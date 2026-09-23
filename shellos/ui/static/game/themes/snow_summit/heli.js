@@ -35,7 +35,7 @@ export function buildHeli(ctx, { pad, LOW, onTouchdown }) {
     c.fillStyle = r; c.fillRect(0, 0, w, w);
   });
   const disc = new THREE.Mesh(new THREE.CircleGeometry(M.rotorR, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: discTex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
-  disc.position.set(0, M.hubY + 0.04, 0); disc.name = 'rotorDisc'; disc.frustumCulled = false; disc.renderOrder = 5; g.add(disc);
+  disc.position.set(0, M.hubY + 0.04, 0); disc.name = 'rotorDisc'; disc.renderOrder = 5; g.add(disc);
 
   return {
     update(dt, st) {
@@ -75,7 +75,7 @@ export function buildHeli(ctx, { pad, LOW, onTouchdown }) {
       // ---- 画 ----
       const on = H.mode !== 'none', warm = ++H.frames > 2;
       g.scale.setScalar(on || warm ? 1 : 1e-6); g.visible = on || !warm; g.position.copy(H.pos); g.rotation.y = H.yaw;
-      for (const m of M.meshes) m.castShadow = on;                                               // 不在场时不投影（省阴影那遍绘制）
+      for (const m of [...M.meshes, disc]) { m.castShadow = on && m !== disc; m.frustumCulled = warm; }   // 不在场时不投影（省阴影那遍绘制）；缩成点那两帧关裁剪保证画一遍建管线，之后默认裁剪
       H.rot += dt * 16 * H.rs; H.tr += dt * 38 * H.rs; M.setSpin(H.rot, H.tr);
       // 扬雪：离坪 5 以下越低越猛，贴地往外散（粒子的初速度方向 = 离开中心的方向）
       if (spray) {

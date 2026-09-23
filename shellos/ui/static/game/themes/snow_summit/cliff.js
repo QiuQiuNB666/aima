@@ -333,7 +333,7 @@ export function buildCliff(scene, ctx, { C, ground, hAt }) {
             #include <colorspace_fragment>
           }`,
       });
-      const fog = new THREE.Mesh(g, fm); fog.name = 'cliffMist'; fog.renderOrder = 3; fog.frustumCulled = false; scene.add(fog);
+      const fog = new THREE.Mesh(g, fm); fog.name = 'cliffMist'; fog.renderOrder = 3; scene.add(fog);
       out.fog = fog; out.FU = FU;
     }
   }
@@ -440,7 +440,7 @@ export function updateCliff(CL, X, dt, st, { kit, route, fovK, fogColor, windDir
     if (cam) CL.FU.uCam.value.copy(cam.position);
     if (fogColor) CL.FU.uCol.value.copy(fogColor).lerp(WHITE, 0.35);
     if (windDir) CL.FU.uWind.value.copy(windDir);
-    CL.fog.visible = !warm || k > 0.001;
+    CL.fog.visible = !warm || k > 0.001; CL.fog.frustumCulled = warm;                    // 前两帧照画建管线，之后默认视锥裁剪
   }
   // —— 滚石 ——
   if (CL.rock) rockUpdate(CL, X, dt, st, kit, route, live, warm);
