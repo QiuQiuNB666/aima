@@ -17,6 +17,7 @@
 })();
 </script>
 <script>try{var f=JSON.parse(sessionStorage.getItem('u_forge')||'null');if(f&&Date.now()-f.t<150e3)document.documentElement.classList.add('u-forging')}catch(e){}</script>
+<script src="/game/settings.js"></script>   <!-- U 线：设置（localStorage + 地址栏覆盖），必须在所有模块之前 -->
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
 <style>
 :root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.86);--line:rgba(255,255,255,.12);--acc:#29e7ff;--acc0:#ff2e88}
@@ -25,7 +26,7 @@ html{font-size:clamp(13px,1.04vw,44px)}
 body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;user-select:none}
 #c{position:fixed;inset:0;display:block;width:100vw;height:100vh}
 .hud{position:fixed;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:.8rem 1.1rem;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:.8rem 1.1rem}   /* 不用 backdrop-filter：盖在 WebGL 上每帧重新模糊（ART 美术范式 §7） */
 #tl{left:1.4rem;top:1.2rem;display:flex;flex-direction:column;gap:.5rem;max-width:30rem}
 #back{pointer-events:auto;align-self:flex-start;color:var(--fg);text-decoration:none;font-size:1rem;padding:.45rem .9rem;border-radius:.7rem;background:var(--panel);border:1px solid var(--line)}
 #back:hover{border-color:#fff}
@@ -48,16 +49,16 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #hint{left:50%;bottom:1.4rem;transform:translateX(-50%);font-size:1rem;color:var(--dim);display:none}
 #hint kbd{display:inline-block;padding:.05rem .45rem;margin:0 .15rem;border-radius:.35rem;border:1px solid rgba(255,255,255,.35);color:#fff;font:inherit}
 #hint .on{color:#3ddc84}
-#wait{left:50%;top:25%;transform:translate(-50%,-50%);text-align:center;display:none;border-color:rgba(255,46,136,.6)}
-#wait .big{font-size:2.6rem;font-weight:800;color:#ff4d6d}
+#wait{left:50%;top:25%;transform:translate(-50%,-50%);text-align:center;display:none;border-color:rgba(255,77,79,.6)}   /* = --seg-wait 60% */
+#wait .big{font-size:2.5rem;font-weight:800;color:var(--seg-wait)}
 #wait .sub{font-size:2.5rem;font-weight:800;font-variant-numeric:tabular-nums;margin-top:.2rem}
 #wait .bar{margin-top:.6rem;height:.7rem}
 #wait .bar::after{display:none}
-#wait .bar i{left:0;background:#3ddc84}
+#wait .bar i{left:0;background:var(--seg-up)}
 #summit{left:50%;bottom:5%;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:.8rem 2rem;max-width:56rem}
 #summit.show{opacity:1;transform:translate(-50%,0) scale(1);transition-delay:.8s}
 body.preview #summit,body.preview #summit.show{transition:none}
-body.sc-left #summit{left:1.4rem;bottom:1.4rem;text-align:left;transform:scale(.9);transform-origin:left bottom}
+body.sc-left #summit{left:1.4rem;bottom:1.4rem;text-align:left;max-width:44vw;transform:scale(.9);transform-origin:left bottom}
 body.sc-left #summit.show{transform:none}
 body.summit #hint{display:none!important}
 #summit .t2{font-size:2.4rem;font-weight:900;letter-spacing:.12em;line-height:1.15}
