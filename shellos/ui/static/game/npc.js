@@ -13,6 +13,7 @@ import { WHO } from './style.js';
 import { synthHip } from './anim.js';
 
 const Q = new URLSearchParams(location.search);
+const RUN = +(Q.get('npcrun') || 0);
 export const NPC = {
   START: 2.5, CAUGHT: 0.7, LOST: 4.5, END_GAP: 3,   // 步。跟拍镜头在身后 4.6（台阶 3.7）单位 = 7~9 步，再远她就贴到镜头上了
   CAD0: 100, CAD_K: 40,                        // 步频 100 = 不远不近；80 → 每秒近 0.5 步（约 4 s 追上），130 → 每秒远 0.75 步（约 3 s 甩开）；模拟 1/2/3 键 = 80/105/130
@@ -116,6 +117,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       if (dash < 0.2) dashSaid = false;
       s = me.s - gap;
     } else s = me.s - gap;
+    if (preview && RUN) s += (t * RUN) % 8 - 4;                         // 预览 &npcrun=<步/秒>：原地来回跑一段（截步态 / 甩动用）
 
     // 追上那一下：绕一个小弧——先往前、往峰哥肩膀那边切，再回到右路沿站定
     arcT += dtR; const arc = arcT < NPC.ARC_S ? Math.sin(Math.PI * arcT / NPC.ARC_S) : 0;
@@ -126,7 +128,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     // 步态：按她自己的速度摆腿；冲刺前倾；被甩掉的结局弯腰喘气
     const v = sPrev === null ? 0 : (s - sPrev) / Math.max(dt, 1e-3); sPrev = s;
     spd += (Math.max(0, Math.min(6, v)) - spd) * (1 - Math.exp(-dt * 5));
-    const walkV = ending === 'shaken' ? 0 : preview ? (dash ? 3 : 1.6) : spd;
+    const walkV = ending === 'shaken' ? 0 : preview && !RUN ? (dash ? 3 : 1.6) : spd;
     phase += dt * Math.PI * walkV;
     const amp = Math.min(38, walkV * 14 + dash * 12);
     const wantLean = npc.statue ? (ending === 'shaken' ? 0.3 : 0.03 + dash * 0.32 + (walkV > 0.05 ? 0.1 : 0))
