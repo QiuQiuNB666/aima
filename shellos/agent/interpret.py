@@ -1,14 +1,11 @@
-"""把一句人话翻成参数差值。大模型（OpenAI 兼容，环境变量 SHELLOS_LLM_*）优先；
-没配、超时、输出不合法 → 规则表兜底。两条路输出同一种结构，都经过范围裁剪。
+"""把一句人话翻成参数差值。Claude（经大脑进程，见 shellos/agent/brain.py）优先；
+大脑没开、断网、超时、拒答 → 规则表兜底。两条路输出同一种结构，都经过范围裁剪。
 
-返回 {"delta": {param: value}, "trigger": {"cadence": [lo, hi]}, "confidence": 0..1, "source": "llm"|"rule", "why": "..."}
+返回 {"delta": {param: value}, "trigger": {"cadence": [lo, hi]}, "confidence": 0..1, "source": "claude"|"rule", "why": "..."}
 或 None（听不懂）。
 """
 from __future__ import annotations
-import json
-import os
 import re
-import urllib.request
 
 # 规则表：控制律 → (关键词, 参数, 差值)。差值方向以"正 = 更多/更晚"为准，和控制律里的参数定义一致。
 # 按顺序匹配，同一参数只取第一条命中的规则：否定说法（不明显 / 没感觉）要排在肯定说法（明显）前面。
@@ -69,48 +66,27 @@ def by_rule(quote, controller, params, cadence):
             "why": "规则表命中 " + "/".join(hit)}
 
 
-def configured():
-    return all(os.environ.get(k) for k in ("SHELLOS_LLM_BASE", "SHELLOS_LLM_KEY", "SHELLOS_LLM_MODEL"))
-
-
-def by_llm(quote, controller, params, cadence, profile, timeout=6.0):
-    if not configured():
+def by_claude(quote, controller, params, cadence, profile):
+    """大脑（brain/claude_brain.py，Claude）翻译。大脑不在 / 超时 / 拒答 → None，走规则表。"""
+    from . import brain
+    j = brain.call("/coach", {"quote": quote, "controller": controller, "profile": profile,
+                              "params": {k: list(v) for k, v in params.items()}}, timeout=12.0)
+    if not j:
         return None
-    ptab = "\n".join(f"- {k}: 当前 {v[0]:g}，范围 {v[1]:g}~{v[2]:g}" for k, v in params.items())
-    prompt = (f"你在给一台髋关节助行外骨骼调参。穿戴者刚说：「{quote}」。\n"
-              f"当前控制律 {controller}，参数：\n{ptab}\n穿戴者画像：{json.dumps(profile, ensure_ascii=False)}\n"
-              "把这句话翻成参数差值（不是绝对值），一次只改 1~2 个参数、幅度小（峰值 ±0.5 Nm、峰时 ±5%、增益 ±0.03、延迟 ±0.03 s 这个量级）。"
-              "只输出 JSON：{\"delta\":{参数名:差值},\"confidence\":0到1,\"why\":\"一句话\"}。听不懂就输出 {\"delta\":{}}。")
-    body = {"model": os.environ["SHELLOS_LLM_MODEL"], "max_tokens": 150, "temperature": 0,
-            "messages": [{"role": "user", "content": prompt}]}
-    req = urllib.request.Request(os.environ["SHELLOS_LLM_BASE"].rstrip("/") + "/chat/completions",
-                                 data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json",
-                                          "Authorization": "Bearer " + os.environ["SHELLOS_LLM_KEY"]})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        text = json.load(r)["choices"][0]["message"]["content"]
-    s = text[text.find("{"): text.rfind("}") + 1]
-    j = json.loads(s)
-    d = {k: float(v) for k, v in j.get("delta", {}).items() if k in params}
+    d = {}
+    for c in j.get("changes", []):
+        k = c.get("param")
+        if k in params and k not in d:
+            lo, hi = params[k][1], params[k][2]
+            cap = (hi - lo) * 0.15                 # 幅度裁剪：不让模型一口气改到头
+            d[k] = max(-cap, min(cap, float(c.get("delta", 0))))
+    d = {k: v for k, v in d.items() if v}
     if not d:
         return None
-    # 幅度裁剪：不让模型一口气改到头
-    for k in d:
-        lo, hi = params[k][1], params[k][2]
-        cap = (hi - lo) * 0.15
-        d[k] = max(-cap, min(cap, d[k]))
     return {"delta": d, "trigger": {"cadence": _band(cadence)},
-            "confidence": max(0.0, min(1.0, float(j.get("confidence", 0.7)))), "source": "llm",
+            "confidence": max(0.0, min(1.0, float(j.get("confidence", 0.7)))), "source": "claude",
             "why": str(j.get("why", ""))[:80]}
 
 
 def interpret(quote, controller, params, cadence, profile):
-    try:
-        r = by_llm(quote, controller, params, cadence, profile)
-        if r:
-            return r
-    except Exception as e:  # noqa: BLE001
-        r = None
-        last = str(e)[:80]
-    r = by_rule(quote, controller, params, cadence)
-    return r
+    return by_claude(quote, controller, params, cadence, profile) or by_rule(quote, controller, params, cadence)

@@ -43,5 +43,5 @@ def summary() -> list:
         for s in w["route"]:
             by[s["kind"]] = by.get(s["kind"], 0) + s["steps"]
         res.append({k: w[k] for k in ("id", "name", "subtitle", "story", "note", "alt", "unit", "summit", "theme", "route")}
-                   | {"steps": n, "mix": by, "training": w.get("training", False)})
+                   | {"steps": n, "mix": by, "training": w.get("training", False), "generated": w.get("generated")})
     return res

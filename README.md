@@ -64,7 +64,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 - 服务监听 `0.0.0.0`：局域网里的另一台设备只能**看**游戏屏 `http://<MacBook IP>:8765/game`；所有 POST（死人开关、急停、换人、/sim）只接受 MacBook 本机，其它来源一律 403
 - 真机已确认：串口 `/dev/cu.usbserial-*`（CP2102N）、183 Hz、R2 = axis 5、× = button 0（真机）。**待真机验证**：正力矩 = 髋伸展、髋角负 = 屈曲（数据推断；右腿读数镜像，`convention.py` 已取反）、脚跟着地在估计器相位 0.5
 
-大模型（可选）：设 `SHELLOS_LLM_BASE`（OpenAI 兼容端点）、`SHELLOS_LLM_KEY`、`SHELLOS_LLM_MODEL` 三个环境变量。没配就走规则表。
+Claude（可选）：本机跑大脑 `brain/claude_brain.py`（要 `ANTHROPIC_API_KEY`），展位 MacBook 用 `ssh -N -R 8790:127.0.0.1:8790 zhongrenfei@100.112.252.66` 借过去；大脑不在就走规则表。详见 `docs/架构-v3-完整版.md`「大脑与蜂群」。
 
 ---
 

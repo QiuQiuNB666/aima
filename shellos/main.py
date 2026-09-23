@@ -63,6 +63,8 @@ class App:
         self.store = Store()
         self.wearer = "anon"
         self.min_strides = 6
+        self.swarm: list = []        # 蜂群发言：教练 / 地形导演 / 记忆员 / 安全员，仪表盘按时间线显示
+        self._recent_changes: list = []   # (t, 参数)：安全员防拉锯
 
     # 已套用的经验 id / 是否检索过，挂在控制律实例上：差值就改在这个实例的参数里。
     # 切到新实例（缺省参数）自然清零；切回缓存的 terrain 仍记得；开场 puppet 的检索不占掉 terrain 的。
@@ -143,8 +145,38 @@ class App:
         self.store.bump(ids)
         self.log(f"命中经验 {', '.join('#%d' % i for i in ids)}（步频 {st.cadence:.0f}）→ {out}")
 
+    TORQUE_PARAMS = ("strength", "peak_ext", "peak_flex", "tl", "tr", "scale", "bias_l", "bias_r")
+
+    def say(self, who, msg, verdict=""):
+        """蜂群里某个角色发一句话。verdict：提议 / 同意 / 裁剪 / 否决 / 生效。"""
+        self.swarm.append({"t": datetime.now().strftime("%H:%M:%S"), "who": who, "msg": msg, "verdict": verdict})
+        del self.swarm[:-60]
+        self.log(f"[{who}] {msg}")
+
+    def safety_review(self, delta):
+        """安全员：硬代码，不交给大模型。返回 (放行的差值, 备注)。"""
+        cap = self.guard.soft_cap if self.guard else 3.0
+        if self.guard and self.guard.estop:
+            return {}, ["急停中，一律否决"]
+        now, out, notes = time.monotonic(), {}, []
+        self._recent_changes = [(t, k) for t, k in self._recent_changes if now - t < 30]
+        for k, v in delta.items():
+            if sum(1 for _, kk in self._recent_changes if kk == k) >= 3:
+                notes.append(f"{k} 30 秒内已经改了 3 次，否决（防止几个人来回拉锯）")
+                continue
+            if k in self.TORQUE_PARAMS:
+                cur = self.ctl.params[k][0]
+                want = cur + v
+                if abs(want) > cap:
+                    v = max(-cap, min(cap, want)) - cur
+                    notes.append(f"{k} 想到 {want:.2f} Nm，超过软限 {cap:g}，裁到 {cur + v:.2f}")
+            if v:
+                out[k] = v
+        self._recent_changes += [(now, k) for k in out]
+        return out, notes
+
     def feedback(self, quote):
-        """评委一句话 → 参数差值 → 立即生效 → 存成经验卡。"""
+        """评委一句话 → 教练提议 → 记忆员对照 → 安全员裁决 → 生效 + 存成经验卡。"""
         from .agent.interpret import interpret
         quote = (quote or "").strip()
         if not quote:
@@ -157,13 +189,53 @@ class App:
             return None
         r = interpret(quote, self.ctl_key(), self.ctl.params, self.gait.state.cadence, self.profile())
         if not r or not any(float(v) for v in r["delta"].values()):   # 差值为 0 不存卡
-            self.log(f"评委：「{quote}」——没听懂，参数不变")
+            self.say("教练", f"「{quote}」——没听懂，参数不变", "否决")
             return None
-        out = self.ctl.set_params(r["delta"])
-        it = self.store.add(self.wearer, self.ctl_key(), r["trigger"], r["delta"], quote, r["confidence"], r["source"])
+        src = "Claude" if r["source"] == "claude" else "规则表"
+        self.say("教练", f"「{quote}」→ 提议 {r['delta']}（{src}：{r.get('why', '')}）", "提议")
+        same, opp = [], []
+        for it in self.store.retrieve(self.ctl_key(), self.gait.state.cadence):
+            for k, v in r["delta"].items():
+                if float(it["delta"].get(k, 0)) * v > 0:
+                    same.append(it["id"])
+                elif float(it["delta"].get(k, 0)) * v < 0:
+                    opp.append(it["id"])
+        if same or opp:
+            self.say("记忆员", (f"同步频段已有 {len(set(same))} 张卡同向 #{sorted(set(same))}" if same else "") +
+                     ("；" if same and opp else "") +
+                     (f"和 #{sorted(set(opp))} 方向相反：人跟人的腿不一样，新卡照写，检索时取平均" if opp else ""), "同意")
+        else:
+            self.say("记忆员", "这个步频段第一次有人这么说，记成新经验", "同意")
+        delta, notes = self.safety_review(r["delta"])
+        for n in notes:
+            self.say("安全员", n, "否决" if "否决" in n else "裁剪")
+        if not delta:
+            return None
+        if not notes:
+            self.say("安全员", "幅度在软限以内，放行", "同意")
+        out = self.ctl.set_params(delta)
+        it = self.store.add(self.wearer, self.ctl_key(), r["trigger"], delta, quote, r["confidence"], r["source"])
         self.applied.append(it["id"])
-        self.log(f"评委：「{quote}」→ 经验卡 #{it['id']} {r['delta']}（{r['source']}，{r.get('why', '')}）→ 现在 {out}")
+        self.say("教练", f"经验卡 #{it['id']} 生效 → 现在 {out}", "生效")
         return it
+
+    def make_world(self, text):
+        """一句话造一座山：地形导演（Claude）出草稿，安全员裁剪，马上切过去。"""
+        from .worlds import gen
+        text = (text or "").strip()[:80]
+        if not text:
+            return None
+        self.say("地形导演", f"「{text}」→ 在造…", "提议")
+        w, source, notes = gen.generate(text)
+        steps = sum(s["steps"] for s in w["route"])
+        self.say("地形导演", f"{'Claude' if source == 'claude' else '大脑不在，规则模板'}造好「{w['name']}」：{w['subtitle']}（{steps} 步）", "提议")
+        for n in notes:
+            self.say("安全员", n, "裁剪")
+        if not notes:
+            self.say("安全员", "路线检查通过：起步平地、台阶不过半、红灯 ≤2", "同意")
+        self.set_terrain(w["id"])
+        self.say("地形导演", f"已切到「{w['name']}」", "生效")
+        return w
 
     def add_exp(self, delta, quote, source="ladder"):
         """直接写一张经验卡（强度阶梯等脚本用）。差值相对缺省参数；调用方已经用 /set 生效，这里只记为已套用。"""

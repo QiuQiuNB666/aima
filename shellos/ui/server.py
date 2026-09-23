@@ -7,6 +7,8 @@ POST /estop       急停
 POST /rearm       重新上膛
 POST /param       {"name":..., "delta":...}
 POST /ctl         {"name":"dofc"}
+POST /feedback    {"text":...}   评委一句话 → 蜂群（教练 / 记忆员 / 安全员）→ 改参 + 经验卡
+POST /world/generate {"text":...} 一句话造一座山（地形导演 → 安全员裁剪 → 切过去）
 POST /log         {"text":...}   往事件流里写一条（评委原话先手工输入，Agent 层接上后由它改参）
 
 所有 POST 只认本机（127.0.0.1 / ::1），局域网来的一律 403：死人开关、强度、控制律只有操作员这台机器能动。
@@ -18,6 +20,8 @@ import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from ..agent import brain
 
 HOLD_TTL = 0.3
 LOCAL = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
@@ -147,6 +151,8 @@ class Dashboard:
             "glasses": {"available": a.glasses.available, "busy": a.glasses.busy, "shot": bool(a.glasses.last_shot),
                         "shot_t": os.path.getmtime(a.glasses.last_shot) if a.glasses.last_shot else 0,
                         "terrain": a.terrain, "bin": a.glasses.bin, "error": a.glasses.last_error[-120:]},
+            "swarm": a.swarm[-20:],
+            "brain": brain.status,
             "loop_ms": getattr(a, "loop_ms", 0),
         }
 
@@ -212,6 +218,9 @@ class Dashboard:
                 a.ctl.force = body.get("kind") or None
                 a.log(f"地形强制：{a.ctl.force or '自动'}")
             return {"force": getattr(a.ctl, "force", None)}
+        if path == "/world/generate":           # {"text": "一句话"} → 造一座山并切过去
+            w = a.make_world(body.get("text", ""))
+            return {"world": w and {k: w[k] for k in ("id", "name", "subtitle", "generated")}}
         if path == "/demo/reset":
             a.demo_reset()
             return {"ok": True}

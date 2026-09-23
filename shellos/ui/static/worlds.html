@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>选一座山</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>峰哥亡命天涯</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root{--bg:#07080c;--fg:#eef2f6;--dim:#8a95a3;--line:#1d232c}
@@ -25,10 +25,16 @@ header p{margin:6px 0 0;color:var(--dim);font-size:18px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .note{font-size:12px;color:#6d7784;margin-top:auto}
 .summit{font-size:13px;color:#cfd6de}
+.mk{display:flex;gap:12px;align-items:center;padding:14px 40px 0}
+.mk input{flex:1;max-width:760px;padding:14px 18px;font-size:18px;border-radius:12px;border:1px solid #3a4555;background:#0e1117;color:var(--fg)}
+.mk button{padding:14px 26px;font-size:18px;font-weight:700;border-radius:12px;border:0;background:#d9b8ff;color:#000;cursor:pointer}
+.mk button:disabled{opacity:.5}#mkst{color:var(--dim);font-size:14px}
+.card.gen{border-color:#8e6bbf}
 h2{padding:10px 40px 0;margin:0;font-size:15px;color:var(--dim);letter-spacing:2px;font-weight:500}
 .go{position:fixed;right:32px;bottom:28px;padding:18px 30px;font-size:20px;font-weight:700;border-radius:14px;border:0;background:#fff;color:#000;cursor:pointer;display:none}
 </style></head><body>
-<header><h1>选一座山</h1><p>你在原地迈步，坡和台阶会变成腿上的力。上一位登山者会化作影子，和你并排爬。</p></header>
+<header><h1>峰哥亡命天涯</h1><p>你在原地迈步，坡和台阶会变成腿上的力。上一位登山者会化作影子，和你并排爬。</p></header>
+<div class="mk"><input id="mk" placeholder="说一句话，现场造一座山：峰哥被追到泰山顶，一路狂奔上十八盘……"><button id="mkb">造山</button><span id="mkst"></span></div>
 <div class="grid" id="main"></div>
 <h2>训练场</h2>
 <div class="grid" id="train"></div>
@@ -59,10 +65,10 @@ function drawSky(cv,w){
   const e=pts.length-1;ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(X(e),Y(pts[e][0]));ctx.lineTo(X(e),Y(pts[e][0])-22*devicePixelRatio);ctx.lineTo(X(e)+14*devicePixelRatio,Y(pts[e][0])-16*devicePixelRatio);ctx.lineTo(X(e),Y(pts[e][0])-10*devicePixelRatio);ctx.fill();
 }
 function card(w,i){
-  const d=document.createElement('div');d.className='card';
+  const d=document.createElement('div');d.className='card'+(w.generated?' gen':'');
   const mix=Object.entries(w.mix).map(([k,v])=>`<div style="flex:${v};background:${KC[k]}"></div>`).join('');
   const leg=Object.entries(w.mix).map(([k,v])=>`<span><i style="background:${KC[k]}"></i>${KN[k]} ${v}</span>`).join('');
-  d.innerHTML=`<div class="sky"><canvas></canvas><div class="num">${w.training?'TRAINING':'0'+(i+1)}</div><div class="alt">${w.alt[0]} → ${w.alt[1]} ${w.unit}</div></div>
+  d.innerHTML=`<div class="sky"><canvas></canvas><div class="num">${w.training?'TRAINING':w.generated?(w.generated==='claude'?'CLAUDE 造':'现场造'):'0'+(i+1)}</div><div class="alt">${w.alt[0]} → ${w.alt[1]} ${w.unit}</div></div>
    <div class="body"><div class="name">${w.name}</div><div class="sub">${w.subtitle}</div><div class="story">${w.story}</div>
    <div class="mix">${mix}</div><div class="legend">${leg}<span>共 ${w.steps} 步</span></div>
    ${w.summit.text?`<div class="summit">终点 · ${w.summit.name}：${w.summit.text}</div>`:''}
@@ -72,5 +78,14 @@ function card(w,i){
 }
 const $go=document.getElementById('go');
 $go.onclick=async()=>{if(!chosen)return;try{await fetch('/ctl',{method:'POST',body:JSON.stringify({name:'terrain'})});await fetch('/terrain',{method:'POST',body:JSON.stringify({preset:chosen})})}catch(e){}location.href='/game'};
-fetch('/worlds.json').then(r=>r.json()).then(ws=>{let n=0;ws.forEach(w=>(w.training?document.getElementById('train'):document.getElementById('main')).appendChild(card(w,w.training?0:n++)))});
+function load(pick){return fetch('/worlds.json').then(r=>r.json()).then(ws=>{let n=0;
+  document.getElementById('main').innerHTML='';document.getElementById('train').innerHTML='';
+  ws.forEach(w=>{const c=card(w,w.training?0:n++);(w.training?document.getElementById('train'):document.getElementById('main')).appendChild(c);if(w.id===pick){c.click();c.scrollIntoView({block:'center'})}})})}
+load();
+const $mk=document.getElementById('mk'),$mkb=document.getElementById('mkb'),$mkst=document.getElementById('mkst');
+$mkb.onclick=async()=>{const t=$mk.value.trim();if(!t)return;$mkb.disabled=true;$mkst.textContent='Claude 在画路线，十几秒…';
+  try{const r=await (await fetch('/world/generate',{method:'POST',body:JSON.stringify({text:t})})).json();
+    if(r.world){$mkst.textContent=r.world.generated==='claude'?'Claude 造好了，安全员审过了':'大脑离线，用规则模板造的';await load(r.world.id)}else $mkst.textContent=r.error||'没造出来'}
+  catch(e){$mkst.textContent='没连上 ShellOS'}$mkb.disabled=false};
+$mk.addEventListener('keydown',e=>{if(e.key==='Enter')$mkb.click()});
 </script></body></html>

@@ -43,6 +43,8 @@ button:active{filter:brightness(1.35)}
 @keyframes hitGlow{0%{background:#3a3310;box-shadow:0 0 0 3px var(--t)}100%{background:transparent}}
 #cards .card.new{animation:slideIn .6s cubic-bezier(.2,.9,.3,1.2),hitGlow 2s ease-out}
 #cards .card.hit{animation:slideIn .5s cubic-bezier(.2,.9,.3,1.2),hitGlow 2.5s ease-out}
+#swarm{font-size:14px;max-height:260px;overflow:auto}#swarm div{padding:4px 0;border-bottom:1px solid #1e242b}
+#swarm .who{display:inline-block;min-width:4.5em;font-weight:700}#swarm .v{font-size:12px;padding:0 5px;border-radius:4px;margin-right:4px;background:#1e242b}
 #events{font-size:14px;max-height:240px;overflow:auto;color:#d3dbe4}#events div{padding:4px 0;border-bottom:1px solid #1e242b}
 input,select{font:inherit;background:#0b0f13;color:var(--fg);border:1px solid #3a4553;border-radius:8px;padding:9px}
 .sent{font-size:clamp(22px,2vw,30px);white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700}.sent .l{color:var(--l)}.sent .r{color:var(--r)}
@@ -132,6 +134,10 @@ input,select{font:inherit;background:#0b0f13;color:var(--fg);border:1px solid #3
   <div class="row" style="margin-top:8px"><input id="say" placeholder="评委说：太陡了 / 轻一点 / 早一点" style="flex:1;min-width:150px"><button id="sayb" style="background:#173524;color:var(--ok);font-weight:700">学</button></div>
   <div id="cards" style="margin-top:8px"></div>
  </div>
+ <div class="panel" style="margin-top:12px"><h2>蜂群 · 教练 / 地形导演 / 记忆员 / 安全员 <span id="brainst" class="h2x"></span></h2>
+  <div class="row"><input id="mk" placeholder="一句话造一座山：峰哥被追到山顶，一路狂奔上台阶" style="flex:1;min-width:150px"><button id="mkb" style="background:#2a1d3a;color:#d9b8ff;font-weight:700">造山</button></div>
+  <div id="swarm" style="margin-top:8px"></div>
+ </div>
  <div class="panel" style="margin-top:12px"><h2>控制律</h2>
   <select id="ctl" style="width:100%"></select>
   <div class="params" id="params"></div>
@@ -175,6 +181,10 @@ $('estop').onclick=()=>post('/estop');$('rearm').onclick=()=>post('/rearm');
 $('sayb').onclick=()=>{const t=$('say').value.trim();if(t){post('/feedback',{text:t});$('say').value=''}};
 $('wearerb').onclick=()=>{post('/wearer',{name:$('wearer').value.trim()});toast('换人：参数回缺省，走 6 步后检索经验')};
 $('say').addEventListener('keydown',e=>{if(e.key==='Enter')$('sayb').click()});
+$('mkb').onclick=async()=>{const t=$('mk').value.trim();if(!t)return;$('mkb').disabled=true;$('mkb').textContent='造山中…';
+ try{const r=await (await post('/world/generate',{text:t})).json();if(r.world){toast('造好了：'+r.world.name);$('mk').value=''}}catch(e){}$('mkb').disabled=false;$('mkb').textContent='造山'};
+$('mk').addEventListener('keydown',e=>{if(e.key==='Enter')$('mkb').click()});
+const WHO={'教练':'#7fd1ff','地形导演':'#d9b8ff','记忆员':'#ffd54f','安全员':'#ff8a65'},VC={'否决':'#ff5252','裁剪':'#ff8a65','生效':'#3ddc84','同意':'#9aa7b4','提议':'#7fd1ff'};let swSig='';
 $('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});$('trsel').onchange=()=>post('/terrain',{preset:$('trsel').value});
 $('gameb').onclick=()=>window.open('/game','shellos_game');
 // 演示态 / 累积态：只是操作员习惯，记在本机浏览器
@@ -288,6 +298,9 @@ async function tick(){
   $('padst').textContent=s.pad.connected?('已连接 · R2 '+Math.round(s.pad.r2*100)+'%'):'未连接（用网页按钮或键盘）';$('r2bar').style.width=(s.pad.r2*100)+'%';
   const m=s.memory;$('memst').textContent=`${m.wearer} · 步频 ${m.profile.cadence} · ${m.recalled?('已检索，套用 '+(m.applied.length?m.applied.map(i=>'#'+i).join(' '):'0 条')):'走 6 步后检索'}`;
   renderCards(m);
+  const b=s.brain||{};$('brainst').textContent=b.ok===null?'大脑：未调用':b.ok?'大脑 Claude 在线 · '+b.msg:'大脑离线 → 规则兜底';$('brainst').style.color=b.ok?'var(--ok)':b.ok===false?'#ff8a65':'';
+  const sw=s.swarm||[],ss=sw.length+'|'+(sw.length?sw[sw.length-1].t+sw[sw.length-1].msg:'');
+  if(ss!==swSig){swSig=ss;$('swarm').innerHTML=sw.slice().reverse().map(e=>`<div><span style="color:var(--dim)">${esc(e.t)}</span> <span class="who" style="color:${WHO[e.who]||'#fff'}">${esc(e.who)}</span>${e.verdict?`<span class="v" style="color:${VC[e.verdict]||'#fff'}">${esc(e.verdict)}</span>`:''}${esc(e.msg)}</div>`).join('')}
   const es=s.events.length+'|'+(s.events.length?s.events[s.events.length-1].t+s.events[s.events.length-1].text:'');
   if(es!==evSig){evSig=es;$('events').innerHTML=s.events.slice().reverse().map(e=>`<div><span style="color:var(--dim)">${esc(e.t)}</span> ${esc(e.text)}</div>`).join('')}
  }catch(e){$('st').textContent='断开';$('st').className='state DISARMED';console.error(e)}
