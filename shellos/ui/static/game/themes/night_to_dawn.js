@@ -9,6 +9,7 @@ import { STEP } from '../path.js';
 import { buildSky } from './night_to_dawn/sky.js';
 import { headlamps, glows, trailRibbon, zigzag } from './night_to_dawn/lamps.js';
 import { place, stoneGeo, stoneWalls, tinTexture, hut, torii, lantern, signpost, nobori, pillar, rockGeo } from './night_to_dawn/props.js';
+import { nightSky } from './night_to_dawn/night.js';
 
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -80,7 +81,9 @@ let sky = null, lamps = null, lightsR = null, scn = null, torch = null, SCp = nu
 let trails = null, hAtR = null, baseF = null, ghostAt = null, avLook = null, ghostObj = null, avObj = null;
 const RIM_NIGHT = new THREE.Color('#9fdcff'), RIM_DAWN = new THREE.Color('#ffb070');
 
+let SFX = null, NIGHT = null;                                      // 落阶反馈（kit.stepFx）
 export function build(scene, ctx) {
+  SFX = ctx.kit.stepFx(ctx, { dust: '#c07a5c', flash: '#ffd9a0', add: true, dustA: 0.75 });   // 火山砂：红褐尘（吉田口下山道的「砂走り」）
   const { route, kit, util, lights, meshes: M } = ctx, N = route.N, R = ctx.rand;
   scn = scene; lightsR = lights; groups = []; dressed = false; baseF = { ...ctx.camRig.follow }; ghostObj = avObj = avLook = null;
   const c = kit.routeCenter(route); CEN = c;
@@ -100,6 +103,7 @@ export function build(scene, ctx) {
   SR.face = SCp.clone().addScaledVector(startDir, -10);
 
   sky = buildSky(scene, ctx, D, sunXZ);
+  NIGHT = nightSky(ctx, D.clone().negate());                            // 月亮（来路方向的天上）+ 流星
   kit.fog(scene, '#0e1128', 2.5, 16);
   M.flag.visible = false;                                              // 引擎的白旗杆：换成路外的幟
 
@@ -203,12 +207,17 @@ export function build(scene, ctx) {
   const addNobori = (g, s, lat, col) => { const o = onGround(s, lat), F = nobori(col); place(F.parts, o.p, o.ry, g.body); place(F.cloth, o.p, o.ry, g.cloth); };
 
   const g0 = grp('base', -99);                                        // 五合目：开局就在
+  { // 小御嶽神社（吉田口五合目真有）：起点身后 4.5 单位跨路的朱红鸟居 + 两盏石灯笼 + 社名牌 —— 正面镜头回看时它就是背景
+    const a = route.at(-9); place(torii({ hw: 2.2, H: 3.2 }), a.pos.clone().setY(Math.max(0, hAt(a.pos.x, a.pos.z))), -a.heading, g0.red);
+    addLantern(g0, -8.2, 2.9); addLantern(g0, -8.2, -2.9); addSign(g0, -7.4, -3.4, '小御嶽神社');
+    for (let k = 0; k < 5; k++) addNobori(g0, -6 + k * 1.3, -2.7, ['#c8361f', '#f0ece0', '#2c5aa0'][k % 3]);   // 幟一排（右侧：左边是镜头）
+  }
   addSign(g0, 1.6, -2.7, '吉田口', '五合目'); addLantern(g0, 2.2, 4.0); addLantern(g0, 2.2, -2.6);   // 开局只有这一块站牌
   addSign(grp('h6', 3), 11.6, 4.1, '六合目');                            // 走起来才淡入；放左边：右边是影子，头顶标签会叠在牌上
-  addHut(grp('h7', 15), 24.2, -4.8, { name: '七合目', yago: '東洋館', w: 3.2, lit: 3 }, 0.3);   // 沉 0.3：坡上不露黑色石基
+  addHut(grp('h7', 15), 24.2, -4.8, { name: '七合目', yago: '東洋館', w: 3.2, lit: 3, chochin: true }, 0.3);   // 沉 0.3：坡上不露黑色石基
   const g8 = grp('h8', 23);
-  addHut(g8, 29.8, -5.3, { name: '八合目', yago: '白雲荘', w: 4.4, lit: 5 });
-  addHut(g8, 31.5, 7.6, { yago: '元祖室', w: 3.2, lit: 3 });                         // 八合目上面一层（左坡）
+  addHut(g8, 29.8, -5.3, { name: '八合目', yago: '白雲荘', w: 4.4, lit: 5, chochin: true });
+  addHut(g8, 31.5, 7.6, { yago: '元祖室', w: 3.2, lit: 3, chochin: true });   // 八合目上面一层（左坡）
   const g9 = grp('g9', 30);
   addSign(g9, 31.2, -2.9, '九合目');
   { const a = route.at(36, -4.4); place(torii({ hw: 1.25, H: 2.6 }), a.pos.setY(Math.max(route.heightAt(36), hAt(a.pos.x, a.pos.z))), -a.heading, g9.red); }
@@ -373,9 +382,11 @@ export function rigFor(s, rig) {
 }
 
 export function update(dt, st) {
+  if (SFX) SFX.update(dt, st);
   if (!sky) return;
   if (!dressed) dressed = dressAvatar();
   const p = st.summit ? 1.12 : Math.max(0, Math.min(1, st.progress || 0)), k = palette(p);
+  if (NIGHT) NIGHT.update(dt, st, 1 - smooth(0.45, 0.8, p));
   const sunEl = -0.16 + 0.18 * smooth(0.5, 1.0, p) + 0.03 * smooth(1.0, 1.12, p);   // 登顶 ≈ 3°：正好在鸟居里、云海线上
   const dir = sky.update(st.t || 0, k, sunEl);
   scn.fog.color.copy(k.fog); scn.fog.near = k.fogN; scn.fog.far = k.fogF;
