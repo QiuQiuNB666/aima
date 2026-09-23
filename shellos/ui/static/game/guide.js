@@ -2,7 +2,7 @@
 //   镜头从峰哥正面慢慢拉远、绕着他转，把景区带进画面。一按 R2 / 开始走 / 离开「准备」→ 立刻打断，镜头交还引擎。
 // 状态机（window.__guide.state()）：off（没词 / 关了）→ armed（等一位新玩家听）→ playing → done（讲完 / 被打断 / 没听就走了）。
 //   变回 armed = 来了新的一位：页面刚载入（进图 / 切世界）、出过标题屏或待机、换了穿戴者、登顶或复位后回到山脚（步数变小）。
-//   armed → playing：「准备」界面稳定 0.6 s、没开菜单、在山脚（前 3 步）、没在走 / 没按 R2、语音预加载完、声音已解锁（没解锁就提示按任意键，先不讲）。
+//   armed → playing：「准备」界面（强制握把时是「游戏中」界面）稳定 0.6 s、没开菜单、在山脚（前 3 步）、没在走 / 没按 R2、语音预加载完、声音已解锁（没解锁就提示按任意键，先不讲）。
 //   armed → done：没听就走出了山脚（步数 ≥ 3），或者走动 / 按着 R2 连续超过 2 s——这一位已经开玩了，跳过，别等他歇脚时突然开讲。
 //     登顶后回到山脚那一两步收脚不算（先要见过他站定一次）。
 //   playing → done：讲完；或走动 / 按 R2 / 急停 / 开菜单 / 离开「准备」→ 立刻停（body 的 class 一变就停，不等下一次轮询）。之后不会自己重讲。
@@ -111,9 +111,12 @@ export async function initGuide({ world, route, camera, me, getS }) {
   function tick() {
     const S = getS() || {}, T = S.terrain || {}, cls = body.classList, now = performance.now();
     const menu = !!document.querySelector('#umenu.on');            // 标题屏 / 暂停 / 设置开着
-    const ready = cls.contains('u-ready') && !menu && (S.safety || {}).state !== 'DISARMED';
+    // 强制握把（ShellOS 用 --force-deadman 起：只有键盘、没手柄）：safety 一直是 ACTIVE，U 线的状态流也就一直是「游戏中」（u-play），
+    //   没有「准备」界面——这时 ACTIVE 不算开走，u-play 也能开讲；开走只看步态 / 模拟走路 / 真按下的 R2（9/24 MacBook 压测 2/20 就栽在这）
+    const sf = S.safety || {}, forced = !!sf.deadman_forced;
+    const ready = (cls.contains('u-ready') || (forced && cls.contains('u-play'))) && !menu && sf.state !== 'DISARMED';
     if (!ready) readySince = 0; else if (!readySince) readySince = now;
-    const go = (S.gait && S.gait.moving) || (S.pad && S.pad.r2 > 0.05) || (S.sim && S.sim.walk) || (S.safety || {}).state === 'ACTIVE';
+    const go = (S.gait && S.gait.moving) || (S.pad && S.pad.r2 > 0.05) || (S.sim && S.sim.walk) || (!forced && sf.state === 'ACTIVE');
     // 新的一位：标题屏 / 待机、换穿戴者、步数变小（登顶后回山脚、复位）
     const fresh = cls.contains('u-title') || cls.contains('u-idle') ? 'title' : lastWearer !== undefined && S.wearer !== lastWearer ? 'wearer'
       : lastPos != null && T.pos != null && T.pos < lastPos ? 'back' : '';

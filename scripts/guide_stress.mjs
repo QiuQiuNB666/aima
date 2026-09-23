@@ -23,7 +23,8 @@ const SCEN = MIX ? ['enter-listen', 'enter-walk', 'r2', 'reload', 'inject', 'idl
 
 // 安全：只对模拟器跑（会发 /estop、/hold、/terrain、/demo/reset）。/state.sim.on 不是 true（接着真外骨骼 / 连不上）就不跑
 { const S0 = await fetch(BASE + '/state').then(r => r.json()).catch(() => null);
-  if (!S0 || !S0.sim || S0.sim.on !== true) { console.error(`${BASE} 不是 --sim（或连不上），不跑`); process.exit(3); } }
+  if (!S0 || !S0.sim || S0.sim.on !== true) { console.error(`${BASE} 不是 --sim（或连不上），不跑`); process.exit(3); }
+  globalThis.FORCED = !!(S0.safety && S0.safety.deadman_forced); if (FORCED) console.log('强制握把（--force-deadman）'); }
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const dir = mkdtempSync(join(tmpdir(), 'gstress-'));
 const ch = spawn(CHROME, ['--headless=new', '--window-size=1280,720', '--mute-audio', `--autoplay-policy=${{ none: 'no-user-gesture-required', strict: 'user-gesture-required' }[POLICY] || 'document-user-activation-required'}`,
@@ -109,8 +110,10 @@ for (let k = 0; k < +N; k++) {
   if (scen === 'r2') {                // 按住 R2 关标题屏 → 这一位跳过导游
     const hb = setInterval(() => post('/hold', { v: 1 }), 100);
     await sleep(2500); const g1 = await guiding(); await post('/sim', { walk: true }); await sleep(2500);
+    const g2 = await guiding();
     clearInterval(hb); await post('/sim', { walk: false }); await sleep(1500);   // 松手 → 回「准备」，人还在半山：不该开讲
-    if (g1 || await guiding()) f.push('④R2 开走的还开讲了');
+    // 强制握把（--force-deadman）时「按住 R2 站着」和「站着」分不开，那 2.5 s 里开讲是对的；只查走起来之后停没停、停了会不会又讲
+    if ((g1 && !FORCED) || g2 || await guiding()) f.push('④R2 开走的还开讲了');
   } else {
     if (scen !== 'reload') await key('Enter', 'Enter');
     else if (POLICY !== 'none') {       // 没按过键：不该哑着开讲，要出「按任意键开启峰哥声音」；按个游戏里没用的字母键（K）之后带声音开讲
