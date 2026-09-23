@@ -3,6 +3,7 @@
 //   位置全按 route.at(s, lat) 算（大本营 = 路线开头那段平地、前进营地 = zonesOf 的 abc），不写死坐标。
 //   返回 { meshes, pad（停机坪面中心，世界坐标）, blockers（[{x, z, r}]，路边随机帐篷避开这些） }
 import * as THREE from 'three';
+import { addGlow } from './tent_model.js';
 
 const Y = new THREE.Vector3(0, 1, 0);
 
@@ -18,10 +19,12 @@ function roughStone(kit, w, h, d, seed = 1, amp = 0.08) {
   return g;
 }
 
-export function buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW }) {
+export function buildCamp(ctx, { hAt, rightOf, texts, glowMat, Z, windDir, LOW }) {
+  const DOOR = '#3a332c';                                                        // 门洞 / 窗：天暗了从里面透出暖光（tent_model.glowMaterial）
   const { route, kit, util, world } = ctx, R = ctx.rand, P = [], blockers = [];
   const block = (v, r) => blockers.push({ x: v.x, z: v.z, r });
   const bc = route.segs[0] && route.segs[0].kind === 'flat' ? route.segs[0] : { start: 0, steps: 3, label: '大本营' };
+  let smokeAt = null;
 
   // ---------- 石碑：路左、低矮（镜头那一侧，< 1.3）；正面朝回看的镜头 ----------
   {
@@ -54,15 +57,28 @@ export function buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW }) 
     const loc = (x, y, z) => new THREE.Vector3(x, y, z).applyAxisAngle(Y, ry).add(a.pos).setY(y0 + y);
     P.push({ geo: new THREE.BoxGeometry(4.4, 1.4, 2.8), p: loc(0, 0.7, 0), ry, color: '#e7a93a' });
     P.push({ geo: new THREE.CylinderGeometry(1.62, 1.62, 4.5, 3, 1).rotateY(Math.PI / 2).rotateZ(Math.PI / 2), p: loc(0, 1.4, 0), ry, s: [1, 0.62, 1.05], color: '#c9862a' });
-    for (const zz of [-1.41, 1.41]) P.push({ geo: new THREE.BoxGeometry(0.8, 1.1, 0.02), p: loc(0.6, 0.55, zz), ry, color: '#3a2e24' });
+    for (const zz of [-1.41, 1.41]) {
+      P.push({ geo: new THREE.BoxGeometry(0.8, 1.1, 0.02), p: loc(0.6, 0.55, zz), ry, color: DOOR });
+      for (const xx of [-0.6, -1.5]) P.push({ geo: new THREE.BoxGeometry(0.5, 0.32, 0.02), p: loc(xx, 0.95, zz), ry, color: DOOR });   // 两扇小窗
+    }
     P.push({ geo: new THREE.CylinderGeometry(0.07, 0.07, 1.2, 6), p: loc(-1.5, 2.3, 0.5), color: '#6b6b6b' });
+    smokeAt = loc(-1.5, 2.95, 0.5);
     block(a.pos, 3.2);
   }
 
   // ---------- 大穹顶帐篷（测地线穹顶，不动的东西直接并进静态几何：少一次绘制 + 一次阴影） ----------
-  const dg = new THREE.IcosahedronGeometry(1, 1).toNonIndexed(), dp = dg.attributes.position;
-  for (let i = 0; i < dp.count; i++) dp.setY(i, Math.max(0, dp.getY(i)) * 0.72);
-  dg.computeVertexNormals();
+  //   每个三角面从中心往里兜一点（面心拉进去 5%）→ 一块块绷在杆上的篷布；面心暗、杆那里亮
+  const dg = (() => {
+    const b = new THREE.IcosahedronGeometry(1, 1).toNonIndexed(), bp = b.attributes.position, pos = [], col = [], v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], m = new THREE.Vector3();
+    for (let i = 0; i < bp.count; i++) bp.setY(i, Math.max(0, bp.getY(i)) * 0.72);
+    for (let i = 0; i < bp.count; i += 3) {
+      for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(bp, i + k);
+      m.copy(v[0]).add(v[1]).add(v[2]).divideScalar(3).multiplyScalar(m.y > 0.02 ? 0.95 : 1);
+      for (let k = 0; k < 3; k++) { pos.push(...v[k].toArray(), ...v[(k + 1) % 3].toArray(), ...m.toArray()); col.push(1, 1, 1, 1, 1, 1, 0.86, 0.86, 0.86); }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+    return g;
+  })();
   const door = new THREE.CircleGeometry(0.3, 3).rotateY(Math.PI / 2);
   {
     const spots = [[-7, -6.8, 1.9], [bc.start + 3.4, -11, 2.2], [-1.2, -13.4, 1.8], [-3.6, 7.6, 1.7], [bc.start + 2.6, 10.2, 2.0]].slice(0, LOW ? 3 : 5);
@@ -70,8 +86,8 @@ export function buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW }) 
     spots.forEach(([s, lat, sc], k) => {
       const a = route.at(s, lat);
       const ry = -a.heading + (lat < 0 ? Math.PI / 2 : -Math.PI / 2), base = a.pos.clone().setY(hAt(a.pos.x, a.pos.z) - 0.05);
-      P.push({ geo: dg, p: base, ry, s: sc, color: DC[k] });
-      P.push({ geo: door, p: new THREE.Vector3(0.95 * sc, 0.24 * sc, 0).applyAxisAngle(Y, ry).add(base), ry, s: sc, color: '#3a332c' });
+      P.push({ geo: dg.clone(), p: base, ry, s: sc, tint: DC[k] });
+      P.push({ geo: door, p: new THREE.Vector3(0.95 * sc, 0.24 * sc, 0).applyAxisAngle(Y, ry).add(base), ry, s: sc, color: DOOR });
       block(a.pos, sc + 1.2);
     });
   }
@@ -119,6 +135,8 @@ export function buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW }) 
   line(bc.start + 1.6, bc.start + 5.8, -6.3, false);
   if (Z.abc) line(Z.abc.start - 1.2, Z.abc.start + 2.8, -3.7, true);
 
-  const statics = new THREE.Mesh(util.merged(P), lowVc); statics.name = 'campVillage';
-  return { meshes: [statics], pad, blockers };
+  // 大穹顶：自带的明暗（面心暗）× 篷布颜色
+  for (const pt of P) if (pt.tint) { const c = new THREE.Color(pt.tint), col = pt.geo.attributes.color; for (let i = 0; i < col.count; i++) col.setXYZ(i, col.getX(i) * c.r, col.getY(i) * c.g, col.getZ(i) * c.b); delete pt.tint; }
+  const statics = new THREE.Mesh(addGlow(util.merged(P), DOOR, 0), glowMat); statics.name = 'campVillage';
+  return { meshes: [statics], pad, blockers, smokeAt };
 }
