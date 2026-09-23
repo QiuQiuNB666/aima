@@ -10,9 +10,9 @@ import * as THREE from 'three';
 import { loadAvatar, preloadAvatar } from '/game/avatar.js';
 import { dressFengge } from '/game/fengge.js';
 import { makeJifeng } from '/game/npc_jifeng.js';
-import { PALETTE, applyCssVars } from '/game/style.js';
+import { PALETTE, UI, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
-import { makeRunner } from './runner.js';
+import { makeRunner, damp } from './runner.js';
 import { makeCloth } from './cloth.js';
 import { TUNE, rng, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
@@ -65,6 +65,7 @@ async function main() {
   scene.add(av.group);
   const runner = Q.get('runner') === '0' ? null : makeRunner(av);
   const cloth = runner ? makeCloth(scene, av) : null;             // 在第一次摆姿势之前建：按绑定姿态找挂点
+  const avLook = av.mats[0] && av.mats[0].userData.look, rim0 = avLook && avLook.uRim.value.clone(), rimK0 = avLook && avLook.uRimK.value, DANGER = new THREE.Color(UI.danger), TS = { t: 0 };   // 峰哥衣服 / 头共用这组 uniform
   const jf = await makeJifeng(scene);
   if (Q.get('hud') === '0') document.body.classList.add('clean');
 
@@ -191,10 +192,12 @@ async function main() {
     av.group.position.copy(P);
     const slide = run.slideT > 0;
     // 根节点：滑铲后仰 0.6 rad（绕脚转，再把人往下放 0.3，屁股贴着地；腿怎么摆在 runner.js），腾空微前倾
-    tilt += ((slide ? 0.6 : run.air ? -0.12 : 0) - tilt) * (1 - Math.exp(-dtR * 14));
+    tilt = damp(TS, 't', slide ? 0.6 : run.air ? -0.12 : 0, dtR, 22);
     av.group.rotation.set(runner ? runner.roll : 0, runner ? runner.yaw : 0, tilt);
     av.group.position.y -= 0.5 * Math.max(0, tilt);
-    av.group.visible = !(run.invuln > 0 && Math.floor(t * 12) % 2);
+    // 撞了之后的无敌时间：不再 6 Hz 整个人一闪一闪（硬切，也超过 ART 的 2 Hz 上限），改成轮廓光 2 Hz 平滑泛红
+    if (avLook) { const k = run.invuln > 0 ? (0.5 - 0.5 * Math.cos(clock * 4 * Math.PI)) * Math.min(1, run.invuln / 0.3) : 0;
+      avLook.uRim.value.copy(rim0).lerp(DANGER, k); avLook.uRimK.value = rimK0 + 1.6 * k; }
     if (runner) {                                   // 前方马上要跳（楼缝 / 矮障碍）：0.35 s 内开始预判下沉，到边上蹲到 1
       if (gy !== null && !run.air) lastG = gy;       // 离地高度按起跳那栋楼算（空中飞过楼缝时脚下没地）
       const th = run.started && !run.air ? nextThreat(run, level, 8) : null;

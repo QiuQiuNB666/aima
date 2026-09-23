@@ -5,6 +5,16 @@
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const ease = (x, target, dt, tau) => x + (target - x) * (1 - Math.exp(-dt / tau));
 const mix = (a, b, k) => a + (b - a) * k;
+// 第 4 轮：过渡统一用临界阻尼二阶弹簧（不是指数趋近）：起步速度为 0、没有一阶跳变（不会第一帧就猛冲），ω = 24 → 0.2 s 到 95%（要求 0.15–0.25 s）。
+//   S[k] 是值，S[k + 'V'] 是速度；dt 大时切小步（fx=low / 掉帧不炸）
+export const BLEND_W = 24;
+export function damp(S, k, target, dt, w = BLEND_W) {
+  const kv = k + 'V';
+  let v = S[kv] || 0;
+  for (let n = Math.ceil(dt / 0.008), i = 0; i < n; i++) { const h = dt / n; v += (w * w * (target - S[k]) - 2 * w * v) * h; S[k] += v * h; }
+  S[kv] = v;
+  return S[k];
+}
 
 export const RUN = {         // 现场调这里
   V0: 2.5, V1: 8,            // 跑步程度 r：速度 V0 以下 = 0（A2 原样），V1 以上 = 1
@@ -23,7 +33,8 @@ export const RUN = {         // 现场调这里
   LAND_W: 2.1, LAND_Z: 0.45, LAND_K: 20,   // 落地压缩弹簧：频率 Hz、阻尼比、每单位冲击的初速度（峰值 ≈ −0.9 在 0.1 s，0.38 s 回弹过冲 ≈ +0.18）
   CAM_DIP: 0.08,             // 落地镜头跟着沉（米 / 单位压缩）
   // 第 3 轮：换道先倾——身体先往新车道那边倒（弹簧追目标，回正时有过冲），再跟着过去；头抵掉 70% 保持水平
-  ROLL_K: 0.3, ROLL_MAX: 0.3, ROLL_W: 2.4, ROLL_Z: 0.42, YAW_K: 0.8,
+  ROLL_K: 0.3, ROLL_MAX: 0.3, ROLL_W: 2.4, ROLL_Z: 0.42, YAW_K: 0.8, YAW_MAX: 0.25,
+  SMOOTH_W: 45,              // 第 4 轮：膝 / 踝 / 肘的平滑弹簧 ω（越大越跟手，越小越顺）
 };
 
 export function makeRunner(av) {
@@ -32,8 +43,10 @@ export function makeRunner(av) {
   let r = 0, g = 1, mean = null, v = 0, vPrev = 0, acc = 0, dpk = 20;
   // 第 2 轮：动作阶段。ts / tl = 起跳 / 落地后多久；comp = 落地压缩弹簧（负 = 压下去）；w* = 各阶段权重（平滑过）
   let wasAir = false, ts = 9, tl = 9, lastVy = 0, lead = 0, comp = 0, compV = 0, rootDy = 0;
-  const W = { crouch: 0, push: 0, tuck: 0, reach: 0, slide: 0 };
+  const W = { crouch: 0, push: 0, tuck: 0, reach: 0, slide: 0 }, WS = { crouch: 0, push: 0, tuck: 0, reach: 0, slide: 0 };
   let roll = 0, rollV = 0, yaw = 0;
+  const YS = { y: 0 };
+  const F = {};                                                        // 第 4 轮：推导出来的关节（膝 / 踝 / 肘）的平滑状态
   const info = { v: 0, air: false, vy: 0, h: 0, pre: 0, slide: false, lat: 0, vz: 0 };
   body.update = (dt, t, d) => {
     dt = clamp(dt, 0, 0.1);
@@ -57,8 +70,15 @@ export function makeRunner(av) {
     phases(dt, P);
     if (r >= 0.01) runLayer(P, dt, dd);
     actionLayer(P);
+    smooth(P, dt);
     return P;
   };
+  // 第 4 轮：膝 / 踝 / 肘不是量出来的，是按髋角速度的正负推出来的（A2 和第 1 轮都这样）。10 Hz 采样 + 外推，髋角速度在摆动顶点会一帧翻号，
+  //   膝就一帧掉 40°（改前 p99 37°/帧 ≈ 2200°/s，真人冲刺膝 ~1000°/s）。这些推导量过一个临界阻尼弹簧（ω 45，≈ 0.1 s）；髋是真实数据，不滤
+  function smooth(P, dt) {
+    for (const k of ['kneeL', 'kneeR', 'ankL', 'ankR']) { if (F[k] === undefined) F[k] = P[k]; P[k] = damp(F, k, P[k], dt, RUN.SMOOTH_W); }
+    for (const [a, k] of [[P.armL, 'eL'], [P.armR, 'eR']]) { if (F[k] === undefined) F[k] = a[2]; a[2] = damp(F, k, a[2], dt, RUN.SMOOTH_W); }
+  }
   function runLayer(P, dt, dd) {
     // ---- 腿：摆动期大屈膝、支撑期缓冲 ----
     const w = [dd.wl, dd.wr], sw = [0, 0];
@@ -98,14 +118,14 @@ export function makeRunner(av) {
       reach: air && info.vy <= -2.5 ? 1 : 0,                                         // 下落：腿往下伸去找地
       slide: info.slide ? 1 : 0,
     };
-    for (const k in W) W[k] = ease(W[k], T[k], dt, k === 'crouch' ? 0.03 : 0.06);
+    for (const k in W) W[k] = clamp(damp(WS, k, T[k], dt, k === 'crouch' ? 40 : BLEND_W), 0, 1.05);   // 蓄力是 2 帧的快动作，用快一点的弹簧（0.12 s）
     // 脚先钉在地上 PLANT[0] 秒，再用 PLANT[1] 秒追上物理位置：蹬地的感觉（物理不动，只挪画面）
     const k = ts < RUN.PLANT[0] ? 1 : clamp(1 - (ts - RUN.PLANT[0]) / RUN.PLANT[1], 0, 1);
     rootDy = air ? -Math.max(0, info.h) * k : 0;
     // 换道：目标倾角 ∝ 离目标车道还差多少（一按就先倒过去），二阶弹簧追，到位时回正带一点过冲
     const rT = clamp(info.lat * RUN.ROLL_K, -RUN.ROLL_MAX, RUN.ROLL_MAX), wr = 2 * Math.PI * RUN.ROLL_W;
     for (let n = Math.ceil(dt / 0.008), i = 0; i < n; i++) { rollV += (wr * wr * (rT - roll) - 2 * RUN.ROLL_Z * wr * rollV) * dt / n; roll += rollV * dt / n; }
-    yaw = ease(yaw, -Math.atan2(info.vz, Math.max(info.v, 2)) * RUN.YAW_K, dt, 0.05);
+    yaw = damp(YS, 'y', clamp(-Math.atan2(info.vz, Math.max(info.v, 2)) * RUN.YAW_K, -RUN.YAW_MAX, RUN.YAW_MAX), dt, 30);   // 换道一开始横向速度 ~19 m/s，不夹的话头要扭 48°
   }
   // 姿态目标：混进 P（pose = 覆盖，按权重插值；crouch / comp = 叠加）
   const legTo = (P, k, hip, knee, w) => { if (k === 0) { P.hipL = mix(P.hipL, hip, w); P.kneeL = mix(P.kneeL, knee, w); } else { P.hipR = mix(P.hipR, hip, w); P.kneeR = mix(P.kneeR, knee, w); } };
