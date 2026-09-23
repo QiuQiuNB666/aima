@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { KIND_NAME } from './path.js';
 
 export const SEG = { up: '#3ddc84', stairs_up: '#ffd54f', stairs_down: '#ffd54f', down: '#4fc3f7', wait: '#ff4d4f' };   // flat / 共驾 = 主题主色
+// 路段类型名。wait 只有城市图（路段名里带「红灯」，东京）才叫「红灯」；珠峰「北坳营地·吸氧」、「第二台阶·排队上梯」这种叫「站定」
+export const kindName = (kind, label) => kind === 'wait' ? (/红灯/.test(label || '') ? '红灯' : '站定') : KIND_NAME[kind] || kind;
 const WIN = 6, PEAK_S = 1.5, ON = 0.05;      // 波形窗口 s、峰值保持 s、算「在出力」的门槛 Nm
 const CSS = `
 #force{left:1.4rem;bottom:1.4rem;width:min(40rem,46vw);padding:.7rem 1rem .8rem}
@@ -21,12 +23,13 @@ const CSS = `
 #force .lg{margin-top:.4rem;font-size:.85rem;color:var(--dim)}
 #force .lg i{display:inline-block;width:.7rem;height:.7rem;border-radius:.15rem;margin:0 .25rem 0 .6rem;vertical-align:-.05rem}`;
 
-export function makeForce(accent) {
+export function makeForce(accent, world) {
+  const waits = (world.route || []).filter(s => s.kind === 'wait'), waitLg = waits.length ? kindName('wait', waits.map(s => s.label).join()) : '';
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const el = document.createElement('div'); el.className = 'hud panel'; el.id = 'force';
   const lane = s => `<div class="ln"><div class="ll">${s}<br>腿</div><canvas></canvas><div class="lv">0.0<small>Nm</small></div></div>`;
   el.innerHTML = `<div class="fh">腿上的力 <span class="chip" id="fKind"></span><small id="fStr"></small></div>${lane('左')}${lane('右')}
-    <div class="lg">实时 · 刻度 Nm · 颜色 = 路段：${[['up', '上坡'], ['stairs_up', '台阶'], ['down', '下坡'], ['wait', '红灯']].map(([k, n]) => `<i style="background:${SEG[k]}"></i>${n}`).join('')}</div>`;
+    <div class="lg">实时 · 刻度 Nm · 颜色 = 路段：${[['up', '上坡'], ['stairs_up', '台阶'], ['down', '下坡'], ['wait', waitLg]].filter(x => x[1]).map(([k, n]) => `<i style="background:${SEG[k]}"></i>${n}`).join('')}</div>`;
   document.body.append(el);
   const cvs = [...el.querySelectorAll('canvas')], vals = [...el.querySelectorAll('.lv')];
   const hist = [[], []];                       // [{t, v, c}]，t = 收到的时刻（performance.now / 1000）
@@ -85,7 +88,7 @@ export function makeForce(accent) {
       const sent = (S.safety && S.safety.sent) || [0, 0], kind = S.terrain ? S.terrain.segment : null, c = col(kind);
       cap = Math.max(1, Math.round((S.safety && S.safety.cap) || 3));
       const now = performance.now() / 1000, chip = document.getElementById('fKind');
-      chip.textContent = kind ? KIND_NAME[kind] || kind : '共驾'; chip.style.background = c;
+      chip.textContent = kind ? kindName(kind, S.terrain.label) : '共驾'; chip.style.background = c;
       for (let k = 0; k < 2; k++) {
         const H = hist[k], v = +sent[k] || 0;
         H.push({ t: now, v, c }); while (H.length > 2 && now - H[1].t > WIN) H.shift();
