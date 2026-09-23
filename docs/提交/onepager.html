@@ -8,6 +8,7 @@
   展位一页纸：A4 正反面（打印 2 页），手机上扫码看是一整页长图。
   打印：Chrome ⌘P → 另存为 PDF / 打印机，纸张 A4，边距「无」，勾「背景图形」，双面打印。
   峰哥开关：地址加 ?fengge=0 = 不出现峰哥的名字、照片和相关截图（峰哥本人同意之前用这一版）。
+  用备用版的场次，游戏屏也要关峰哥：/game?fengge=0&voice=0（fengge=0 关头像、气泡、贴脸；voice=0 关峰哥音色，voice.js 自带这个开关）。
   数字来源：docs/架构-v3-完整版.md、docs/报告/今晚总结.md、tests/test_swarm.py、shellos/worlds/gen.py；9/23 模拟运行的仪表盘原文。
 -->
 <style>
@@ -46,7 +47,7 @@ h2 i{font-style:normal;display:inline-block;width:6px;height:18px;border-radius:
 
 .loop{display:grid;grid-template-columns:1.25fr 1fr;gap:14px;align-items:start}
 .chain{list-style:none;counter-reset:c}
-.chain li{position:relative;padding:6px 0 6px 30px;font-size:13.5px;line-height:1.5;border-bottom:1px dashed var(--line)}
+.chain li{position:relative;padding:5px 0 5px 30px;font-size:13.5px;line-height:1.5;border-bottom:1px dashed var(--line)}
 .chain li:last-child{border-bottom:0}
 .chain li:before{counter-increment:c;content:counter(c);position:absolute;left:0;top:7px;width:20px;height:20px;border-radius:50%;
   background:var(--ink);color:#fff;font-size:11px;font-weight:800;text-align:center;line-height:20px}
@@ -55,7 +56,7 @@ h2 i{font-style:normal;display:inline-block;width:6px;height:18px;border-radius:
 .t-ai{background:var(--cyanbg);color:var(--cyan)} .t-code{background:#eceef4;color:#3d4256} .t-hard{background:var(--pinkbg);color:var(--pink)} .t-ok{background:var(--gbg);color:var(--green)}
 .shot{border-radius:10px;overflow:hidden;background:#0d0f17}
 .shot img{width:100%;display:block}
-.quote{background:var(--card);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--dim);margin-top:10px}
+.quote{background:var(--card);border-radius:10px;padding:8px 12px;font-size:12.5px;color:var(--dim);margin-top:8px}
 .quote code{font-family:inherit;color:var(--ink);font-weight:700}
 
 table{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.5}
@@ -228,7 +229,7 @@ tr.real th{color:var(--green)} tr.rep th{color:var(--cyan)} tr.sim th{color:#3d4
     <tr class="sim"><th>模拟 / 单测</th><td>5 种脉冲形状核对全过、27 组参数边界 0 组不过；11 种故障注入全过；蜂群：安全员裁剪 / 否决 / 急停全否，恶意路线草稿被裁成能走的山，断网兜底全通（不打真 Claude）；游戏 1080p 50–58 fps（开发机）</td></tr>
     <tr class="todo"><th>待 9/24 上午实测</th><td>力矩方向（「正 = 髋伸展」目前是数据推断）；脉冲穿在身上的手感；脚跟着地在相位的哪里；原地踏步稳不稳；蒙眼二选一（≥9/10 才说「能分辨坡度」）；陌生人穿脱时间；展位 MacBook 帧率；Claude 实连的准确率、造山质量和延迟</td></tr>
     <tr><th>哪些是 Claude</th><td>教练、地形导演，还有<span class="fg">峰哥</span><span class="alt">解说员</span>的解说词，由 Claude 来写；断网或 Claude 不可用时分别换成规则表、关键词模板、内置语录，界面标 <b>claude / rule / canned</b>。记忆员是代码，安全员是硬代码，永远不是大模型</td></tr>
-    <tr class="fg"><th>峰哥素材</th><td>照片（贴在化身脸上）来自 talk-to-fengge-live，口吻节选自 feng-ge-skill，两个都是 MIT 开源仓库。MIT 管不了真人的肖像和声音，所以对外展示前当面征得峰哥本人同意。现在的解说语音是系统自带的普通女声，<b>不是峰哥的声音</b></td></tr>
+    <tr class="fg"><th>峰哥素材</th><td>照片（化身贴脸 + 大屏头像）来自 talk-to-fengge-live（MIT），口吻节选自 feng-ge-skill（MIT）；<b>声音</b>是 MiniMax 复刻的音色，参考音频是 talk-to-fengge（Apache-2.0）里约 45 秒的公开直播片段。兜底语录已预生成，断网也有峰哥音色。合成音频只存本机、不公开发布。许可证管不了真人的肖像和声音，展示前当面征得峰哥本人同意</td></tr>
   </table>
 
   <div class="foot"><span>安全：只有 Guard 写串口 · 软限 3 Nm（固件硬限 7.5 Nm 永远不用满）· 松开扳机即零 · 站着坐着不出力（置信度门控）。<br>先例：Holotron（2020）用主动力矩做过楼梯和斜面，但挂在固定平台上。我们新在：穿着能走 × 只用髋按相位打脉冲 × 量产消费级设备。不做医疗定位。</span><span>github.com/QiuQiuNB666/aima · 背面</span></div>
@@ -237,7 +238,7 @@ tr.real th{color:var(--green)} tr.rep th{color:var(--cyan)} tr.sim th{color:#3d4
 <script>
 (function(){
   var q=new URLSearchParams(location.search), root=document.documentElement, on=q.get('fengge')!=='0';
-  function set(){ root.classList.toggle('no-fg',!on); document.getElementById('mode').textContent=on?'峰哥版（本人同意后再发）':'备用版：不含峰哥';
+  function set(){ root.classList.toggle('no-fg',!on); document.getElementById('mode').textContent=on?'峰哥版（本人同意后再发）':'备用版：不含峰哥；游戏屏用 ?fengge=0&voice=0';
     document.title=(on?'峰哥亡命天涯':'原地迈步，腿上爬山')+' · 展位一页纸'; }
   set();
   document.getElementById('flip').onclick=function(){ on=!on; set(); q.set('fengge',on?'1':'0'); history.replaceState(null,'','?'+q.toString()); };
