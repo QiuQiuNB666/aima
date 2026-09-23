@@ -176,5 +176,5 @@ export function buildBody(av, outfit, { tune } = {}) {
   mesh.name = 'fenggeBody'; mesh.frustumCulled = false;
   outer.add(mesh);
   mesh.bind(new THREE.Skeleton(bones));                          // 按现在的静止姿态绑（skeleton 逆矩阵 = 当前骨骼世界矩阵，bindMatrix = 网格世界矩阵）
-  return { mesh, hipY, shY, tris: o.I.length / 3 };
+  return { mesh, hipY, shY, J, tris: o.I.length / 3 };   // J = 各关节在化身坐标里的静止位置（配件定位用）
 }

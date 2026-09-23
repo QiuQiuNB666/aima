@@ -1,6 +1,7 @@
 // 珠峰北坡的道具：经幡、帐篷、氧气瓶、冰塔林、冰塔（北坳冰壁）、岩石、固定绳 + 雪锥、铝梯（中国梯）、测量觇标、排队的人影、岩壁。
 // 全部 instanced / merged：每类 1 次绘制。几何局部坐标：y 向上；沿路的东西按 route.at() 摆。
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 
 const Y = new THREE.Vector3(0, 1, 0), X = new THREE.Vector3(1, 0, 0);
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -40,8 +41,8 @@ export function prayerFlags(ctx, lines, { spacing = 0.26, cap = 600, rev = null 
     Object.assign(sh.uniforms, U);
     sh.vertexShader = 'uniform float uT, uWind; uniform vec4 uGust;\n' + sh.vertexShader.replace('#include <begin_vertex>',
       `#include <begin_vertex>
-       { float hang = -transformed.y / 0.2; float ph = float(gl_InstanceID) * 1.37;
-         transformed.z += (sin(uT * 7.0 + ph) * 0.05 + 0.03) * hang * uWind; transformed.x += sin(uT * 5.3 + ph * 0.7) * 0.02 * hang * uWind;
+       { float hang = -transformed.y / 0.2; float ph = float(gl_InstanceID) * 1.37, wA = min(uWind, 2.2), stream = clamp(uWind - 1.2, 0.0, 1.6);   // 风大了旗被扯平（往下风飘起来）
+         transformed.z += (sin(uT * 7.0 + ph) * 0.05 + 0.03) * hang * wA + 0.1 * stream * hang; transformed.x += sin(uT * 5.3 + ph * 0.7) * 0.02 * hang * wA; transformed.y += 0.05 * stream * hang;
          vec3 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
          float g = uGust.w * smoothstep(4.0, 1.0, distance(ip.xz, uGust.xz));
          transformed.z += g * (sin(uT * 23.0 + ph) * 0.1 + 0.14) * hang; transformed.x += g * sin(uT * 17.0 + ph * 1.3) * 0.08 * hang; transformed.y += g * (0.1 + 0.04 * sin(uT * 19.0 + ph)) * hang; }`);   // 被风掀起来：往外、往上飞
@@ -56,17 +57,6 @@ export function prayerFlags(ctx, lines, { spacing = 0.26, cap = 600, rev = null 
   return { meshes, U, count: flags.length };
 }
 
-// 圆顶帐篷（登山队的黄帐篷）：扁半球 + 深色门 + 前厅；instanceColor 给篷布颜色
-export function tentGeo(util) {
-  const dome = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  return util.merged([
-    { geo: dome, s: [0.95, 0.62, 0.72], color: '#ffffff' },
-    { geo: new THREE.SphereGeometry(1, 8, 4, -Math.PI / 2, Math.PI, 0, Math.PI / 2), p: [0.72, 0, 0], s: [0.45, 0.42, 0.52], color: '#d9d9d9' },   // 前厅
-    { geo: new THREE.CircleGeometry(0.2, 3), p: [1.13, 0.16, 0], ry: Math.PI / 2, color: '#2a2622' },                                              // 门洞
-    { geo: new THREE.BoxGeometry(1.9, 0.03, 0.03), p: [0.1, 0.62, 0], color: '#555555' },                                                          // 帐杆
-  ]);
-}
-
 // 氧气瓶：橙色瓶身 + 灰色瓶阀
 export function bottleGeo(util) {
   return util.merged([
@@ -79,37 +69,87 @@ export function bottleGeo(util) {
 
 // 冰塔：扭一点的六棱锥，底部冰蓝、顶上雪白；jag = 顶上歪几刀
 export function spireGeo(seed) {
-  const g = new THREE.CylinderGeometry(0.06, 0.5, 1, 6, 4).translate(0, 0.5, 0), p = g.attributes.position, col = [], c = new THREE.Color();
-  const lo = new THREE.Color('#7fb2d6'), mid = new THREE.Color('#cfe6f5'), hi = new THREE.Color('#fbfdff');
+  // 东绒布冰塔林：一簇三根尖冰塔（主塔 + 两根矮的，五棱锥拉成鳍状、各自歪一点、棱线抖开），竖向一道道冰纹，底下一圈脏冰（碛石屑），尖上发白
+  const G = [], lo = new THREE.Color('#79aed4'), mid = new THREE.Color('#cfe6f5'), hi = new THREE.Color('#fbfdff'), dirt = new THREE.Color('#8b8a84'), c = new THREE.Color();
+  for (const [x, z, h, r, tilt, k] of [[0, 0, 1, 0.5, 0.08, 1], [0.3, 0.14, 0.64, 0.34, 0.3, 2], [-0.28, -0.12, 0.5, 0.3, -0.34, 3]]) {
+    const g = new THREE.ConeGeometry(r, h, 5, 4).translate(0, h / 2, 0).toNonIndexed(), p = g.attributes.position, col = [];
+    for (let i = 0; i < p.count; i++) {
+      const px = p.getX(i), py = p.getY(i), pz = p.getZ(i), j = 0.75 + 0.5 * hsh(px, py, pz, seed + k);
+      p.setXYZ(i, px * j * 1.45 + tilt * py * py + x, py, pz * (0.62 + 0.3 * hsh(pz, px, py, seed + k)) + z);
+    }
+    for (let i = 0; i < p.count; i += 3) {                                             // 一面一个色：竖纹（按朝向）× 高度渐变；底一圈脏
+      const ym = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3 / h, az = Math.atan2(p.getZ(i) - z, p.getX(i) - x);
+      c.copy(lo).lerp(mid, smooth(0.05, 0.5, ym)).lerp(hi, smooth(0.6, 0.95, ym)).multiplyScalar(0.9 + 0.14 * Math.sin(az * 7 + k));
+      if (ym < 0.08) c.lerp(dirt, 0.7);
+      for (let q = 0; q < 3; q++) col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); G.push(g);
+  }
+  return mergeGeometries(G);
+}
+
+// 冰裂缝：冰川雪面上一道横着的缝（两头尖、中间宽、轻微弯），缝里深蓝近黑、缝沿浅蓝；平躺，实例缩放给长 / 宽
+export function crevasseGeo() {
+  const g = new THREE.PlaneGeometry(1, 1, 10, 4).rotateX(-Math.PI / 2), p = g.attributes.position, col = [], edge = new THREE.Color('#d6ecf8'), midC = new THREE.Color('#3d6f95'), deep = new THREE.Color('#0b2238'), c = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 0.8 + 0.4 * hsh(x, y, z, seed);
-    p.setX(i, x * k + 0.12 * y * y); p.setZ(i, z * (0.8 + 0.4 * hsh(z, x, y, seed)));
-    c.copy(lo).lerp(mid, smooth(0.0, 0.45, y)).lerp(hi, smooth(0.55, 0.95, y));
-    col.push(c.r, c.g, c.b);
+    const x = p.getX(i), z = p.getZ(i), taper = Math.sin(Math.PI * (x + 0.5)) ** 0.7;
+    p.setZ(i, z * taper + 0.12 * Math.sin(x * 5.5));
+    c.copy(Math.abs(z) > 0.4 ? edge : Math.abs(z) > 0.1 ? midC : deep); col.push(c.r, c.g, c.b);   // 缝沿浅 → 缝壁蓝 → 缝底黑
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
   return g;
+}
+
+// 冰面光泽：太阳方向一点镜面反光 + 边缘一圈冷色（湿冰那种亮），不是金属材质；mask = 'all' 全上，'blue' 只给偏蓝的（冰台阶，岩台阶不要）
+export function iceSheen(mat, amount = 1, mask = 'all') {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = sh => {
+    if (prev) prev(sh);
+    const m = mask === 'blue' ? 'smoothstep(0.8, 0.95, vColor.b) * smoothstep(0.0, 0.05, vColor.b - vColor.r + 0.02)' : '1.0';
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `#if NUM_DIR_LIGHTS > 0
+      { vec3 Vd = normalize(vViewPosition), Hh = normalize(directionalLights[0].direction + Vd);
+        float im = ${m} * ${amount.toFixed(2)};
+        outgoingLight += im * (pow(max(dot(normal, Hh), 0.0), 36.0) * 0.55 * directionalLights[0].color + pow(1.0 - max(dot(normal, Vd), 0.0), 3.0) * 0.22 * vec3(0.8, 0.9, 1.0)); }
+      #endif
+      #include <opaque_fragment>`);
+  };
+  const key = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+  mat.customProgramCacheKey = () => key + 'ice' + mask;
+  return mat;
 }
 
 // 冰塔（北坳冰壁旁的冰崖块）：和岩块同一个多面体生成器，冰蓝侧面 + 雪白顶面
 export const seracGeo = seed => rockGeo('#a9d0ea', seed, 1.35);
 
 // 固定绳：沿路 lat 处，每 every 步一根雪锥（铝杆）+ 绳子下垂；绳子颜色按段交替（红 / 蓝，常见的登山绳）
-export function fixedRope(ctx, ranges, { lat = 1.0, every = 2, h = 0.85 } = {}) {
+// 路绳随风晃：sway = { uT, uWind（0–3）, uWD（下风方向）}；每段绳在两根雪锥之间按跨中最大往下风荡、上下轻弹（雪锥不动）
+export function fixedRope(ctx, ranges, { lat = 1.0, every = 2, h = 0.85, sway = null } = {}) {
   const { route, util } = ctx, stakes = [], rope = [];
   for (const [s0, s1] of ranges) {
     let prev = null, k = 0;
     for (let s = s0; s <= s1 + 1e-6; s += every) {
       const a = route.at(s, lat), top = a.pos.clone().setY(route.heightAt(s) + h);
       stakes.push({ p: a.pos.clone().setY(route.heightAt(s) + h / 2 - 0.1), ry: -a.heading });
-      if (prev) { const pts = sagPts(prev, top, 0.12, 6); const col = (k++ % 3) ? '#d7342b' : '#2f6fd6'; for (let j = 0; j < 6; j++) seg(pts[j], pts[j + 1], rope, { color: col }); }
+      if (prev) { const pts = sagPts(prev, top, 0.12, 6); const col = (k++ % 3) ? '#d7342b' : '#2f6fd6'; for (let j = 0; j < 6; j++) seg(pts[j], pts[j + 1], rope, { color: col, f: (j + 0.5) / 6 }); }
       prev = top;
     }
   }
-  const out = [
-    util.instanced(new THREE.BoxGeometry(0.035, h + 0.2, 0.035), new THREE.MeshLambertMaterial({ color: '#c8ced6', emissive: '#222831' }), stakes),
-    util.instanced(new THREE.CylinderGeometry(0.018, 0.018, 1, 4).rotateZ(Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#1a1a1a' }), rope),
-  ];
+  const rm = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#1a1a1a' });
+  if (sway) {
+    rm.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, sway);
+      sh.vertexShader = 'attribute float aSpan; uniform float uT, uWind; uniform vec3 uWD;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+        vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+        float sp = sin(3.14159 * aSpan), ph = uT * (1.6 + 0.5 * uWind) + wp.x * 0.7 + wp.z * 0.5;
+        wp.xyz += uWD * sp * (0.03 + 0.05 * uWind) * (0.65 + 0.35 * sin(ph));
+        wp.y += sp * 0.02 * uWind * cos(ph * 1.7);
+        vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
+    };
+    rm.customProgramCacheKey = () => 'ropeSway';
+  }
+  const rp = util.instanced(new THREE.CylinderGeometry(0.018, 0.018, 1, 4).rotateZ(Math.PI / 2), rm, rope);
+  if (sway) rp.geometry.setAttribute('aSpan', new THREE.InstancedBufferAttribute(Float32Array.from({ length: Math.max(1, rope.length) }, (_, i) => rope[i] ? rope[i].f : 0), 1));
+  const out = [util.instanced(new THREE.BoxGeometry(0.035, h + 0.2, 0.035), new THREE.MeshLambertMaterial({ color: '#c8ced6', emissive: '#222831' }), stakes), rp];
   out.forEach(m => { m.name = 'fixedRope'; });
   return out;
 }
@@ -164,25 +204,6 @@ function bar2(a, b, t, color) {
 }
 
 // 排队的人影：羽绒服（instanceColor 上色）+ 深色件（背包、氧气面罩、腿、冰镐）两个网格同一套矩阵。身高约 1.4，微微前倾
-export function climberGeos(util) {
-  const suit = util.merged([
-    { geo: new THREE.CapsuleGeometry(0.19, 0.42, 3, 8), p: [0, 0.98, 0], s: [1, 1, 0.85] },                     // 躯干（鼓鼓的羽绒服）
-    { geo: new THREE.SphereGeometry(0.14, 10, 8), p: [0.02, 1.43, 0] },                                            // 帽兜
-    { geo: new THREE.CapsuleGeometry(0.06, 0.4, 2, 6), p: [0.06, 1.0, 0.24], q: q3(0.3, 0, 0.35) },               // 胳膊
-    { geo: new THREE.CapsuleGeometry(0.06, 0.4, 2, 6), p: [0.12, 1.02, -0.24], q: q3(-0.2, 0, 0.8) },            // 扶绳的手
-  ]);
-  const gear = util.merged([
-    { geo: new THREE.BoxGeometry(0.2, 0.46, 0.32), p: [-0.2, 1.05, 0], color: '#2b2f36' },                         // 背包
-    { geo: new THREE.CylinderGeometry(0.06, 0.06, 0.4, 8), p: [-0.27, 1.12, 0.1], color: '#e0761c' },              // 背包侧的氧气瓶
-    { geo: new THREE.SphereGeometry(0.075, 8, 6), p: [0.14, 1.4, 0], s: [0.9, 0.8, 1.2], color: '#1a1c20' },       // 面罩
-    { geo: new THREE.CapsuleGeometry(0.075, 0.5, 2, 6), p: [0, 0.35, 0.1], color: '#262a31' },                     // 腿
-    { geo: new THREE.CapsuleGeometry(0.075, 0.5, 2, 6), p: [0.08, 0.35, -0.1], q: q3(0, 0, 0.2), color: '#262a31' },
-    { geo: new THREE.BoxGeometry(0.2, 0.08, 0.12), p: [0.05, 0.04, 0.1], color: '#15171a' },                       // 靴
-    { geo: new THREE.BoxGeometry(0.2, 0.08, 0.12), p: [0.16, 0.04, -0.1], color: '#15171a' },
-  ]);
-  return { suit, gear };
-}
-const q3 = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z));
 
 // 岩块（第一 / 第二台阶两侧、山脊上的岩头）：平直着色的多面体，朝上的面积雪（顶点色），侧面 = base 岩色；instanceColor 只给明暗
 export function rockGeo(base, seed, tall = 1) {

@@ -210,8 +210,9 @@ export function stepFx(ctx, { dust = '#d8cbb4', flash = '#fff2c8', add = false, 
 // 一次性触发：edge(on) 在 on 从假变真的那一帧返回 true（同一圈只响一次；on 变回假再变真才再响）
 export function edge() { let was = false; return on => { const r = on && !was; was = !!on; return r; }; }
 
-// 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter' | 'click' | 'clink' | 'creak' | 'wind' | 'hiss' | 'yakbell', vol, { pitch })；
-//   持续音 sfxLoop('rotor') → { set(vol, rate) } 每帧调（E 线：直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
+// 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter' | 'click' | 'clink' | 'creak' | 'wind' | 'hiss' | 'yakbell'
+//   | 'crunch' | 'ice' | 'rock' | 'rope' | 'ladder' | 'breath' | 'voice' | 'flap', vol, { pitch })；
+//   持续音 sfxLoop('rotor' | 'wind' | 'stove') → { set(vol, rate) } 每帧调（rotor = E 线直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
 //   音量再乘 U 设置页的「捷风 / 音效音量」（window.__settings.get('vSfx')，0–100；设置页只管 <audio>，WebAudio 这里自己乘）。
 //   浏览器不让没交互过的页面出声：上下文挂起时等第一次按键 / 点击再恢复（空格走路就算）。音量都压低，峰哥说话时不抢
 const SFX_Q = new URLSearchParams(location.search), SFX_ON = SFX_Q.get('sfx') !== '0' && !SFX_Q.has('preview');
@@ -225,6 +226,7 @@ function audio() {
   }
   return AC.state === 'running' ? AC : (AC.resume(), null);
 }
+export const sfxState = () => AC ? AC.state : 'none';   // 调试 / 验收：音频上下文在不在跑（running = 真出声了）
 export function sfx(name, vol = 1, { pitch = 1 } = {}) {
   const ac = audio(), k = window.__settings ? window.__settings.get('vSfx') / 100 : 1;
   if (!ac || !(k > 0)) return;
@@ -252,30 +254,72 @@ export function sfx(name, vol = 1, { pitch = 1 } = {}) {
   else if (name === 'wind') { const bp = noise(3.2, 420, 0.8, 1.6, 0, 'bandpass', true); bp.frequency.linearRampToValueAtTime(950, t + 1.4); bp.frequency.linearRampToValueAtTime(380, t + 3.2); }   // 一阵风
   else if (name === 'hiss') noise(0.9, 2600, 0.6, 0.7, 0, 'highpass', true);             // 吸一口氧：嘶——
   else if (name === 'yakbell') for (const [f, g, d] of [[1250, 1, 0.45], [1250 * 2.63, 0.4, 0.22], [1250 * 4.1, 0.18, 0.12]]) tone(f * pitch, d, g * 0.9, 'triangle');   // 牦牛铜铃：不和谐泛音、快衰减
+  // 珠峰声景（themes/snow_summit/soundscape.js）：冰爪踩雪 / 踩冰 / 踩岩、路绳吱呀、铝梯、喘气、远处人声、帐篷布
+  else if (name === 'crunch') { for (let k = 0; k < 5; k++) noise(0.018, 2400 + Math.random() * 1600, 3, 0.9, k * 0.016 + Math.random() * 0.01); noise(0.12, 900, 0.8, 0.5, 0, 'lowpass'); tone(95, 0.08, 0.35); }   // 咯吱：一串小碎响 + 闷一下
+  else if (name === 'ice') { [3100, 4650, 6200].forEach((f, k) => tone(f * pitch * (0.97 + Math.random() * 0.06), 0.12 - k * 0.03, 0.4 / (k + 1), 'triangle')); noise(0.05, 5200, 1.5, 0.6, 0, 'highpass'); }   // 冰爪齿咬进硬冰：脆
+  else if (name === 'rock') { const o = tone(82, 0.14, 0.9); o.frequency.exponentialRampToValueAtTime(48, t + 0.12); noise(0.06, 480, 1, 0.7, 0, 'lowpass'); noise(0.05, 3000, 2, 0.35, 0.01); }   // 闷响 + 冰爪刮一下岩面
+  else if (name === 'rope') {                                                                // 路绳吃上劲：吱——（尼龙绳绷紧的摩擦声，带颤）
+    const o = tone(210 * pitch, 0.42, 0.35, 'sawtooth'); o.frequency.linearRampToValueAtTime(260 * pitch, t + 0.38);
+    const v = ac.createOscillator(), vg = ac.createGain(); v.frequency.value = 27; vg.gain.value = 18; v.connect(vg); vg.connect(o.frequency); v.start(t); v.stop(t + 0.45);
+    noise(0.3, 1100, 2, 0.4);
+  }
+  else if (name === 'ladder') [520, 1370, 2210, 3400].forEach((f, k) => tone(f * pitch * (0.98 + Math.random() * 0.04), [0.8, 0.55, 0.35, 0.2][k], [0.5, 0.35, 0.25, 0.15][k], 'sine'));   // 铝梯：空心金属「当」
+  else if (name === 'breath') {                                                              // 一口气：吸（高、短）→ 呼（低、长）；pitch = 急的程度（越大越短）
+    const T = 1.25 / pitch; noise(T * 0.42, 1900, 0.7, 0.9, 0, 'bandpass', true); noise(T * 0.55, 650, 0.9, 1.1, T * 0.45, 'bandpass', true);
+  }
+  else if (name === 'voice') for (let k = 0, n = 2 + (Math.random() * 3 | 0), t0 = 0; k < n; k++) {   // 远处有人说话：几个含糊的音节（锯齿波过两个共振峰 + 低通），听不清内容
+    const d = 0.1 + Math.random() * 0.16, f0 = (120 + Math.random() * 90) * pitch, o = ac.createOscillator(), e = ac.createGain(), f1 = ac.createBiquadFilter(), f2 = ac.createBiquadFilter(), lp = ac.createBiquadFilter();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t + t0); o.frequency.linearRampToValueAtTime(f0 * (0.85 + Math.random() * 0.3), t + t0 + d);
+    f1.type = f2.type = 'bandpass'; f1.frequency.value = 500 + Math.random() * 400; f2.frequency.value = 1100 + Math.random() * 700; f1.Q.value = f2.Q.value = 5; lp.type = 'lowpass'; lp.frequency.value = 1300;
+    e.gain.setValueAtTime(0, t + t0); e.gain.linearRampToValueAtTime(0.5, t + t0 + 0.03); e.gain.linearRampToValueAtTime(0, t + t0 + d);
+    o.connect(f1); o.connect(f2); f1.connect(lp); f2.connect(lp); lp.connect(e); e.connect(out); o.start(t + t0); o.stop(t + t0 + d + 0.02);
+    t0 += d + 0.04 + Math.random() * 0.12;
+  }
+  else if (name === 'flap') for (let k = 0, n = 2 + (Math.random() * 2 | 0); k < n; k++) noise(0.07, 700 + Math.random() * 500, 0.7, 1.1, k * (0.09 + Math.random() * 0.07), 'lowpass');   // 帐篷布被风抽两三下
 }
-// 持续音：sfxLoop('rotor') 返回 { set(vol 0..1, rate 0..1) }，每帧调；第一次真要响才搭线路。rotor = 低通噪声 × 桨叶拍频（「突突突」），rate 降 → 拍频变慢
+// 持续音：sfxLoop(name) 返回 { set(vol 0..1, rate 0..1) }，每帧调；第一次真要响才搭线路（音量乘设置页音量，?sfx=0 / 预览不出声）。
+//   rotor = 低通噪声 × 桨叶拍频（「突突突」，E 线直升机），rate 降 → 拍频变慢；
+//   wind = 低频风吼 + 一条尖啸（rate = 尖啸占比，大风口拉满）；stove = 营地炉子的「呼——」（rate = 火苗抖动）
 export function sfxLoop(name) {
-  let g = null, lfo = null;
+  let g = null, lfo = null, mod = null;
+  const build = ac => {
+    const b = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = b; src.loop = true;
+    g = ac.createGain(); g.gain.value = 0; g.connect(ac.destination);
+    if (name === 'rotor') {
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340; lp.Q.value = 0.8;
+      const am = ac.createGain(); am.gain.value = 0.5;
+      lfo = ac.createOscillator(); lfo.type = 'triangle'; lfo.frequency.value = 11;
+      const lg = ac.createGain(); lg.gain.value = 0.48; lfo.connect(lg); lg.connect(am.gain);
+      src.connect(lp); lp.connect(am); am.connect(g); lfo.start();
+      mod = r => lfo.frequency.setTargetAtTime(4 + 8 * r, ac.currentTime, 0.4);
+    } else if (name === 'wind') {
+      const lo = ac.createBiquadFilter(); lo.type = 'bandpass'; lo.frequency.value = 380; lo.Q.value = 0.6;
+      const hi = ac.createBiquadFilter(); hi.type = 'bandpass'; hi.frequency.value = 1500; hi.Q.value = 6;
+      const hg = ac.createGain(); hg.gain.value = 0;
+      src.connect(lo); lo.connect(g); src.connect(hi); hi.connect(hg); hg.connect(g);
+      mod = r => { hg.gain.setTargetAtTime(1.6 * r, ac.currentTime, 0.3); lo.frequency.setTargetAtTime(320 + 260 * r, ac.currentTime, 0.3); hi.frequency.setTargetAtTime(1300 + 700 * r, ac.currentTime, 0.5); };
+    } else if (name === 'stove') {
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 160;
+      const am = ac.createGain(); am.gain.value = 0.8;
+      lfo = ac.createOscillator(); lfo.frequency.value = 7; const lg = ac.createGain(); lg.gain.value = 0.12; lfo.connect(lg); lg.connect(am.gain); lfo.start();
+      src.connect(hp); hp.connect(lp); lp.connect(am); am.connect(g);
+      mod = r => lg.gain.setTargetAtTime(0.05 + 0.25 * r, ac.currentTime, 0.3);
+    } else return false;
+    src.start(); return true;
+  };
+  let dead = false;
   return {
     set(vol, rate = 1) {
+      if (dead) return;
       const ac = audio(), k = window.__settings ? window.__settings.get('vSfx') / 100 : 1;
       if (!ac) return;
       const v = Math.max(0, Math.min(1, vol)) * 0.32 * (k > 0 ? k : 0);
-      if (!g) {
-        if (v < 0.002 || name !== 'rotor') return;
-        const b = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = b.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-        const src = ac.createBufferSource(); src.buffer = b; src.loop = true;
-        const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340; lp.Q.value = 0.8;
-        const am = ac.createGain(); am.gain.value = 0.5;
-        lfo = ac.createOscillator(); lfo.type = 'triangle'; lfo.frequency.value = 11;
-        const lg = ac.createGain(); lg.gain.value = 0.48; lfo.connect(lg); lg.connect(am.gain);
-        g = ac.createGain(); g.gain.value = 0;
-        src.connect(lp); lp.connect(am); am.connect(g); g.connect(ac.destination);
-        src.start(); lfo.start();
-      }
+      if (!g) { if (v < 0.002) return; if (!build(ac)) { dead = true; return; } }
       g.gain.setTargetAtTime(v, ac.currentTime, 0.15);
-      lfo.frequency.setTargetAtTime(4 + 8 * Math.max(0, Math.min(1, rate)), ac.currentTime, 0.4);
+      if (mod) mod(Math.max(0, Math.min(1, rate)));
     },
   };
 }
