@@ -7,6 +7,7 @@
 //   ⑤ 走过坂道上那块「ゴースト」出挑招牌 → 故障字幕 0.6 s（U 线 hud 有 window.__hud.glitch(text) 就交给它，没有就镜头前 3D 字）；
 //      只错位跳一次（≤ 2 Hz，不频闪），3 s 冷却
 //   ⑥ 登顶 → 拝殿前浮现「2029」（全息字，压在画面最上层）+ 两记合成太鼓（心跳）
+//   ⑦ 声景：雨声一直有（石阶杉树下、登顶小一点），低音垫随进度慢慢变亮，登顶收一半（kit.sfxLoop，预览 / ?sfx=0 不出声）
 // 全部程序生成，不下载模型。
 import * as THREE from 'three';
 import { shade } from './lib.js';
@@ -170,6 +171,14 @@ export function buildGits(scene, ctx, E) {
     Y29.set(t29 < 0 ? 0 : ease, t29 > 0.9 && t29 < 1.05 ? 0.06 : 0);
   };
 
+  // ⑦ 声景
+  const rain = kit.sfxLoop('rain'), pad = kit.sfxLoop('pad'), SH = route.segs.filter(q => q.kind === 'stairs_up').pop();
+  const sound = st => {
+    const p = st.progress ?? 0, trees = SH && st.s > SH.start ? 0.6 : 1;
+    rain.set((st.summit ? 0.25 : 0.42) * trees, st.summit ? 0.2 : 0.6);
+    pad.set(st.summit ? 0.14 : 0.2 + 0.1 * p, p);
+  };
+
   // ---------- 每帧 ----------
   const tmp = new THREE.Vector3();
   out.update = (dt, st) => {
@@ -186,7 +195,7 @@ export function buildGits(scene, ctx, E) {
       M.eyeMat.color.setRGB(0.16 + 0.6 * watch, 0.9, 1).multiplyScalar(0.75 + 0.25 * Math.sin(st.t * (watch ? 6 : 1.5)));
     }
     if (st.s != null) { camo(dt, st); glitch(dt, st); lastS = st.s; }
-    y2029(dt, st);
+    y2029(dt, st); sound(st);
   };
   return out;
 }
