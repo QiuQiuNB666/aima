@@ -39,12 +39,42 @@ export function atLeg(leg, s, lat = 0, out = {}) {
   return out;
 }
 
+// ---------- 障碍模式表 + 难度分级（第 7 轮） ----------
+// 模式：照 cave-runner（MIT）的思路——{左, 中, 右} × {跳, 滑} + 三种「两道水箱留一条道」，共 9 种；难度高了再加整排矮墙 / 整排晾衣杆。
+//   抽的时候不和前两个重复（cave-runner 的做法），免得同一个动作连着来。数据是自己写的，没抄代码。
+// 分级：照 Boxy-Run（Apache-2.0）的「难度只随距离分级」思路——速度交给步频，难度只管障碍间距、楼缝宽、斜板多少、能出哪些模式。
+export const PATTERNS = {
+  jumpL: { type: 'low', lanes: [0] }, jumpC: { type: 'low', lanes: [1] }, jumpR: { type: 'low', lanes: [2] },
+  slideL: { type: 'high', lanes: [0] }, slideC: { type: 'high', lanes: [1] }, slideR: { type: 'high', lanes: [2] },
+  blockLC: { type: 'block', lanes: [0, 1] }, blockCR: { type: 'block', lanes: [1, 2] }, blockLR: { type: 'block', lanes: [0, 2] },
+  jumpAll: { type: 'low', lanes: [0, 1, 2] }, slideAll: { type: 'high', lanes: [0, 1, 2] },
+};
+const BASE9 = ['jumpL', 'jumpC', 'jumpR', 'slideL', 'slideC', 'slideR', 'blockLC', 'blockCR', 'blockLR'];
+// from = 从沿路多少米起；roof = 楼长；space = 障碍间距（米，穿外骨骼的人 2–4 s 才能再来一次高抬腿）；gap = 楼缝宽；ramp = 楼后接斜板的概率；pats = 能出的模式
+export const TIERS = [
+  { from: 0, name: '热身', roof: [26, 44], space: [30, 40], gap: [2.4, 3.0], ramp: 0.35, pats: BASE9 },
+  { from: 250, name: '上楼顶', roof: [28, 50], space: [24, 34], gap: [2.6, 3.4], ramp: 0.3, pats: [...BASE9, 'jumpAll'] },
+  { from: 600, name: '夜奔', roof: [30, 56], space: [20, 30], gap: [2.8, 3.8], ramp: 0.28, pats: [...BASE9, 'jumpAll', 'slideAll'] },
+  { from: 1000, name: '亡命', roof: [34, 62], space: [15, 22], gap: [3.0, 4.2], ramp: 0.25, pats: [...BASE9, 'jumpAll', 'slideAll', 'jumpAll', 'slideAll'] },
+];
+export const tierAt = s => { let t = TIERS[0]; for (const q of TIERS) if (s >= q.from) t = q; return t; };
+// 碰撞盒（沿路 ±len/2、横向 ±w/2、离地 y0..y1），和 three 的 Box3.intersectsBox 一样是 6 个比较；logic.js 不依赖 three 所以自己写
+export const OBS_BOX = { low: { len: 0.9, w: 1.3, y0: 0, y1: TUNE.LOW_H }, high: { len: 0.9, w: 1.6, y0: 1.05, y1: 2.0 }, block: { len: 1.6, w: 1.4, y0: 0, y1: 2.6 } };
+export const PLAYER_BOX = { len: 0.6, w: 0.7, h: 1.7, hSlide: 0.8 };
+export function boxHit(o, x, z, foot, sliding) {
+  const B = OBS_BOX[o.type], top = foot + (sliding ? PLAYER_BOX.hSlide : PLAYER_BOX.h);
+  if (Math.abs(o.x - x) > (B.len + PLAYER_BOX.len) / 2) return false;
+  if (top <= B.y0 || foot >= B.y1) return false;
+  return o.lanes.some(l => Math.abs((l - 1) * LANE - z) < (B.w + PLAYER_BOX.w) / 2);
+}
+
 // ---------- 关卡 ----------
 // segs: [{kind:'roof'|'gap'|'ramp', x0, x1, h0, h1, leg, turnIn?, turnOut?}]；obs: [{x, len, lanes:[0,1,2], type:'low'|'high'|'block', hit, leg}]
 // turns: [{s, d(−1 左 / +1 右), from, to(腿), done}]——路口在 s，这栋楼（turnOut）的尾巴；下一栋（turnIn）同高、从同一个 s 接着往新方向走
 export function makeLevel(seed = 7, T = TUNE) {
   const R = rng(seed), segs = [], obs = [], legs = [{ s0: -30, dir: 0, ox: -30, oz: 0 }], turns = [];
   let x = -30, h = 4, roofs = 0, turnIn = 0;
+  const recent = [];
   const L = {
     segs, obs, legs, turns, get end() { return x; },
     roof(x0, x1, hh, extra) { segs.push({ kind: 'roof', x0, x1, h0: hh, h1: hh, leg: legs[legs.length - 1], ...extra }); },
@@ -52,24 +82,23 @@ export function makeLevel(seed = 7, T = TUNE) {
     at(s, lat, out) { return atLeg(L.legAt(s), s, lat, out); },
     extend(to) {
       while (x < to) {
-        const d = Math.min(1, Math.max(0, x / 1500));               // 难度 0..1
-        const len = segs.length ? 26 + R() * 26 : 60;               // 第一栋长一点，开局先适应
+        const tier = tierAt(x);                                     // 第 7 轮：难度只看沿路距离
+        const len = segs.length ? tier.roof[0] + R() * (tier.roof[1] - tier.roof[0]) : 60;   // 第一栋长一点，开局先适应
         const x0 = x, x1 = x + len, turnHere = roofs >= 2 && roofs % T.TURN_EVERY === 2;   // 第 3、6、9… 栋楼尾是路口
         roofs++;
         L.roof(x0, x1, h, { ...(turnIn ? { turnIn } : {}), ...(turnHere ? { turnOut: true } : {}) });
-        turnIn = 0;
         if (segs.length > 1) {                                      // 屋顶上的障碍：离两头各留一段；路口前的转弯区不放
-          let ox = x0 + 9;
+          let ox = x0 + (turnIn ? 18 : 9);                          // 刚转过路口的那栋：镜头还在甩（~0.4 s），第一个障碍放远一点
           while (ox < x1 - (turnHere ? T.TURN_ZONE + 5 : 7)) {
-            const r = R(), type = r < 0.35 ? 'low' : r < 0.55 ? 'high' : 'block';   // 跳和蹲都累腿：换道（键盘）的多放一些
-            const all = type !== 'block' && R() < 0.3;
-            let lanes = all ? [0, 1, 2] : [Math.floor(R() * 3)];
-            if (type === 'block' && R() < 0.45) { const free = Math.floor(R() * 3); lanes = [0, 1, 2].filter(l => l !== free); }
-            obs.push({ x: ox, len: type === 'block' ? 1.6 : 0.9, lanes, type, hit: false, leg: legs[legs.length - 1] });
-            ox += (18 + R() * 12) * (1 - 0.4 * d);                     // 穿外骨骼的人 2–4 s 才能再来一次高抬腿
+            let name, tries = 0;                                     // 抽一个模式，不和前两个重复
+            do name = tier.pats[Math.floor(R() * tier.pats.length)]; while (recent.includes(name) && ++tries < 20);
+            recent.push(name); if (recent.length > 2) recent.shift();
+            const P = PATTERNS[name];
+            obs.push({ x: ox, len: OBS_BOX[P.type].len, lanes: P.lanes, type: P.type, pat: name, hit: false, leg: legs[legs.length - 1] });
+            ox += tier.space[0] + R() * (tier.space[1] - tier.space[0]);
           }
         }
-        x = x1;
+        x = x1; turnIn = 0;
         if (turnHere) {                                             // 路口：下一栋同高、从这里往左 / 右接着走（中间没有楼缝 / 斜板）
           const d = R() < 0.5 ? -1 : 1, prev = legs[legs.length - 1], C = atLeg(prev, x1, 0);
           legs.push({ s0: x1, dir: (prev.dir + d + 4) % 4, ox: C.x, oz: C.z });
@@ -78,10 +107,10 @@ export function makeLevel(seed = 7, T = TUNE) {
           continue;
         }
         const r = R();
-        if ((r < 0.3 && h < 9) || h < 2) {                          // 上坡：一块斜板搭到更高的楼
+        if ((r < tier.ramp && h < 9) || h < 2) {                    // 上坡：一块斜板搭到更高的楼
           segs.push({ kind: 'ramp', x0: x, x1: x + 9, h0: h, h1: h + 1.8, leg: legs[legs.length - 1] }); x += 9; h += 1.8;
         } else {                                                    // 楼缝：同高或跳下去
-          const w = 2.4 + R() * (1.2 + 1.2 * d);
+          const w = tier.gap[0] + R() * (tier.gap[1] - tier.gap[0]);
           segs.push({ kind: 'gap', x0: x, x1: x + w, h0: h, h1: h, leg: legs[legs.length - 1] }); x += w;
           if (r > 0.75 || h > 9) h -= 1.6 + R() * 0.8;
         }
@@ -186,12 +215,7 @@ export function makeRun(level, T = TUNE) {
     }
     // 障碍
     const foot = S.y - (g ?? S.y);
-    for (const o of level.obs) {
-      if (o.hit || Math.abs(o.x - S.x) > o.len / 2 + 0.3) continue;
-      if (!o.lanes.some(l => Math.abs(laneZ(l) - S.z) < 0.9)) continue;
-      const bad = o.type === 'block' || (o.type === 'low' && foot < T.LOW_H) || (o.type === 'high' && S.slideT <= 0 && foot < 1.2);
-      if (bad && S.invuln <= 0) { o.hit = true; hit(o.type); }
-    }
+    for (const o of level.obs) if (!o.hit && S.invuln <= 0 && boxHit(o, S.x, S.z, foot, S.slideT > 0)) { o.hit = true; hit(o.type); }   // 第 7 轮：盒子相交
     // 捷风：速度随距离涨；你比她快就拉开，慢就被追上
     if (S.started) {
       S.jfV = S.t - S.startT < T.JF_WAIT ? 0 : Math.min(T.JF_VMAX, T.JF_V0 + S.dist * T.JF_ACC);

@@ -14,7 +14,7 @@ import { PALETTE, UI, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
 import { makeRunner, damp } from './runner.js';
 import { makeCloth } from './cloth.js';
-import { TUNE, rng, H4, atLeg, yawOf, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
+import { TUNE, TIERS, tierAt, rng, H4, atLeg, yawOf, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
 
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
@@ -74,6 +74,7 @@ async function main() {
   const seed0 = +(Q.get('seed') || (DEMO ? 5 : Date.now() % 100000));
   const rand = DEMO ? rng(7) : Math.random;
   let seed = seed0;
+  let tierShown = -1, tierUpAt = -9;
   const lookS = new THREE.Vector3(0, -999, 0);                         // 跟拍镜头平滑后的注视点
   function newRun() {
     city.clear(); level = makeLevel(seed++); run = makeRun(level);
@@ -309,6 +310,8 @@ async function main() {
     // HUD
     if (!document.body.dataset.ready) document.body.dataset.ready = '1';
     $('dist').textContent = Math.floor(run.dist);
+    { const tr = tierAt(run.x), i = TIERS.indexOf(tr); if (i !== tierShown) { if (tierShown >= 0) { $('tier').classList.add('up'); tierUpAt = clock; } tierShown = i; $('tier').textContent = `第 ${i + 1} 级 · ${tr.name}`; }   // 第 7 轮：难度只随距离升
+      if (clock - tierUpAt > 2.5) $('tier').classList.remove('up'); }
     $('lives').innerHTML = [0, 1, 2].map(i => `<i class="${i < run.lives ? 'on' : ''}"></i>`).join('');
     $('spd').textContent = (run.speed * 3.6).toFixed(0);
     $('cad').textContent = moving ? Math.round(g.cadence || 0) : '—';

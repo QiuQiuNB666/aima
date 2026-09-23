@@ -31,6 +31,7 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #tc{left:50%;top:1rem;transform:translateX(-50%);text-align:center}
 #dist{font-size:4.2rem;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
 #tc small{font-size:1.3rem;color:var(--dim);margin-left:.2rem}
+#tier{font-size:.95rem;color:var(--dim);letter-spacing:.1em;margin-top:.15rem}#tier.up{color:var(--acc)}
 #tr{right:1.4rem;top:1.2rem;text-align:right;min-width:16rem}
 #tr .big{font-size:2.4rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
 #tr .big small{font-size:1rem;color:var(--dim);margin-left:.3rem}
@@ -75,7 +76,7 @@ body.clean .hud{display:none!important}
 <canvas id="c"></canvas>
 <div class="hud" id="flash"></div>
 <div class="hud" id="tl"><a id="back" href="/game">← 回登山</a><div class="panel"><div id="name">屋顶跑酷<small>峰哥亡命天涯 · 捷风在追</small></div><div id="lives"></div></div></div>
-<div class="hud panel" id="tc"><span id="dist">0</span><small>m</small></div>
+<div class="hud panel" id="tc"><span id="dist">0</span><small>m</small><div id="tier"></div></div>
 <div class="hud panel" id="tr">
   <div class="big"><span id="spd">0</span><small>km/h</small></div>
   <div class="big" style="font-size:1.4rem"><span id="cad">—</span><small>步/分</small></div>

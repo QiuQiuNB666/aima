@@ -13,7 +13,7 @@ import pytest
 STATIC = os.path.join(os.path.dirname(__file__), "..", "shellos", "ui", "static", "parkour")
 
 CHECK = r"""
-import { makeLegs, makeLevel, makeRun, forceKind, nextThreat, speedFor, TUNE } from './logic.js';
+import { makeLegs, makeLevel, makeRun, forceKind, nextThreat, speedFor, TUNE, PATTERNS, TIERS, tierAt, boxHit } from './logic.js';
 import { makeHipTrack } from '../game/anim.js';
 let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const out = {};
@@ -63,6 +63,16 @@ function detect(kind, fnL, secs) {
   return hits.map(x => +((x - (5.75 + 0.18)) * 1000).toFixed(0));   // 相对 lift 出力那一刻（毫秒）
 }
 out.hk = { old: detect('old', hk, 8), neu: detect('new', hk, 8), walkNew: detect('new', t => 10 + 20 * Math.sin(2 * Math.PI * t), 20).length };
+// 4) 第 7 轮：盒子碰撞 / 模式表 / 分级
+const o = (type, lanes) => ({ x: 0, type, lanes });
+out.box = {
+  lowRun: boxHit(o('low', [1]), 0, 0, 0, false), lowJump: boxHit(o('low', [1]), 0, 0, 0.9, false),
+  highRun: boxHit(o('high', [1]), 0, 0, 0, false), highSlide: boxHit(o('high', [1]), 0, 0, 0, true), highJump: boxHit(o('high', [1]), 0, 0, 1.3, false),
+  blockJump: boxHit(o('block', [1]), 0, 0, 1.3, false), otherLane: boxHit(o('block', [0]), 0, 1.6, 0, false), ahead: boxHit(o('low', [1]), 1.0, 0, 0, false),
+};
+{ const lv = makeLevel(5); lv.extend(3000); const pats = lv.obs.map(q => q.pat); let rep = 0; for (let i = 2; i < pats.length; i++) if (pats[i] === pats[i - 1] || pats[i] === pats[i - 2]) rep++;
+  const firstAll = lv.obs.find(q => q.lanes.length === 3); const perKm = TIERS.map((t, i) => { const end = (TIERS[i + 1] || { from: 3000 }).from; return (lv.obs.filter(q => q.x >= t.from && q.x < end).length + lv.segs.filter(q => q.kind === 'gap' && q.x0 >= t.from && q.x0 < end).length) / (end - t.from) * 1000; });   // 每公里要应对几次（障碍 + 楼缝）
+  out.pat = { n: pats.length, kinds: new Set(pats).size, rep, firstAllX: firstAll ? Math.round(firstAll.x) : null, freeLane: lv.obs.filter(q => q.type === 'block').every(q => q.lanes.length < 3), perKm: perKm.map(v => Math.round(v)) }; }
 out.auto = play(true, 90, 150);
 out.idle = play(false, 120, 110);
 out.stop = play(false, 30, 0);
@@ -91,6 +101,17 @@ def test_highknee_latency(res):
     assert len(h["old"]) == 1 and len(h["neu"]) == 1, h                        # 高抬腿各认出一次
     assert h["neu"][0] <= h["old"][0] - 40, h                                  # 新路（A2 跟踪 + 往前看）比等 10 Hz 样本至少早 40 ms
     assert h["walkNew"] == 0, h                                                # 正常走路 20 s 新路不误触发
+
+
+def test_boxes_patterns_tiers(res):
+    b = res["box"]
+    assert b == {"lowRun": True, "lowJump": False, "highRun": True, "highSlide": False, "highJump": True,
+                 "blockJump": True, "otherLane": False, "ahead": False}, b     # 跳过矮的、滑过高的、水箱只能换道；隔壁道 / 前面 1 m 不算撞
+    p = res["pat"]
+    assert p["kinds"] >= 10 and p["rep"] == 0 and p["freeLane"], p              # 9 种 + 整排都出现过；不和前两个重复；水箱总留一条道
+    assert p["firstAllX"] is not None and p["firstAllX"] >= 250, p              # 整排的第 2 级（250 m）以后才有
+    k = p["perKm"]
+    assert all(k[i] < k[i + 1] for i in range(len(k) - 1)), k                    # 每公里要应对的次数（障碍 + 楼缝）逐级增加
 
 
 def test_run(res):
