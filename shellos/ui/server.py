@@ -60,7 +60,9 @@ class Dashboard:
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "fengge.html"), "text/html; charset=utf-8")
                 if self.path.split("?")[0] in ("/game", "/game.html"):
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "game.html"), "text/html; charset=utf-8")
-                if self.path.startswith(("/vendor/", "/models/", "/body3d.js", "/game/")):
+                if self.path.split("?")[0] in ("/parkour", "/parkour.html"):     # R 线：屋顶跑酷
+                    return self._file(os.path.join(os.path.dirname(__file__), "static", "parkour.html"), "text/html; charset=utf-8")
+                if self.path.startswith(("/vendor/", "/models/", "/body3d.js", "/game/", "/parkour/")):
                     return self._static(self.path.split("?")[0])
                 if self.path.startswith("/voice/"):     # 峰哥语音：只念当前这句解说，不收任意文字
                     p = self.path.split("?")[0]
