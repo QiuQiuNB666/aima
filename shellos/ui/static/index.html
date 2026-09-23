@@ -298,7 +298,8 @@ async function tick(){
   $('padst').textContent=s.pad.connected?('已连接 · R2 '+Math.round(s.pad.r2*100)+'%'):'未连接（用网页按钮或键盘）';$('r2bar').style.width=(s.pad.r2*100)+'%';
   const m=s.memory;$('memst').textContent=`${m.wearer} · 步频 ${m.profile.cadence} · ${m.recalled?('已检索，套用 '+(m.applied.length?m.applied.map(i=>'#'+i).join(' '):'0 条')):'走 6 步后检索'}`;
   renderCards(m);
-  const b=s.brain||{};$('brainst').textContent=b.ok===null?'大脑：未调用':b.ok?'大脑 Claude 在线 · '+b.msg:'大脑离线 → 规则兜底';$('brainst').style.color=b.ok?'var(--ok)':b.ok===false?'#ff8a65':'';
+  const b=s.brain||{};$('brainst').textContent=(b.up===false?'大脑离线 → 规则兜底':b.up&&b.key===false?'大脑在线 · 没配 key → 规则兜底':b.up?'大脑在线 · '+(b.model||'Claude'):'大脑：检测中')+(b.msg&&b.ok!==null?' · 上次：'+b.msg:'');
+  $('brainst').style.color=(b.ok||(b.up&&b.key))&&b.ok!==false?'var(--ok)':(b.ok===false||b.up===false||b.key===false)?'#ff8a65':'';
   const sw=s.swarm||[],ss=sw.length+'|'+(sw.length?sw[sw.length-1].t+sw[sw.length-1].msg:'');
   if(ss!==swSig){swSig=ss;$('swarm').innerHTML=sw.slice().reverse().map(e=>`<div><span style="color:var(--dim)">${esc(e.t)}</span> <span class="who" style="color:${WHO[e.who]||'#fff'}">${esc(e.who)}</span>${e.verdict?`<span class="v" style="color:${VC[e.verdict]||'#fff'}">${esc(e.verdict)}</span>`:''}${esc(e.msg)}</div>`).join('')}
   const es=s.events.length+'|'+(s.events.length?s.events[s.events.length-1].t+s.events[s.events.length-1].text:'');
