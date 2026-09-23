@@ -69,3 +69,19 @@ def test_fengge_speaks_on_summit_and_red_offline(tmp_path):
             break
         time.sleep(0.02)
     assert a.fengge.last["event"] == "red"
+
+
+def test_terrain_force_ttl_expires(tmp_path):
+    """跑酷页带 ttl 设强制路段：不续就自动回 None；不带 ttl（2AFC）不过期。"""
+    import time
+    from shellos.ui.server import Dashboard
+    a = app(tmp_path)
+    d = Dashboard.__new__(Dashboard)          # 不起 HTTP 线程，只测 action + 看门狗的逻辑
+    d.app, d._last_hold, d._force_exp = a, 0.0, 0.0
+    d.action("/terrain/force", {"kind": "up", "ttl": 0.05})
+    assert a.ctl.force == "up"
+    time.sleep(0.08)
+    d._expire_force()                         # 看门狗每 50 ms 调的就是它
+    assert a.ctl.force is None
+    d.action("/terrain/force", {"kind": "down"})
+    assert d._force_exp == 0.0 and a.ctl.force == "down"

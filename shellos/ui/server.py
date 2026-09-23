@@ -9,6 +9,7 @@ POST /param       {"name":..., "delta":...}
 POST /ctl         {"name":"dofc"}
 POST /feedback    {"text":...}   评委一句话 → 蜂群（教练 / 记忆员 / 安全员）→ 改参 + 经验卡
 POST /world/generate {"text":...} 一句话造一座山（地形导演 → 安全员裁剪 → 切过去）
+POST /terrain/force {"kind":..,"ttl":s} 强制路段（2AFC / 跑酷）；带 ttl 要按时续，页面崩了会自动回 None
 POST /log         {"text":...}   往事件流里写一条（评委原话先手工输入，Agent 层接上后由它改参）
 
 所有 POST 只认本机（127.0.0.1 / ::1），局域网来的一律 403：死人开关、强度、控制律只有操作员这台机器能动。
@@ -32,6 +33,7 @@ class Dashboard:
         self.app = app          # 需要: guard, link, ctl, gait, set_ctl(name), ctls, events(list)
         self.port = port
         self._last_hold = 0.0
+        self._force_exp = 0.0     # /terrain/force 带 ttl 时的到期时刻（monotonic）；0 = 不过期
         html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
         self._html = open(html_path, "rb").read().replace(b"__V__", str(int(time.time())).encode())   # 模块脚本防缓存
         dash = self
@@ -154,6 +156,15 @@ class Dashboard:
             if self._last_hold and time.monotonic() - self._last_hold > HOLD_TTL:
                 self.app.guard.set_deadman(0.0, "web")
                 self._last_hold = 0.0
+            self._expire_force()
+
+    def _expire_force(self):
+        """带 ttl 的强制路段到期没续（跑酷页崩了 / 断网）→ 回自动，不留尾巴。"""
+        if self._force_exp and time.monotonic() > self._force_exp:
+            self._force_exp = 0.0
+            if getattr(self.app.ctl, "force", None):
+                self.app.ctl.force = None
+                self.app.log("地形强制超时（页面没续），回自动")
 
     def state(self):
         a = self.app
@@ -248,10 +259,14 @@ class Dashboard:
         if path == "/terrain":
             a.set_terrain(body.get("preset") or body.get("world") or "tokyo_night")
             return {"ok": True}
-        if path == "/terrain/force":
+        if path == "/terrain/force":          # {"kind": ..., "ttl": 秒（可选）}：带 ttl 的要在到期前再发一次续上，否则自动回 None
             if hasattr(a.ctl, "force"):
-                a.ctl.force = body.get("kind") or None
-                a.log(f"地形强制：{a.ctl.force or '自动'}")
+                kind = body.get("kind") or None
+                ttl = float(body.get("ttl") or 0)
+                self._force_exp = time.monotonic() + ttl if (kind and ttl > 0) else 0.0
+                if kind != a.ctl.force:
+                    a.log(f"地形强制：{kind or '自动'}")
+                a.ctl.force = kind
             return {"force": getattr(a.ctl, "force", None)}
         if path == "/world/generate":           # {"text": "一句话"} → 造一座山并切过去
             w = a.make_world(body.get("text", ""))
