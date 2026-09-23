@@ -35,6 +35,7 @@ const LINES = {
   endShaken: ['啧，算你走运。'],
 };
 
+const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner', 'fg', 'force', 'aicard', 'uready', 'uidle', 'uqr', 'ghostTag'];   // hud.js 的 AVOID + 待机 / 二维码 / 影子标签
 const CSS = `
 #npcTag{transform:translate(-50%,-100%);display:none;text-align:center;white-space:nowrap}
 #npcTag .nm{display:inline-block;font-size:.85rem;font-weight:800;letter-spacing:.15em;padding:.05rem .55rem;border-radius:.4rem;background:${WHO.jett.tag};color:#fff;border:1px solid ${WHO.jett.rim}}
@@ -147,9 +148,21 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     const on = !hidden && head.z < 1 && Math.abs(head.x) < 1 && Math.abs(head.y) < 1;
     const x = on ? (head.x + 1) / 2 * innerWidth : innerWidth * 0.66;      // 出画：钉在右下（她走右路沿；影子的标签钉在正中下方），底部提示条上面
     const y = on ? (1 - head.y) / 2 * innerHeight : innerHeight - 120;
-    tag.style.left = `${Math.max(80, Math.min(innerWidth - 80, x))}px`; tag.style.top = `${Math.max(120, Math.min(innerHeight - 70, y))}px`;
     tag.classList.toggle('edge', !on); nm.dataset.rel = `落后 ${Math.round(gap)} 步`;
     tag.style.display = T || preview ? 'block' : 'none';
+    // 和 HUD 面板（「按住 R2 开始」#uready、待机、红灯、路段、登顶卡、影子标签…）重叠就挪到面板下面，放不下就挪到上面——同 hud.js 的影子标签
+    const w = tag.offsetWidth, h = tag.offsetHeight, m = 8;
+    let X = Math.max(w / 2 + m, Math.min(innerWidth - w / 2 - m, x)), Y = Math.max(h + m, Math.min(innerHeight - 70, y));
+    for (let pass = 0; pass < 3; pass++) {
+      let moved = false;
+      for (const id of AVOID) {
+        const e = document.getElementById(id); if (!e || (id === 'summit' && !e.classList.contains('show'))) continue;
+        const r = e.getBoundingClientRect(); if (!r.width) continue;   // display:none
+        if (X + w / 2 > r.left - m && X - w / 2 < r.right + m && Y > r.top - m && Y - h < r.bottom + m) { Y = r.bottom + m + h > innerHeight - m ? r.top - m : r.bottom + m + h; moved = true; }
+      }
+      if (!moved) break;
+    }
+    tag.style.left = `${X}px`; tag.style.top = `${Y}px`;
   }
   frame();
   return npc;
