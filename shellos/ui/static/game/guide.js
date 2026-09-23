@@ -81,8 +81,10 @@ export async function initGuide({ world, route, camera, me, getS }) {
     const ready = body.classList.contains('u-ready') && (S.safety || {}).state !== 'DISARMED';
     const go = (S.gait && S.gait.moving) || (S.pad && S.pad.r2 > 0.05) || (S.sim && S.sim.walk);
     if (body.classList.contains('u-idle')) armed = true;
+    const atStart = T.pos != null && T.pos < 1;   // 只在山脚开讲：半路停下来（u-play 回到 u-ready）不能突然开始导游
     if (body.classList.contains('g-guide')) { if (!ready || go) stop(); }
-    else if (armed && ready && !go && T.pos != null) play();
+    else if (armed && ready && go) armed = false;  // 没听就走了（按住 R2 关掉标题屏）：这一位跳过，别等他半山腰歇脚时再讲
+    else if (armed && ready && !go && atStart) play();
   }, 200);
   window.__guide = { play, stop, lines, log };
   return window.__guide;
