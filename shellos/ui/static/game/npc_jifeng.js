@@ -14,20 +14,22 @@ import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { STLLoader } from 'three/addons/STLLoader.js';
 import { mergeGeometries, mergeVertices } from 'three/addons/BufferGeometryUtils.js';
 import { loadAvatar, AVATAR_H } from './avatar.js';
+import { WHO } from './style.js';   // ART 美术范式：捷风 = 实体钴蓝 + 白发 + 风白拖尾 + 白轮廓光（不用青，青是影子的）
+import { simplify } from './lod.js';   // P 线：STL 雕像远档减面
 
 const Q = new URLSearchParams(location.search);
 // ↓↓ 角色名改这里（屏幕上的名字牌、气泡抬头都读它）；也可以临时用 ?npcname=xxx
 export const 角色名 = Q.get('npcname') || '捷风';
-export const LOOK = { leg: '#27344c', body: '#2f7fe0', head: '#f2f6fb', rim: '#bfeeff', rimK: 0.55, self: 0.28, headScale: 0.86, exo: false, pointK: 0.35 };
-export const WIND = '#9ff3ff';            // 拖尾 / 风刃颜色
+export const LOOK = { leg: '#27344c', body: WHO.jett.coat, head: WHO.jett.hair, rim: WHO.jett.rim, rimK: 0.55, self: 0.28, headScale: 0.86, exo: false, pointK: 0.35 };
+export const WIND = WHO.jett.wind;        // 拖尾 / 风刃颜色（风白）
 const MODEL = Q.get('npcmodel') || '/models/jett/scene.gltf';
 // 9/23 热修：展位 M2 上 STL 雕像渲染成满屏黑块（开发机正常），默认先关；?npcstl=1 打开，?npcstl=<url> 换文件。J 线修好后改回默认开
 const STL = !Q.has('npcstl') || Q.get('npcstl') === '0' ? '0' : Q.get('npcstl') === '1' ? '/models/jett/jett.stl' : Q.get('npcstl');
 // STL 雕像分区（高度按身高的比例；前后按头部中心沿前进方向 +X 的偏移，单位 = 头宽）。在浏览器里对着截图调的
 // （yaw 0 = 这个 STL 本来就面朝 +X；站姿、双臂下垂、没有底座）
-export const STATUE = { yaw: 0, hair: '#eef3f8', skin: '#f0c5a4', coat: '#2f7fe0', leg: '#27344c', boot: '#1a2230', gloveC: '#1f2733',
+export const STATUE = { yaw: 0, hair: WHO.jett.hair, skin: '#f0c5a4', coat: WHO.jett.coat, leg: '#27344c', boot: '#1a2230', gloveC: '#1f2733',
   legTop: 0.54, coatTop: 0.80, faceTop: 0.935, faceFront: 0.15, bootTop: 0.08, glove: [0.36, 0.56, 0.19],   // 手套：高度区间 + 离中线多远
-  rim: '#bfeeff', rimK: 0.6, self: 0.3 };
+  rim: WHO.jett.rim, rimK: 0.6, self: 0.3 };
 
 const TRAIL_N = 24;                       // 拖尾历史点数
 const STREAKS = [[0.26, 1.18, 0.07], [-0.26, 1.02, 0.06], [0.0, 0.62, 0.09]];   // [横向, 离地, 半宽]：肩两侧 + 腰后三条风线
@@ -242,7 +244,10 @@ async function loadStatue(url) {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   const mesh = new THREE.Mesh(geo, statueMaterial(S)); mesh.name = 'jettStatue';
-  const outer = new THREE.Group(); outer.name = 'npc_jifeng'; outer.add(mesh);
+  // 远档（P 线 lod.js）：1.2 cm 聚类 4.4 万 → ~1.5 万三角，离镜头 6 m 外换；远档必须双面（薄衣片正反面并到一起会翻面，单面看是洞）
+  const lo = new THREE.Mesh(simplify(geo, 0.012), mesh.material.clone()); lo.material.side = THREE.DoubleSide;
+  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(lo, 6, 0.1);
+  const outer = new THREE.Group(); outer.name = 'npc_jifeng'; outer.add(lod);
   const headLocal = new THREE.Vector3(hx, H * 0.95, hz), tmp = new THREE.Vector3();
   console.info(`捷风 STL 雕像：${geo.index ? geo.index.count / 3 : P.count / 3} 三角，${P.count} 顶点`);
   return {
