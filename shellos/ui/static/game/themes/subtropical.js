@@ -7,13 +7,14 @@ import * as THREE from 'three';
 import { buildFar, LAND_Y } from './subtropical/far.js';
 import { buildFlora } from './subtropical/flora.js';
 import { buildProps } from './subtropical/props.js';
+import { buildStream } from './subtropical/stream.js';
 
 const C = {
   zenith: '#4d9ad8', hz: '#dbe9ea', fog: '#d3e2df', mist: '#f2f7f5', ray: '#fff4cf', bird: '#26312d',
   farHill: '#7f9aa8', land: '#5b7464', sea: '#3d7aa6', towers: ['#9aa7b4', '#aab4be', '#b7bec6', '#c6ccd2', '#a4a39c', '#b4aea4'],   // 楼：暖灰 / 蓝灰（别一片白）；海湾深蓝
 };
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-let far = null, sceneRef = null, ghostDone = false;
+let far = null, sceneRef = null, ghostDone = false, LIVE = [];   // LIVE：会动的小东西（山涧、蝴蝶、白鹭），每帧 update(dt)
 
 // 石阶贴图：只管花岗岩麻点和一点青苔（亮度 ~0.85–1.1，乘到下面的定色上）
 function stoneTex(util, kit) {
@@ -72,7 +73,9 @@ function paveTex(util, kit) {
   return t;
 }
 
+let SFX = null;                                      // 落阶反馈（kit.stepFx）
 export function build(scene, ctx) {
+  SFX = ctx.kit.stepFx(ctx, { dust: '#cbbf9f', flash: '#fffbe8' });
   const { route, kit, util, lights, meshes: M } = ctx, N = route.N, c = kit.routeCenter(route);
   const D = new THREE.Vector3().subVectors(route.P[N], route.P[0]).setY(0).normalize();
   const RT = new THREE.Vector3(-D.z, 0, D.x);                        // 右（= -left）
@@ -183,6 +186,14 @@ export function build(scene, ctx) {
   far = buildFar(scene, ctx, B, C);
   buildFlora(scene, ctx, B);
   buildProps(scene, ctx, B);
+  // 第 2 批：缓坡上一条山涧（左坡流下 → 从路面下穿过 → 右坡跌水进山谷）、路边两群蝴蝶（橙 / 蓝）、山谷里盘旋的白鹭
+  const k = ctx.kit, at = (s, lat) => route.at(s, lat).pos.clone();
+  LIVE = [
+    buildStream(scene, ctx, hAt, [[10.6, 12], [9.7, 8], [8.9, 4.6], [8.35, 2.3], [8.15, 0], [8.3, -2.3], [8.9, -5], [8.3, -9], [7.5, -13]]),   // 左坡正对镜头，水带看得全
+    k.flock(ctx, { count: k.LOW ? 3 : 6, center: at(2.8, -2.4), radius: 1.1, spread: 0.7, height: 1.35, size: 0.42, color: '#ff9a2a', speed: 1.1, flap: 7, name: 'butterflies' }),
+    k.flock(ctx, { count: k.LOW ? 3 : 5, center: at(12.5, -2.5), radius: 1.0, spread: 0.6, height: 1.4, size: 0.4, color: '#46a0ff', speed: -1.0, flap: 7.5, name: 'butterflies' }),
+    k.flock(ctx, { count: k.LOW ? 3 : 5, center: at(24, -9), radius: 5, spread: 2.5, height: -0.5, size: 1.5, color: '#f6f6f0', speed: 0.14, flap: 1.2, name: 'egrets' }),
+  ];
 }
 
 // 路肩红土：路沿外 0.8 m 一条贴地带（跟着地面高度），外沿用噪声 alpha 咬出不规则的边（alphaTest，干净利落，不是顶点色糊开）
@@ -221,7 +232,9 @@ function soilStrip(scene, ctx, hAt) {
 }
 
 export function update(dt, st) {
+  if (SFX) SFX.update(dt, st);
   if (far) far.update(st.t);
+  for (const o of LIVE) o.update(dt);
   if (!ghostDone && sceneRef) { ghostDone = true; dressGhost(sceneRef); }
 }
 
