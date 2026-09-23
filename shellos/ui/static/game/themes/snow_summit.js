@@ -19,6 +19,10 @@ import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
 import { prayerFlags, tentGeo, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
 import { sfx as play, popIcon } from './cliff_path/interact.js';
+import { buildCamp } from './snow_summit/camp.js';
+import { buildHeli } from './snow_summit/heli.js';
+import { buildYaks } from './snow_summit/yaks.js';
+import { fgSay } from './snow_summit/lines.js';
 
 const LOW = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fx') === 'low';
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -47,7 +51,9 @@ function zonesOf(route) {
   const queue = [...waits].reverse().find(w => w.start >= N * 0.8 && w !== col) || null;
   const wi = wall ? segs.indexOf(wall) : -1, pre = wi > 0 && segs[wi - 1].kind === 'flat' ? segs[wi - 1] : null;
   const snowS = pre ? pre.start : wall ? wall.start : Math.round(N * 0.4);     // 雪线：前进营地（冰壁前那段平地）
-  return { wall, ladder, rocks, col, queue, abc: pre, snowS, end: e => e.start + e.steps };
+  const glacier = segs.find(g => g.kind === 'up' && g.start < (pre || wall || { start: N }).start) || null;   // 东绒布冰川：前进营地之前的上坡（牦牛）
+  const ci = col ? segs.indexOf(col) : -1, ridge = ci >= 0 ? segs.slice(ci + 1).find(g => g.kind === 'up') || null : null;   // 北山脊·大风口：北坳之后的上坡（直升机悬停）
+  return { wall, ladder, rocks, col, queue, abc: pre, snowS, glacier, ridge, end: e => e.start + e.steps };
 }
 
 // ---------- 贴图 ----------
@@ -199,27 +205,25 @@ export function build(scene, ctx) {
     P.push({ geo: new THREE.CylinderGeometry(0.05, 0.07, 4.2, 6), p: [pole2.x, pole2.y + 2.1, pole2.z], color: '#8a6a44' });
     flagLines.push({ a: top.clone().setY(top.y - 0.2), b: top2, sag: 0.45, shift: 2 }, { a: top.clone().setY(top.y - 0.8), b: top2.clone().setY(top2.y - 0.6), sag: 0.4, shift: 4 });
     const chorten = new THREE.Mesh(util.merged(P), lowVc); chorten.name = 'chorten'; scene.add(chorten); hideLow.push(chorten);
-    // 大本营石：路左、低矮（< 1.3，镜头那一侧）
-    const st = route.at(1.8, 2.5), face = st.dir.clone().negate().addScaledVector(st.left, -0.55).normalize(), sy = route.heightAt(1.8);
-    const stone = new THREE.Mesh(util.merged([{ geo: new THREE.BoxGeometry(1.5, 1.05, 0.4), p: [0, 0.45, 0], color: '#6d675f' }, { geo: new THREE.BoxGeometry(1.7, 0.2, 0.55), p: [0, -0.05, 0], color: '#5b5650' }]), lowVc);
-    stone.position.copy(st.pos).setY(sy); stone.rotation.y = Math.atan2(face.x, face.z); stone.name = 'bcStone'; scene.add(stone); hideLow.push(stone);
-    texts.push({ text: `${route.segs[0].label || '大本营'}\n${world.alt ? world.alt[0] : ''} m`, p: st.pos.clone().setY(sy + 0.5).addScaledVector(face, 0.21), ry: Math.atan2(face.x, face.z), h: 0.62, color: '#c8241c', weight: 900, pad: 0.1, font: '"Songti SC","STSong","Noto Serif CJK SC",serif' });
   }
+  // 大本营村落（石碑、玛尼堆、餐厅大帐、大穹顶帐篷、停机坪、晾衣绳）：snow_summit/camp.js
+  const CAMP = buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW });
+  for (const m of CAMP.meshes) { scene.add(m); hideLow.push(m); }
   // 帐篷：大本营、前进营地、北坳营地；路右（影子那侧）多、路左少且在 3.5 以外
   const tents = [], bottles = [];
   const TC = ['#f2c21b', '#f2c21b', '#f2c21b', '#e8781c', '#d63b2a', '#2f78d0'];
-  const camp = (s0, s1, latR, latL, n, seedK) => {
+  const camp = (s0, s1, latR, latL, n, seedK, squash = 1) => {                  // squash < 1：被风压低的帐篷（北坳）
     for (let k = 0, tries = 0; k < n && tries < n * 12; tries++) {
       const s = mix(s0, s1, R()), side = R() < 0.72 ? -1 : 1, lat = side * mix(...(side < 0 ? latR : latL), R()), a = route.at(s, lat);
-      if (!clearOfRoad(a.pos.x, a.pos.z, 1.0) || tents.some(t => Math.hypot(t.p[0] - a.pos.x, t.p[2] - a.pos.z) < 1.9)) continue;
-      tents.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) - 0.02, a.pos.z], ry: -a.heading + (R() - 0.5) * 1.2 + (side < 0 ? Math.PI / 2 : -Math.PI / 2), s: 0.8 + 0.3 * R(), color: TC[(k + seedK) % TC.length] });
+      if (!clearOfRoad(a.pos.x, a.pos.z, 1.0) || tents.some(t => Math.hypot(t.p[0] - a.pos.x, t.p[2] - a.pos.z) < 1.9) || CAMP.blockers.some(b => Math.hypot(b.x - a.pos.x, b.z - a.pos.z) < b.r + 0.9)) continue;
+      tents.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) - 0.02, a.pos.z], ry: -a.heading + (R() - 0.5) * 1.2 + (side < 0 ? Math.PI / 2 : -Math.PI / 2), s: (k => squash === 1 ? k : [k, k * squash, k * 1.08])(0.8 + 0.3 * R()), color: TC[(k + seedK) % TC.length] });
       k++;
     }
   };
-  camp(-14, 2.5, [2.8, 12], [4, 11], LOW ? 9 : 14, 0);
-  if (Z.abc) camp(Z.abc.start - 2, Z.end(Z.abc) + 1, [2.6, 8], [4, 8], LOW ? 5 : 8, 2);
+  camp(-14, 2.5, [2.8, 12], [4, 11], LOW ? 9 : 18, 0);
+  if (Z.abc) camp(Z.abc.start - 2, Z.end(Z.abc) + 1, [2.6, 8], [4, 8], LOW ? 5 : 10, 2);
   if (Z.col) {
-    camp(Z.col.start - 0.5, Z.col.start + 3.5, [2.4, 6], [4.2, 6], LOW ? 3 : 5, 4);
+    camp(Z.col.start - 0.5, Z.col.start + 3.5, [2.4, 6], [4.2, 6], LOW ? 3 : 6, 4, 0.7);
     // 氧气瓶：一排立着 + 几个躺着，路右
     for (let k = 0; k < (LOW ? 6 : 10); k++) {
       const a = route.at(Z.col.start - 0.2 + k * 0.22, -1.75 - (k % 3) * 0.17), lie = k >= 7;
@@ -367,8 +371,11 @@ export function build(scene, ctx) {
   ctx.theme.summitCard = 'left';                                              // 化身 + 觇标在画面正中，登顶卡放左下
   S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, sfx, anchors: camAnchors(Z, N),
     I: buildInteract(scene, ctx, { flagLines, BF, windDir }),
+    heli: buildHeli(ctx, { Z, pad: CAMP.pad, LOW, onTouchdown: () => fgSay('heli') }),
+    yaks: LOW ? null : buildYaks(ctx, { Z, hAt, onYield: () => fgSay('yak') }),
     a0: world.alt ? +world.alt[0] : 0, a1: world.alt ? +world.alt[1] : 0, revRock, revTop, revLow, hideRock, hideTop, hideLow,
     rockS: Z.rocks.length ? Z.rocks[0].start : N, topS: Z.queue ? Z.queue.start : N - 4 };
+  if (S.yaks) hideLow.push(...S.yaks.meshes);                                 // 牦牛跟山下的东西一起：过了北坳就不画
   rigFor(0, rig, false);
   update(0, { t: 0, s: 0, progress: 0, summit: false, preview: ctx.preview, camera: ctx.camera, kind: 'flat', terrain: null });
 }
@@ -452,6 +459,8 @@ export function update(dt, st) {
   for (const m of S.hideLow) show(m, S.revLow.value > 0.001);
   // 缺氧：按海拔（world.alt 插值），登顶那几秒松一口气
   const alt = S.a0 + (S.a1 - S.a0) * route.heightAt(st.s) / route.hmax;
+  S.heli.update(dt, st);
+  if (S.yaks) S.yaks.update(dt, st);
   const oxy = interact(dt, st);                                                     // 互动；北坳吸上氧，缺氧暗角松一点
   S.hyp.update(Math.pow(smooth(5300, 8849, alt), 1.1) * (1 - 0.25 * sk) * (1 - 0.45 * oxy), st.t || 0);
   // 排队的人：红灯时站成一串（梯子上 + 坡上）；放行 / 登顶后往上走，翻过顶峰就不见了（登顶画面干净）；
@@ -462,7 +471,7 @@ export function update(dt, st) {
     _head.copy(st.avatar || _c).y += 1.1;
     if (st.s < q0 - 2 || st.summit) { P.wt = 0; P.aside = false; }                      // 新一圈 / 登顶：重新排好
     if (!go && st.s > q0 - 0.5 && st.s < q0 + 1) P.wt += dt;                             // 站在队尾等：前面的人从上往下一个个往上挪（每人 2 小步）
-    if (go && !P.aside && !st.summit && st.s > q0 - 0.5 && st.s < q0 + 1.5) { P.aside = true; P.asideS = P.s[0]; }   // 轮到你：最前面那个人往右让一步
+    if (go && !P.aside && !st.summit && st.s > q0 - 0.5 && st.s < q0 + 1.5) { P.aside = true; P.asideS = P.s[0]; fgSay('queue'); }   // 轮到你：最前面那个人往右让一步
     for (let k = 0; k < P.n; k++) {
       const aside = k === 0 && P.aside, hop = Math.max(0, Math.min(2, Math.floor((P.wt - 0.15 - (P.n - 1 - k) * 0.3) / 1.3) + 1));
       const floor = aside ? -1e9 : st.s + 1.1 + k * 1.2, want = aside ? P.asideS : Math.max(go ? P.go(k) : P.red(k) + 0.55 * hop, floor);
@@ -524,7 +533,8 @@ function interact(dt, st) {
   const col = Z.col, atCol = !!col && !!st.terrain && st.terrain.segment === 'wait' && s > col.start - 0.6 && s < col.start + 1;
   I.oxyT = atCol ? I.oxyT + dt : 0;
   const onO2 = atCol && I.oxyT > 0.3;
-  I.icon.on(onO2);
+  if (onO2 && !I.icon.wasOn) fgSay('oxygen');
+  I.icon.wasOn = onO2; I.icon.on(onO2);
   if (av) I.icon.update(dt, _p.copy(av).addScaledVector(route.at(s).left, 1.05).setY(av.y + 1.6));   // 化身左边胸口高（头顶是 HUD 的站定面板）
   I.oxy += ((onO2 ? 1 : 0) - I.oxy) * Math.min(1, dt * 2);
   if (onO2) {
@@ -538,7 +548,7 @@ function interact(dt, st) {
   }
   // 登顶：觇标上卷着的红旗展开（啪啦一声）
   if (I.BF) {
-    if (st.summit && !I.wasSummit) play('flutter', 1.3);
+    if (st.summit && !I.wasSummit) { play('flutter', 1.3); fgSay('summit'); }
     I.wasSummit = !!st.summit;
     I.unf += ((st.summit ? 1 : 0) - I.unf) * Math.min(1, dt * (st.summit ? 1.8 : 6));
     I.BF.set(I.unf, t);
