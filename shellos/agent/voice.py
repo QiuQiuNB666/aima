@@ -17,6 +17,7 @@ URL = os.environ.get("SHELLOS_TTS", "http://127.0.0.1:8791").rstrip("/")
 DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "voice"))
 BACKOFF_S = 20.0
 _down_t = -1e9
+_open = urllib.request.build_opener(urllib.request.ProxyHandler({})).open    # 不走系统代理（MacBook 的 Shadowrocket 会截走 127.0.0.1）
 _lock = threading.Lock()   # ponytail: 全局锁，同一句两个页面同时要只合成一次；多句并发合成再换按文字加锁
 
 
@@ -49,7 +50,7 @@ def get(text, timeout=15.0):
         req = urllib.request.Request(URL + "/tts", data=json.dumps({"text": text}, ensure_ascii=False).encode(),
                                      headers={"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with _open(req, timeout=timeout) as r:
                 data, keep = r.read(), r.headers.get("Cache-Control") != "no-store"
         except Exception:  # noqa: BLE001  TTS 没开 / 断网 / 超时 / 502：不出声
             _down_t = time.time()
