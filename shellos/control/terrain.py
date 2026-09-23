@@ -29,7 +29,7 @@ HS_PHASE = 0.5   # 脚跟着地在估计器相位里的位置，现场校准后�
 WAIT_STILL_S = 1.5
 STILL_DPS = 20.0
 WAIT_CAP_S = 6.0
-CAP = 3.0        # 控制律自己也不出软限（Guard 仍按 --cap 再裁一次）
+CAP = 3.0        # 控制律自己也不出软限（Guard 仍按 --cap 再裁一次）；main 启动时改成 --cap 的值
 MULT = {"up": 1.0, "down": -0.8, "stairs_up": 1.2, "stairs_down": -1.0, "wait": -0.5}   # 主脉冲峰值 = MULT × strength
 LEGACY = {"台阶": "train_stairs", "长坡": "train_slope", "山的记忆": "taishan_18pan"}
 RISE = {"flat": 0.0, "up": 0.08, "down": -0.08, "stairs_up": 0.12, "stairs_down": -0.12, "wait": 0.0}
@@ -53,7 +53,7 @@ class Terrain(Controller):
     def __init__(self, preset=W.DEFAULT, strength=1.5):
         super().__init__()
         self.params = {
-            "strength": [strength, 0.0, 3.0],     # Nm，上坡脉冲峰值（下坡 ×0.8，台阶 ×1.2）
+            "strength": [strength, 0.0, CAP],     # Nm，上坡脉冲峰值（下坡 ×0.8，台阶 ×1.2）；上限 = 软限
             # 中心限在 0–20%：宽 20% 时伸展脉冲也不会进 30–60%（摆动中段不抗屈，scripts/pulse_plot.py 核对）
             "t_push":   [11.0, 0.0, 20.0],        # 上坡伸展脉冲中心：早支撑 5–17%（脚跟着地=0%）
             "t_brake":  [10.0, 0.0, 20.0],        # 制动脉冲中心：5–15%

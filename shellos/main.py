@@ -409,6 +409,8 @@ def main():
     print(f"[link] {link.port}")
 
     guard = Guard(link, soft_cap=a.cap, on_sent=(rec.torque if rec else None))
+    from .control import terrain as _terrain
+    _terrain.CAP = guard.soft_cap        # 地形控制律的自限跟着 --cap 走（以前写死 3，--cap 4 也只出 3）
     ver = link.handshake()
     guard.arm()
     print(f"[handshake] firmware {ver}  state {guard.state}  cap {guard.soft_cap} Nm")
