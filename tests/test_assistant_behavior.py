@@ -43,6 +43,12 @@ run(3, () => ({ laps: 0, segment: 'up' }));
 const a = log[Math.floor(log.length / 2)].s, b = log[log.length - 1].s; out.stopDrift = Math.abs(b - a);
 run(7, () => ({ laps: 0, segment: 'up' }));
 out.waitSay = log.filter(x => x.say && x.say.key === 'wait').length;
+// 台阶：北坳冰壁（24–28）上退到路中线、峰哥后面；梯子（中国梯 52–54）：在梯脚等、不上梯
+me.s = 25.5; log.length = 0; run(1, () => ({ laps: 0, segment: 'stairs_up' }));
+out.stairsLat = log[log.length - 1].lat; out.stairsBehind = me.s - log[log.length - 1].s;
+me.s = 52.6; log.length = 0; run(2, () => ({ laps: 0, segment: 'stairs_up' }));
+out.ladderS = log[log.length - 1].s;
+me.s = 12; log.length = 0; run(0.1, () => ({ laps: 0, segment: "up" }));   // 冰川中段：附近没有地标
 log.length = 0; run(0.2, () => ({ laps: 0, segment: 'up', ghost_pos: me.s + 0.6 }));
 out.ghostLat = log[log.length - 1].lat;
 // 4) 排队：红灯 2 s → 绿灯
@@ -74,7 +80,9 @@ def test_assistant_behavior(tmp_path):
     assert o["oxy"] and 0.3 < o["oxyFirst"] - 0 and o["oxySay"] == 1 and o["oxyLat"] > -0.6 and o["oxyFace"] > 0.5, o
     assert o["stopDrift"] < 0.01, o                                 # 峰哥停她停
     assert o["waitSay"] == 1, o
-    assert o["ghostLat"] > -0.4, o                                  # 影子挨着时往路中间让                                     # 停 8 s 以上说一次「我在这儿，你慢慢来」
+    assert o["ghostLat"] > -0.4, o                                  # 影子挨着时往路中间让
+    assert abs(o["stairsLat"]) < 0.01 and 0.3 < o["stairsBehind"] < 0.7, o   # 台阶：路中线、后面半步
+    assert o["ladderS"] <= 51.5, o                                  # 梯子：在梯脚等，不上梯                                     # 停 8 s 以上说一次「我在这儿，你慢慢来」
     assert o["guard"] == 1 and o["guardLat"] > 0 and o["guardAhead"] > 0.5, o   # 挡在正前方
     assert o["goSay"] == 1, o
     assert o["fiveMax"] > 0.9 and o["summitSay"] == 1, o

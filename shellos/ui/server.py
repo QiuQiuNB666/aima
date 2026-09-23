@@ -142,7 +142,7 @@ class Dashboard:
                     self.send_response(404); self.end_headers(); return
                 ctype = {".js": "application/javascript", ".glb": "model/gltf-binary", ".gltf": "model/gltf+json",
                          ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
-                         ".json": "application/json", ".wav": "audio/wav"}.get(os.path.splitext(full)[1].lower(), "application/octet-stream")
+                         ".json": "application/json", ".wav": "audio/wav", ".html": "text/html; charset=utf-8"}.get(os.path.splitext(full)[1].lower(), "application/octet-stream")
                 data = open(full, "rb").read()
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)

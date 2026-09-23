@@ -28,6 +28,7 @@ const ramp = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a)));
 
 export function makeAssist(route) {
   const marks = landmarks(route), done = new Set(), Z = zones(route);
+  const ladders = route.segs.filter(g => g.kind === 'stairs_up' && /梯/.test(g.label || ''));   // 珠峰中国梯（E 线把梯子摆在峰哥那条道 lat 0.35、宽 0.6）
   let s = null, hold = null, lastSay = -99, lastLaps = null, lastPs = null, oxyT = 0, oxySaid = false, inQueue = false, summitT = -1;
   let started = false, stillT = 0, waitSaid = false, inQueueSaid = false, prevSeg = -1, prevWait = false, redN = 0, walkT = 0, paceN = 0, anySay = -99;
   const segAt = x => { const g = route.segs; let i = 0; while (i < g.length - 1 && x >= g[i].start + g[i].steps) i++; return i; };
@@ -82,6 +83,15 @@ export function makeAssist(route) {
         target = Math.max(target, hold.s + 0.4);
         point = Math.min(1, el / 0.4) * (el < ASSIST.POINT_S ? 1 : Math.max(0, 1 - (el - ASSIST.POINT_S) / 0.4));
         if (ps > hold.s - 0.2 || el > ASSIST.POINT_S + 3) hold = null;
+      }
+      // 台阶 / 梯子（9/24 测试：旧 NPC 半身插进中国梯）：互动之外，
+      //   梯子段：她在梯脚等（峰哥那条道），不上梯，峰哥上完再跟上（落下 3 步以上会直接到位）；
+      //   其它台阶：退到路中线、峰哥后面半步，不贴着路沿的扶手 / 路绳
+      if (!atCol && !atQ && summitT < 0) {
+        const lad = ladders.find(g => ps > g.start - 1 && ps < g.start + g.steps + 0.3);
+        const onStairs = [ps, ps + ASSIST.LEAD].some(x => route.segs[segAt(x)]?.kind === 'stairs_up');
+        if (lad) { target = Math.min(target, lad.start - 0.6); lat = 0.35; point = 0; }
+        else if (onStairs) { target = ps - 0.5; lat = 0; }
       }
       // 影子（上一位）也走右路沿（珠峰在 −0.85）：离她 1.5 步以内时，她往路中间让到 −0.15（还是在峰哥右前方，不进镜头视锥）
       if (lat === ASSIST.LAT && T && T.ghost_pos != null && s !== null && Math.abs(T.ghost_pos - s) < 1.5) lat = -0.15;

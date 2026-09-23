@@ -157,7 +157,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       const rate = walkV / 2, a = ending === 'shaken' ? 0 : Math.min(1.4, walkV / 1.8);
       gph = (gph + dt * rate) % 1;
       const [l, wl] = synthHip(gph, a, 8 * a), [r, wr] = synthHip((gph + 0.5) % 1, a, 8 * a);
-      npc.animate(dt, t, { fl: l, fr: r, wl: wl * rate, wr: wr * rate, kind: A.kind, summit: ending === 'caught' });
+      npc.animate(dt, t, { fl: l, fr: r, wl: wl * rate, wr: wr * rate, kind: A.kind, summit: ending === 'caught', speed: walkV * 0.5 });   // speed m/s（VRM 版按它切 idle / walk / run）
       if (npc.point) npc.point(pointW);                                  // 助理指路：动作之后再抬右臂
       if (npc.act && actA) npc.act(actA);                                // 助理互动：递氧气 / 挡前 / 击掌
       if (npc.idle && !npc.far) npc.idle(t, dt, walkV < 0.05 && pointW < 0.01 && !(actA && (actA.oxygen || actA.guard || actA.five)));   // 助理待机小动作
