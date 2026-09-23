@@ -11,7 +11,7 @@ import json
 import os
 
 KINDS = ("flat", "up", "down", "stairs_up", "stairs_down", "wait")
-ORDER = ["tokyo_night", "taishan_18pan", "fuji_yoshida", "everest_north", "wutong_haohan", "train_stairs", "train_slope"]
+ORDER = ["tokyo_night", "taishan_18pan", "fuji_yoshida", "everest_north", "huashan_plank", "wutong_haohan", "train_stairs", "train_slope"]
 _DIR = os.path.dirname(__file__)
 
 
