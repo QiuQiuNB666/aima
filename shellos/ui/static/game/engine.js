@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP, ROAD_W } from './path.js';
 import { loadAvatar, flexFromFrame, preloadAvatar } from './avatar.js';
+import { dressFengge } from './fengge.js';   // H 线：峰哥头（只给玩家化身，影子不换）；?fengge=0 关
 import { makeStepper, makeGhost } from './ghost.js';
 import { makeCamera, defaultRig } from './camera.js';
 import { makeHud } from './hud.js';
@@ -114,6 +115,7 @@ async function main() {
   const ghLat = -Math.min(ROAD_W / 2 - 0.4, Math.abs(theme.ghostLat ?? GH_LAT));   // build 之后读：主题可以在 build 里改 ctx.theme
   const [av, gh] = await Promise.all([loadAvatar({ look: theme.avatar }),
     loadAvatar({ ghost: true, color: theme.ghost || '#bff3ff', opacity: ghOp, rim: theme.ghostRim, halo: !!theme.ghostHalo })]);
+  if (Q.get('fengge') !== '0') try { await dressFengge(av); } catch (e) { err('峰哥头加载失败，用原头盔', e); }
   const tagLift = theme.ghostTagLift ?? 0.6;   // 影子标签底边 = 脖子关节上方 0.6（头顶上方约 0.3）
   document.body.classList.toggle('sc-left', theme.summitCard === 'left');
   if (PREVIEW) document.body.classList.add('preview');   // 预览：登顶卡不做 2 s 延迟淡入，截图时刻稳定
