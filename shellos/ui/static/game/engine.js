@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP, ROAD_W } from './path.js';
 import { loadAvatar, flexFromFrame, preloadAvatar } from './avatar.js';
 import { dressFengge } from './fengge.js';   // H 线：峰哥头（只给玩家化身，影子不换）；?fengge=0 关
+import { initFenggeHud } from './fengge_hud.js';   // H 线：峰哥画中画头像 + 解说气泡；?fengge=0 关
 import { makeStepper, makeGhost } from './ghost.js';
 import { makeCamera, defaultRig } from './camera.js';
 import { makeHud } from './hud.js';
@@ -83,6 +84,7 @@ async function main() {
   }
   const theme = world.theme || {};
   const hud = makeHud(world);
+  initFenggeHud();
 
   // ---------- 渲染器 / 场景 ----------
   const canvas = document.getElementById('c');
