@@ -8,12 +8,14 @@ export function makeHypoxia({ blur = true } = {}) {
   const dark = mk('background:radial-gradient(ellipse 72% 68% at 50% 50%,rgba(4,6,16,0) 42%,rgba(4,6,16,.55) 78%,rgba(2,3,10,.92) 100%);');
   const soft = blur ? mk(['backdrop-filter:blur(5px) saturate(.8)', '-webkit-backdrop-filter:blur(5px) saturate(.8)',
     'mask-image:radial-gradient(ellipse 70% 66% at 50% 50%,transparent 48%,#000 92%)', '-webkit-mask-image:radial-gradient(ellipse 70% 66% at 50% 50%,transparent 48%,#000 92%)'].join(';') + ';') : null;
-  let lastD = -1, lastS = -1;
+  let lastD = -1, lastS = -1, ph = 0, lastT = null;
   return {
     // k = 缺氧程度 0..1（入口按海拔算）；t = 秒
     update(k, t) {
       const period = 4.2 - 1.4 * k;                                   // 越高喘得越快：约 14 → 21 次/分
-      const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * t / period);
+      if (lastT !== null) ph = (ph + Math.max(0, Math.min(0.1, t - lastT)) / period) % 1;   // 相位累加：周期随海拔变，不能拿绝对时间除（开久了会越喘越快）
+      lastT = t;
+      const breath = 0.5 - 0.5 * Math.cos(2 * Math.PI * ph);
       const d = +(k * (0.8 + 0.2 * breath)).toFixed(3), s = +(k * (0.7 + 0.3 * breath)).toFixed(3);
       if (Math.abs(d - lastD) > 0.004) { dark.style.opacity = d; lastD = d; }
       if (soft && Math.abs(s - lastS) > 0.004) { soft.style.opacity = s; lastS = s; }

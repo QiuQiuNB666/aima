@@ -148,7 +148,7 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
           #include <colorspace_fragment>
         }`,
     }));
-    m.position.set(c.x, y, c.z); m.name = 'cloudSea'; m.renderOrder = -1; scene.add(m); clouds.push({ m, u });
+    m.position.set(c.x, y, c.z); m.name = 'cloudSea'; m.renderOrder = -1; m.frustumCulled = false; scene.add(m); clouds.push({ m, u });
   });
 
   return {
@@ -160,7 +160,7 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
       ev.u.op.value = k.everest; ev.u.hazeC.value.copy(k.hz); ev.m.visible = k.everest > 0.01;
       banner.material.opacity = k.everest * 0.9; banner.visible = ev.m.visible;
       sun.material.opacity = k.sun;
-      for (const cl of clouds) { cl.u.op.value = cl.u.op0.value * k.cloud; cl.u.t.value = t % 3600; cl.m.visible = k.cloud > 0.01; cl.u.haze.value.copy(k.hz).lerp(cl.u.lit.value, 0.4); }
+      for (const cl of clouds) { cl.u.op.value = cl.u.op0.value * k.cloud; cl.u.t.value = t % 3600; cl.m.scale.setScalar(k.cloud > 0.01 ? 1 : 1e-6); cl.u.haze.value.copy(k.hz).lerp(cl.u.lit.value, 0.4); }   // 用不着时缩成点：不画片元，但管线第一帧就建好
     },
   };
 }

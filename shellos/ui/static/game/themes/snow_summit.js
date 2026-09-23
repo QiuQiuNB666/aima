@@ -1,5 +1,5 @@
 // 珠峰北坡（高海拔雪山）：大本营经幡 + 帐篷、远处的珠峰北壁和旗云 → 冰川碛石路、右侧冰塔林 → 前进营地
-//   → 北坳冰壁（冰塔、固定绳、冰爪痕）→ 北坳营地（帐篷、氧气瓶）→ 北山脊风雪 → 第一台阶 → 第二台阶铝梯（中国梯）
+//   → 北坳冰壁（冰塔、路右的固定绳、冰爪痕）→ 北坳营地（帐篷、氧气瓶）→ 北山脊风雪 → 第一台阶 → 第二台阶铝梯（中国梯）
 //   → 顶峰雪坡、排队的人影 → 顶峰红色测量觇标 + 经幡，脚下云海、头顶蓝黑天。
 // 天气随进度：低处晴（藏蓝天、白太阳）→ 北坳往上起风雪（雾收近、雪粒横飞、远山褪进灰白）→ 排队处转晴 → 登顶云海 + 蓝黑天。
 // 缺氧：按海拔（world.alt 插值）四周变暗、变糊，随呼吸一明一暗（snow_summit/hypoxia.js，DOM 层，不动画面）。
@@ -268,7 +268,7 @@ export function build(scene, ctx) {
       if (R() < 0.35) put(3.8 + R() * 3, 0.6 + 0.5 * R(), 0.8 + 1.4 * R());
     }
     const sm = util.instanced(seracGeo(5), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: '#0e1c28' }), seracs); sm.name = 'seracs'; scene.add(sm);
-    for (const m of fixedRope(ctx, [[Z.wall.start - 1, N - 1.5]], { lat: 1.0, every: 2 })) scene.add(m);
+    for (const m of fixedRope(ctx, [[Z.wall.start - 1, N - 1.5]], { lat: -1.5, every: 2 })) scene.add(m);   // 路右沿外：镜头在左边，别从镜头底下穿过去
   }
 
   // ---------- 岩石台阶（第一 / 第二台阶）：两侧一堆扎进地里的岩块（第一台阶偏黄 = 黄带那种石灰岩），左侧 3 以内 ≤ 1.2；
@@ -301,12 +301,17 @@ export function build(scene, ctx) {
   {
     const m = new THREE.Mesh(util.merged(beaconParts()), revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#2a0806' }), revTop));
     m.position.copy(bcnPos); m.rotation.y = -bcn.heading; m.name = 'surveyBeacon'; scene.add(m); hideTop.push(m);
+    // 经幡从觇标顶往前方 / 右侧拉到雪里（按路线方向摆，不按世界角度）；经过化身、影子登顶站位 0.7 以内的绳不要
     const top = bcnPos.clone().setY(bcnPos.y + 1.7), lines = [];
-    for (let k = 0; k < 7; k++) {
-      const ang = k / 7 * Math.PI * 2 + 0.4, g = bcnPos.clone().add(new THREE.Vector3(Math.cos(ang) * 2.4, 0, Math.sin(ang) * 2.4));
-      if (!clearOfRoad(g.x, g.z, 0.2) && k % 2) continue;
+    const spots = [route.at(N + 1.2, 0.35).pos, route.at(N + 1.4, -0.5).pos], near = (a, b) => {
+      for (let f = 0; f <= 1.001; f += 0.1) { const x = a.x + (b.x - a.x) * f, z = a.z + (b.z - a.z) * f; if (spots.some(q => Math.hypot(q.x - x, q.z - z) < 0.7)) return true; }
+      return false;
+    };
+    for (const [ds, lat] of [[3.2, -0.9], [5.5, -0.4], [4.6, -2.6], [2.2, -3.4], [0.2, -3.0], [5.0, 1.6], [3.0, -1.9]]) {
+      const g = route.at(bcnS + ds, -0.85 + lat).pos;
+      if (near(top, g)) continue;
       g.y = Math.max(hAt(g.x, g.z), route.heightAt(N) - 1.2) + 0.1;
-      lines.push({ a: top, b: g, sag: 0.25, shift: k });
+      lines.push({ a: top, b: g, sag: 0.25, shift: lines.length });
     }
     const TF = prayerFlags(ctx, lines, { cap: LOW ? 60 : 120, rev: revTop });
     for (const m of TF.meshes) scene.add(m);
@@ -343,8 +348,9 @@ export function build(scene, ctx) {
 
   // ---------- 镜头 ----------
   const rig = ctx.camRig;
-  // 登顶：镜头从化身左后方起（正对右前方的觇标和右侧云海），停 1.2 s 再慢慢转
-  Object.assign(rig.summit, { radius: 4.2, height: 1.8, lookY: 1.3, speed: 0.2, hold: 1.2, face: route.at(N + 2.6, -2.4).pos.setY(route.heightAt(N) + 1.2) });
+  // 登顶：镜头从化身左前方起（face 取右后方），看得见峰哥的脸；影子（右边 0.85）和觇标（右前）都错开在化身右侧，不被挡；
+  //   停 1.2 s 再慢慢转
+  Object.assign(rig.summit, { radius: 4.2, height: 1.8, lookY: 1.3, speed: 0.2, hold: 1.2, face: route.at(N + 1.2 - 4.8, 0.35 - 2.4).pos.setY(route.heightAt(N) + 1.2) });
   const snowFx = buildSnow(scene, { count: LOW ? 700 : 2200, windDir });
   const hyp = makeHypoxia({ blur: !LOW });
 
@@ -397,6 +403,13 @@ export function rigFor(s, r, summit) {
 // ---------- 每帧 ----------
 const _c = new THREE.Vector3(), _mid = new THREE.Vector3(), _head = new THREE.Vector3(), _sc = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _m4 = new THREE.Matrix4(), _t = new THREE.Vector3(), _u = new THREE.Vector3();
 let waitEl = null;
+// 「藏」= 缩成一个点（退化三角形，不出片元、不投影），不用 visible = false：还在绘制列表里，第一帧就把着色器 / 管线建好
+//   （ANGLE / Metal 在第一次绘制时才建管线，隐藏的东西第一次露面那帧会卡 0.2 s）；缩成点后包围球也缩了，关掉视锥裁剪保证照画
+export function show(m, on) {
+  if (m.userData.on === on) return;
+  if (m.userData.fc === undefined) m.userData.fc = m.frustumCulled;
+  m.userData.on = on; m.scale.setScalar(on ? 1 : 1e-6); m.frustumCulled = on && m.userData.fc;
+}
 const _A = {};
 // 点 p 到线段 ab 的距离
 function segDist(p, a, b) { _t.subVectors(b, a); _u.subVectors(p, a); const u = Math.max(0, Math.min(1, _t.dot(_u) / (_t.lengthSq() || 1))); return p.distanceTo(_t.multiplyScalar(u).add(a)); }
@@ -418,14 +431,14 @@ export function update(dt, st) {
   S.sky.apply({ top: K.top, hz: K.hz, below: K.below, band: K.band, halo: K.halo, sun: K.sun, haze: K.haze,
     sink: 48 * Math.max(smooth(0.08, 1, p), sk), cloud: Math.max(smooth(0.38, 0.62, p), sk), everest: (1 - smooth(0.3, 0.46, p)) * (1 - sk) }, st.t || 0);
   const vh = S.ctx.renderer.domElement.clientHeight || innerHeight;
-  S.snow.update(st.t || 0, Math.min(1, storm * (LOW ? 0.7 : 1) + 0.12 * smooth(0.3, 0.42, p) * (1 - sk)), st.camera, vh);
+  S.snow.update(st.t || 0, st.dt || dt || 0, Math.min(1, storm * (LOW ? 0.7 : 1) + 0.12 * smooth(0.3, 0.42, p) * (1 - sk)), st.camera, vh);
   for (const f of S.flags) { f.uT.value = (st.t || 0) % 1000; f.uWind.value = 1 + 1.5 * storm; }
   S.revRock.value = st.summit ? 1 : smooth(S.rockS - 18, S.rockS - 12, st.s);    // 走到才露面：离地标 6–9 个单位开始显出来
   S.revTop.value = st.summit ? 1 : smooth(S.topS - 18, S.topS - 12, st.s);
-  for (const m of S.hideRock) m.visible = S.revRock.value > 0.001;
-  for (const m of S.hideTop) m.visible = S.revTop.value > 0.001;
+  for (const m of S.hideRock) show(m, S.revRock.value > 0.001);
+  for (const m of S.hideTop) show(m, S.revTop.value > 0.001);
   S.revLow.value = st.summit ? 0 : 1 - smooth(S.Z.snowS + 11, S.Z.snowS + 16, st.s);
-  for (const m of S.hideLow) m.visible = S.revLow.value > 0.001;
+  for (const m of S.hideLow) show(m, S.revLow.value > 0.001);
   // 缺氧：按海拔（world.alt 插值），登顶那几秒松一口气
   const alt = S.a0 + (S.a1 - S.a0) * route.heightAt(st.s) / route.hmax;
   S.hyp.update(Math.pow(smooth(5300, 8849, alt), 1.1) * (1 - 0.25 * sk), st.t || 0);
@@ -436,8 +449,9 @@ export function update(dt, st) {
     const go = st.summit || (P.sig && P.sig.state === 'green'), A = _A;
     _head.copy(st.avatar || _c).y += 1.1;
     for (let k = 0; k < P.n; k++) {
-      const want = Math.max(go ? P.go(k) : P.red(k), st.s + 1.1 + k * 1.2);
-      P.s[k] = st.preview ? want : P.s[k] + Math.max(-dt * 1.2, Math.min(dt * 1.2, want - P.s[k]));
+      const floor = st.s + 1.1 + k * 1.2, want = Math.max(go ? P.go(k) : P.red(k), floor);
+      // 往前走限速（慢慢挪上梯子）；但永远在化身前面（硬约束，走得快的人不会穿过去）；不往回走：新一圈直接回到排队位置
+      P.s[k] = st.preview || want < P.s[k] - 0.5 ? want : Math.max(floor, P.s[k] + Math.min(dt * 1.2, want - P.s[k]));
       route.at(P.s[k], P.lat[k], A);
       const y = route.heightAt(P.s[k]), lean = 0.12 + 0.03 * Math.sin((st.t || 0) * 1.7 + k);
       _q.setFromEuler(_e.set(0, -A.heading, -lean, 'YXZ'));
