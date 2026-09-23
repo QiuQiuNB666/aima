@@ -2,7 +2,6 @@
 //   化身走到前面 3.2 步以内 → 往外让到 lat −2.9、站住；化身过去 1.5 步后接着往下走。铜铃叮当，按离镜头的距离由远及近。
 //   第一头开始让路那一帧 onYield（峰哥说一句）。只读 s，不碰控制。2 次绘制（身子 / 腿）+ 冰川上身子阴影 1 次，约 3k 三角形。?fx=low 整个不建（snow_summit.js 里判）。
 import * as THREE from 'three';
-import { yakBell } from './audio.js';
 
 const LAT = -1.9, ASIDE = -2.9, SPEED = 0.55;                               // 横向位置（负 = 路右）、下山速度（步 / s）
 const HIPS = [[0.46, 0.2, 0], [0.46, -0.2, Math.PI], [-0.46, 0.2, Math.PI], [-0.46, -0.2, 0]];   // 腿：x 前后、z 左右、相位（对角同步）
@@ -28,7 +27,7 @@ function yakGeo(util) {
 }
 
 export function buildYaks(ctx, { Z, hAt, onYield }) {
-  const { route, util, scene } = ctx, R = ctx.rand, gl = Z.glacier;
+  const { route, util, scene, kit } = ctx, R = ctx.rand, gl = Z.glacier;
   if (!gl) return null;
   const n = 7, s0 = gl.start + gl.steps * 0.5;
   const body = new THREE.InstancedMesh(yakGeo(util), new THREE.MeshLambertMaterial({ vertexColors: true }), n);
@@ -60,7 +59,7 @@ export function buildYaks(ctx, { Z, hAt, onYield }) {
         // 铃：走着 / 刚让开的时候隔一阵叮当一下；按离镜头的距离定音量（远处听得见一点，走近了清楚）
         if ((y.bell -= dt) <= 0) {
           y.bell = 0.7 + R() * 1.0;
-          if (active && bellT <= 0 && cam) { route.at(y.s, y.cl, A); const d = cam.position.distanceTo(A.pos); if (d < 26) { yakBell(Math.pow(1 - d / 26, 1.5) * (0.4 + 0.6 * y.walk), y.pitch); bellT = 0.15; } }
+          if (active && bellT <= 0 && cam) { route.at(y.s, y.cl, A); const d = cam.position.distanceTo(A.pos); if (d < 26) { kit.sfx('yakbell', Math.pow(1 - d / 26, 1.5) * (0.4 + 0.6 * y.walk), { pitch: y.pitch }); bellT = 0.15; } }
         }
         route.at(y.s, y.cl, A);
         const yaw = -A.heading + Math.PI - Math.sign(dl) * Math.min(0.6, Math.abs(dl) / Math.max(dt, 1e-3) * 0.5);   // 头朝下山；往外挪的时候身子斜过去

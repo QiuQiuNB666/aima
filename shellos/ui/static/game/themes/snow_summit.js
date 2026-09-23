@@ -9,7 +9,7 @@
 // ?fx=low：雪粒 / 经幡 / 排队人数减半、不要模糊层、地面网格粗一档（展位机器吃紧时用）。
 // 互动（只动画面和声音）：走过经幡，近处的旗被一阵猛风抽得乱飞、啪啪响；排队段前面的人一个个往上挪，轮到你时最前面那个往右让一步；
 //   北坳吸氧：化身旁边弹出氧气面罩图标、嘶——一口、呼出白气（缺氧暗角也松一点）；登顶时觇标上卷着的红旗展开。?fx=low 不要白气。
-// 子模块：snow_summit/sky.js（天、群峰、远处北壁、云海）、snow.js（雪粒）、props.js（道具几何）、hypoxia.js（缺氧）；音效 / 头顶图标用 cliff_path/interact.js。
+// 子模块：snow_summit/sky.js（天、群峰、远处北壁、云海）、snow.js（雪粒）、props.js（道具几何）、hypoxia.js（缺氧）；头顶图标用 cliff_path/interact.js，音效用 kit.sfx / kit.sfxLoop。
 import * as THREE from 'three';
 import { STEP, ROAD_W } from '../path.js';
 import { SEG, WHO, UI } from '../style.js';
@@ -18,7 +18,8 @@ import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
 import { prayerFlags, tentGeo, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
-import { sfx as play, popIcon } from './cliff_path/interact.js';
+import { sfx as play } from './kit.js';
+import { popIcon } from './cliff_path/interact.js';
 import { buildCamp } from './snow_summit/camp.js';
 import { buildHeli } from './snow_summit/heli.js';
 import { buildYaks } from './snow_summit/yaks.js';
