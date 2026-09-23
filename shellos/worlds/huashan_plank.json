@@ -1,0 +1,111 @@
+{
+ "name": "华山·长空栈道",
+ "subtitle": "玉泉院 → 回心石 → 千尺幢 → 北峰 → 苍龙岭 → 长空栈道 → 南峰",
+ "story": "自古华山一条路。拉着铁链爬千尺幢，走过两边都是绝壁的苍龙岭，扣上安全锁，贴着悬崖走长空栈道，最后站上南峰。",
+ "note": "按真实爬升比例压成 60 步。玉泉院约 411 m、北峰 1614.9 m（台阶步长所限，读数 1622）、南峰 2154.9 m（2007 年重测，华山最高峰）；回心石、金锁关、栈道这些点没有权威海拔，读数只是示意（回心石读数比常见的约 1330 m 低不少）。长空栈道其实是南峰东侧的一条支路，走到贺老洞要原路返回，这里把它串在登顶前；相传元代贺志真开凿，现在必须系安全带、全程扣在铁索上。",
+ "alt": [
+  411,
+  2154.9
+ ],
+ "unit": "m",
+ "route": [
+  {
+   "kind": "flat",
+   "steps": 3,
+   "label": "玉泉院"
+  },
+  {
+   "kind": "up",
+   "steps": 21,
+   "label": "青柯坪山路",
+   "turns": 2
+  },
+  {
+   "kind": "flat",
+   "steps": 1,
+   "label": "回心石"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 7,
+   "label": "千尺幢"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 2,
+   "label": "百尺峡"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 2,
+   "label": "老君犁沟"
+  },
+  {
+   "kind": "flat",
+   "steps": 2,
+   "label": "北峰"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 7,
+   "label": "苍龙岭"
+  },
+  {
+   "kind": "flat",
+   "steps": 2,
+   "label": "金锁关"
+  },
+  {
+   "kind": "up",
+   "steps": 5,
+   "label": "中峰"
+  },
+  {
+   "kind": "wait",
+   "steps": 1,
+   "label": "南天门·扣安全锁"
+  },
+  {
+   "kind": "flat",
+   "steps": 5,
+   "label": "长空栈道"
+  },
+  {
+   "kind": "up",
+   "steps": 2,
+   "label": "南峰"
+  }
+ ],
+ "summit": {
+  "name": "南峰·华山极顶",
+  "text": "自古华山一条路。这是个好事儿啊，没得选，就不纠结了。"
+ },
+ "theme": {
+  "style": "cliff_path",
+  "sky": [
+   "#2f6fc0",
+   "#c9dcee"
+  ],
+  "fog": "#cbd9e8",
+  "ground": "#6b6f52",
+  "path": "#b1aa9f",
+  "stairs": "#c5bdb1",
+  "accent": [
+   "#c8231b",
+   "#e0a93a",
+   "#2f64e8"
+  ],
+  "props": [
+   "granite_cliff",
+   "chains",
+   "love_locks",
+   "plank_walk",
+   "pines",
+   "cloud_sea"
+  ],
+  "ghost": "#2f64e8",
+  "ghostOpacity": 0.56,
+  "ghostRim": "#0b1f63"
+ },
+ "id": "huashan_plank"
+}

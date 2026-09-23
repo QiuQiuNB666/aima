@@ -407,8 +407,8 @@ let waitEl = null;
 //   （ANGLE / Metal 在第一次绘制时才建管线，隐藏的东西第一次露面那帧会卡 0.2 s）；缩成点后包围球也缩了，关掉视锥裁剪保证照画
 export function show(m, on) {
   if (m.userData.on === on) return;
-  if (m.userData.fc === undefined) m.userData.fc = m.frustumCulled;
-  m.userData.on = on; m.scale.setScalar(on ? 1 : 1e-6); m.frustumCulled = on && m.userData.fc;
+  if (m.userData.fc === undefined) { m.userData.fc = m.frustumCulled; m.userData.s0 = m.scale.clone(); }   // 记下原来的缩放（有的石头 build 里就缩放过）
+  m.userData.on = on; if (on) m.scale.copy(m.userData.s0); else m.scale.setScalar(1e-6); m.frustumCulled = on && m.userData.fc;
 }
 const _A = {};
 // 点 p 到线段 ab 的距离
