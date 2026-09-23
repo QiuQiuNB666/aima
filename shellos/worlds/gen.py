@@ -24,7 +24,8 @@ def styles() -> dict:
 
 def by_rule(text: str) -> dict:
     t = text or ""
-    style = ("cyber_night" if re.search(r"夜|霓虹|东京|城|街|赛博", t) else
+    style = ("snow_summit" if re.search(r"珠峰|珠穆朗玛|喜马拉雅|雪山|8848|冰川|高原|登顶世界", t) and "snow_summit" in styles() else
+             "cyber_night" if re.search(r"夜|霓虹|东京|城|街|赛博", t) else
              "night_to_dawn" if re.search(r"日出|星|富士|夜爬|雪", t) else
              "subtropical" if re.search(r"深圳|梧桐|榕|热带|海|南方", t) else
              "grid" if re.search(r"训练|测试|练习", t) else "dawn_mountain")
