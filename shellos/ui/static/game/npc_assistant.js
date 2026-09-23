@@ -27,7 +27,7 @@ export async function makeAssistant(scene) {
   const av = await loadAvatar({ look: { exo: false, headScale: 1 } });
   av.group.name = 'npc_assistant';
   let cm = null; av.group.traverse(o => { if (o.isSkinnedMesh && !cm) cm = o; });
-  const body = buildAssistantBody(av, outfitFor(), tune);
+  const body = buildAssistantBody(av, await outfitFor(), tune);   // 按当前世界的 theme.style 选一套
   if (cm) cm.visible = false;                                  // CesiumMan 原网格（方块小人 + 头盔）藏掉
   const head = buildHead(av);                                  // 手绘低多边形脸 + 深棕头发 + 高马尾（head.ponytail 第 4 轮甩动）
   av.group.scale.setScalar(SCALE);
