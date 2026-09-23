@@ -17,7 +17,8 @@ import { stairNoses } from './cliff_path/props.js';
 import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
-import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
+import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
+import { climberGeo, climberMaterials } from './snow_summit/climber_model.js';
 import { sfx as play } from './kit.js';
 import { popIcon } from './cliff_path/interact.js';
 import { buildCamp } from './snow_summit/camp.js';
@@ -341,16 +342,17 @@ export function build(scene, ctx) {
   // ---------- 排队的人影（最后那段红灯 → 顶峰），数量有上限 ----------
   let people = null;
   if (Z.queue) {
-    const { suit, gear } = climberGeos(util), n = LOW ? 3 : 5;
-    const SUIT = ['#e0402c', '#f2b01e', '#2f6fd6', '#e0402c', '#7a3fc0'];
-    const sm = new THREE.InstancedMesh(suit, revealable(new THREE.MeshLambertMaterial({ vertexColors: true }), revTop), n);
-    const gm = new THREE.InstancedMesh(gear, revealable(new THREE.MeshLambertMaterial({ vertexColors: true }), revTop), n);
-    for (let k = 0; k < n; k++) sm.setColorAt(k, new THREE.Color(SUIT[k]));
-    sm.instanceColor.needsUpdate = true;
-    sm.frustumCulled = gm.frustumCulled = false; sm.name = gm.name = 'queue';
-    scene.add(sm, gm); hideTop.push(sm, gm);
+    // 登山者：一个 InstancedMesh（climber_model.js），羽绒服 / 背包颜色、跺脚 / 搓手 / 抬头 / 走都是实例属性
+    const n = LOW ? 3 : 5, geo = climberGeo(), CM = climberMaterials(revealable, revTop);
+    const SUIT = ['#e0402c', '#f2b01e', '#3a7bd8', '#2f9c55', '#7a3fc0'], PK = ['#2b2f36', '#d63b2a', '#2b2f36', '#e8781c', '#3a5a8a'];
+    const suitA = new Float32Array(n * 3), packA = new Float32Array(n * 3), anim = new Float32Array(n * 4), c = new THREE.Color();
+    for (let k = 0; k < n; k++) { suitA.set(c.set(SUIT[k]).toArray(), k * 3); packA.set(c.set(PK[k]).toArray(), k * 3); }
+    geo.setAttribute('aSuit', new THREE.InstancedBufferAttribute(suitA, 3)); geo.setAttribute('aPack', new THREE.InstancedBufferAttribute(packA, 3));
+    const aAnim = new THREE.InstancedBufferAttribute(anim, 4); geo.setAttribute('aAnim', aAnim);
+    const sm = new THREE.InstancedMesh(geo, CM.mat, n); sm.customDepthMaterial = CM.depth;
+    sm.frustumCulled = false; sm.name = 'queue'; scene.add(sm); hideTop.push(sm);
     const q0 = Z.queue.start;
-    people = { sm, gm, n, s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
+    people = { sm, n, anim, aAnim, ph: Array.from({ length: n }, (_, k) => k * 1.7), wk: new Array(n).fill(0), rb: new Array(n).fill(0), lk: new Array(n).fill(0), ps: new Array(n).fill(null), s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
       red: k => q0 + 1.3 + k * 1.3, go: k => N + 4 + k * 1.1, sig: M.signals.find(g => g.seg.start === q0), wt: 0, aside: false, asideS: 0 };
     people.cl = people.lat.slice();                                          // 当前横向位置（让路时往右挪）
   }
@@ -493,9 +495,16 @@ export function update(dt, st) {
       const gone = 1 - smooth(N + 1.6, N + 2.6, P.s[k]);
       const block = st.camera && (st.camera.position.distanceTo(_mid) < 1.2 || segDist(_mid, st.camera.position, _head) < 0.42);
       _sc.setScalar(block ? 0 : 0.95 * gone);
-      _m4.compose(_c, _q, _sc); P.sm.setMatrixAt(k, _m4); P.gm.setMatrixAt(k, _m4);
+      _m4.compose(_c, _q, _sc); P.sm.setMatrixAt(k, _m4);
+      // 小动作：走 = 按实际挪动的速度；站着的时候每人轮着跺脚 / 搓手 / 抬头看梯子（各人错开）
+      const v = P.ps[k] === null || dt <= 0 ? 0 : Math.abs(P.s[k] - P.ps[k]) / dt; P.ps[k] = P.s[k];
+      const mode = Math.floor(((st.t || 0) * 0.22 + k * 0.61) % 3), fz = Math.min(1, dt * 3);
+      P.wk[k] += ((st.preview ? 0 : Math.min(1, v * 1.5)) - P.wk[k]) * fz;
+      P.rb[k] += ((mode === 1 ? 1 : 0) * (1 - P.wk[k]) - P.rb[k]) * fz; P.lk[k] += ((mode === 2 ? 1 : 0) * (1 - P.wk[k]) - P.lk[k]) * fz;
+      P.ph[k] += dt * (3 + 4 * P.wk[k]);
+      P.anim.set([P.ph[k], P.wk[k], P.rb[k], P.lk[k]], k * 4);
     }
-    P.sm.instanceMatrix.needsUpdate = P.gm.instanceMatrix.needsUpdate = true;
+    P.sm.instanceMatrix.needsUpdate = true; P.aAnim.needsUpdate = true;
   }
 }
 

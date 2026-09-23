@@ -153,25 +153,6 @@ function bar2(a, b, t, color) {
 }
 
 // 排队的人影：羽绒服（instanceColor 上色）+ 深色件（背包、氧气面罩、腿、冰镐）两个网格同一套矩阵。身高约 1.4，微微前倾
-export function climberGeos(util) {
-  const suit = util.merged([
-    { geo: new THREE.CapsuleGeometry(0.19, 0.42, 3, 8), p: [0, 0.98, 0], s: [1, 1, 0.85] },                     // 躯干（鼓鼓的羽绒服）
-    { geo: new THREE.SphereGeometry(0.14, 10, 8), p: [0.02, 1.43, 0] },                                            // 帽兜
-    { geo: new THREE.CapsuleGeometry(0.06, 0.4, 2, 6), p: [0.06, 1.0, 0.24], q: q3(0.3, 0, 0.35) },               // 胳膊
-    { geo: new THREE.CapsuleGeometry(0.06, 0.4, 2, 6), p: [0.12, 1.02, -0.24], q: q3(-0.2, 0, 0.8) },            // 扶绳的手
-  ]);
-  const gear = util.merged([
-    { geo: new THREE.BoxGeometry(0.2, 0.46, 0.32), p: [-0.2, 1.05, 0], color: '#2b2f36' },                         // 背包
-    { geo: new THREE.CylinderGeometry(0.06, 0.06, 0.4, 8), p: [-0.27, 1.12, 0.1], color: '#e0761c' },              // 背包侧的氧气瓶
-    { geo: new THREE.SphereGeometry(0.075, 8, 6), p: [0.14, 1.4, 0], s: [0.9, 0.8, 1.2], color: '#1a1c20' },       // 面罩
-    { geo: new THREE.CapsuleGeometry(0.075, 0.5, 2, 6), p: [0, 0.35, 0.1], color: '#262a31' },                     // 腿
-    { geo: new THREE.CapsuleGeometry(0.075, 0.5, 2, 6), p: [0.08, 0.35, -0.1], q: q3(0, 0, 0.2), color: '#262a31' },
-    { geo: new THREE.BoxGeometry(0.2, 0.08, 0.12), p: [0.05, 0.04, 0.1], color: '#15171a' },                       // 靴
-    { geo: new THREE.BoxGeometry(0.2, 0.08, 0.12), p: [0.16, 0.04, -0.1], color: '#15171a' },
-  ]);
-  return { suit, gear };
-}
-const q3 = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z));
 
 // 岩块（第一 / 第二台阶两侧、山脊上的岩头）：平直着色的多面体，朝上的面积雪（顶点色），侧面 = base 岩色；instanceColor 只给明暗
 export function rockGeo(base, seed, tall = 1) {
