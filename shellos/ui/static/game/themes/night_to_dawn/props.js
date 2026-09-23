@@ -106,9 +106,9 @@ export function tinTexture(util) {
 }
 
 // 山小屋（本地：x 沿路宽 w，z 离路方向深 d，正面在 z = -d/2 朝路）。
-// 返回 { body（lambert 顶点色）, roof（铁皮贴图）, glass（不吃光：窗、门、暖帘、月光屋脊）, glow, text }
+// 返回 { body（lambert 顶点色）, roof（铁皮贴图）, glass（不吃光：窗、门、月光屋脊）, glow, text, noren（暖帘挂点）, lamps（檐下提灯）}
 export function hut({ w = 4.2, d = 2.4, h = 2.0, name, yago, lit = 3, chochin = false } = {}) {   // yago = 屋号（门楣上的横木牌，真实的吉田口山小屋名）
-  const body = [], roof = [], glass = [], glow = [], text = [];
+  const body = [], roof = [], glass = [], glow = [], text = [], noren = [], lamps = [];
   const wood = '#6a4630', dark = '#2a1b12';
   body.push({ geo: new THREE.BoxGeometry(w + 0.5, 3.0, d + 0.5), p: [0, -1.42, 0], color: '#6e3a27' });          // 石基（埋进坡里；火山砂色，下坡那侧露出来也像地面不像黑底座）
   body.push({ geo: new THREE.BoxGeometry(w, h, d), p: [0, h / 2, 0], color: wood });
@@ -134,7 +134,7 @@ export function hut({ w = 4.2, d = 2.4, h = 2.0, name, yago, lit = 3, chochin = 
     const x = -w / 2 + gap * k, door = k === Math.ceil(n / 2);
     if (door) {
       glass.push({ geo: new THREE.PlaneGeometry(0.8, 1.45).rotateY(Math.PI), p: [x, 0.73, front], color: '#ffb24a' });
-      for (const kx of [-1, 1]) glass.push({ geo: new THREE.PlaneGeometry(0.38, 0.5).rotateY(Math.PI), p: [x + kx * 0.2, 1.2, front - 0.03], color: '#e9e2d0' });   // 白布暖帘（左右两幅）
+      for (const kx of [-1, 1]) noren.push({ p: [x + kx * 0.2, 1.45, front - 0.03], color: '#e9e2d0' });   // 白布暖帘（左右两幅，挂点在上沿；入口统一做成会飘的实例）
       glass.push({ geo: new THREE.BoxGeometry(0.95, 0.05, 0.05), p: [x, 1.46, front - 0.04], color: '#1a120c' });
       body.push({ geo: new THREE.BoxGeometry(0.1, 1.5, 0.08), p: [x - 0.45, 0.75, front - 0.02], color: dark }, { geo: new THREE.BoxGeometry(0.1, 1.5, 0.08), p: [x + 0.45, 0.75, front - 0.02], color: dark });
       if (name) {                                                        // 竖木牌：立在前方屋角外（走近时先看到），写站名
@@ -157,9 +157,9 @@ export function hut({ w = 4.2, d = 2.4, h = 2.0, name, yago, lit = 3, chochin = 
     }
   }
   glow.push({ p: [w / 2 - 0.3, h - 0.25, -half - 0.1], c: '#ffd890', sz: 1.5 });                        // 檐下灯
-  if (chochin) for (let x = -w / 2 + 0.25, k = 0; x <= w / 2 - 0.2; x += 0.42, k++)                     // 檐下一串提灯（红白相间，自己亮）：3 米外一眼是「山小屋」
-    glass.push({ geo: new THREE.SphereGeometry(0.1, 10, 8), p: [x, h - 0.28, -d / 2 - 0.3], s: [1, 1.3, 1], color: k % 2 ? '#e8402a' : '#ffe0b0' });
-  return { body, roof, glass, glow, text };
+  if (chochin) for (let x = -w / 2 + 0.25, k = 0; x <= w / 2 - 0.2; x += 0.42, k++)                     // 檐下一串提灯（红白相间）：入口统一做成实例，人走近才一盏盏点亮
+    lamps.push({ p: [x, h - 0.28, -d / 2 - 0.3], color: k % 2 ? '#e8402a' : '#ffe0b0' });
+  return { body, roof, glass, glow, text, noren, lamps };
 }
 
 // 鸟居（本地：柱子在 z = ±hw，横梁沿 z，正面朝 -x）

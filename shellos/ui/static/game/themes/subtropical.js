@@ -14,7 +14,7 @@ const C = {
   farHill: '#7f9aa8', land: '#5b7464', sea: '#3d7aa6', towers: ['#9aa7b4', '#aab4be', '#b7bec6', '#c6ccd2', '#a4a39c', '#b4aea4'],   // 楼：暖灰 / 蓝灰（别一片白）；海湾深蓝
 };
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-let far = null, sceneRef = null, ghostDone = false, LIVE = [];   // LIVE：会动的小东西（山涧、蝴蝶、白鹭），每帧 update(dt)
+let far = null, sceneRef = null, ghostDone = false, LIVE = [], ACT = null, RIG0 = null, OBS = null;   // LIVE：会动的小东西（山涧、蝴蝶、白鹭），每帧 update(dt)
 
 // 石阶贴图：只管花岗岩麻点和一点青苔（亮度 ~0.85–1.1，乘到下面的定色上）
 function stoneTex(util, kit) {
@@ -194,6 +194,20 @@ export function build(scene, ctx) {
     k.flock(ctx, { count: k.LOW ? 3 : 5, center: at(12.5, -2.5), radius: 1.0, spread: 0.6, height: 1.4, size: 0.4, color: '#46a0ff', speed: -1.0, flap: 7.5, name: 'butterflies' }),
     k.flock(ctx, { count: k.LOW ? 3 : 5, center: at(24, -9), radius: 5, spread: 2.5, height: -0.5, size: 1.5, color: '#f6f6f0', speed: 0.14, flap: 1.2, name: 'egrets' }),
   ];
+  // 第 3 批 场景互动：① 走近蝴蝶群 → 惊起（飞散、飞高、扇得急）+ 扑棱声；② 跨过山涧 → 路两边溅水花 + 水声；③ 观景台 → 镜头往后上方拉远、偏左，把右边深圳天际线框进来（rigFor）
+  const water = k.particles(ctx, { color: '#e6f6f4', alpha: 0.85, n: 48, gravity: 2.4, name: 'streamSplash' });
+  const flies = [LIVE[1], LIVE[2]], scare = flies.map(() => k.edge()), wet = k.edge(), cross = 8.15;
+  const bank = [at(cross + 0.1, -1.45), at(cross - 0.1, 1.45)].map(p => p.setY(route.heightAt(cross) - 0.05));
+  ACT = (dt, st) => {
+    flies.forEach((f, i) => {
+      const near = Math.hypot(st.avatar.x - f.center.x, st.avatar.z - f.center.z) < 3.2;
+      f.agitate = near ? 1 : 0;
+      if (scare[i](near)) k.sfx('flutter', 0.7);
+    });
+    if (wet(st.s > cross - 0.2 && st.s < cross + 0.8)) { for (const b of bank) water.burst(b.x, b.y, b.z, 1.2, k.LOW ? 8 : 18, { up: 1.8, life: 1.1, size: 1.1, spread: 0.25, floor: false }); k.sfx('splash', 0.8); }
+    water.update(dt, st.camera);
+  };
+  RIG0 = { ...ctx.camRig.follow }; OBS = [obs.start, obs.start + obs.steps];
 }
 
 // 路肩红土：路沿外 0.8 m 一条贴地带（跟着地面高度），外沿用噪声 alpha 咬出不规则的边（alphaTest，干净利落，不是顶点色糊开）
@@ -231,10 +245,18 @@ function soilStrip(scene, ctx, hAt) {
   m.name = 'soilStrip'; scene.add(m);
 }
 
+// 观景台：镜头往后 2.4、往上 1.3、往左 1.8（视线往右偏，城和海湾进画）；进台前半步开始、离台后一步收回
+export function rigFor(s, rig) {
+  if (!RIG0 || !OBS) return;
+  const k = smooth(OBS[0] - 0.4, OBS[0] + 0.6, s) * (1 - smooth(OBS[1] + 0.3, OBS[1] + 1.4, s)), F = rig.follow;
+  F.back = RIG0.back + 2.4 * k; F.height = RIG0.height + 1.3 * k; F.side = RIG0.side + 1.8 * k; F.lookY = RIG0.lookY + 0.35 * k;
+}
+
 export function update(dt, st) {
   if (SFX) SFX.update(dt, st);
   if (far) far.update(st.t);
   for (const o of LIVE) o.update(dt);
+  if (ACT) ACT(dt, st);
   if (!ghostDone && sceneRef) { ghostDone = true; dressGhost(sceneRef); }
 }
 

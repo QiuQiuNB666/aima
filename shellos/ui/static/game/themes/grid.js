@@ -69,11 +69,12 @@ function floorAt(s, lateral, lift, text) {
 
 let SFX = null;                                      // 落阶反馈（kit.stepFx）
 let CHEV = null, WAVE = null;                        // 第 2 批：地上往前跑的引导箭头、进新路段时地面一圈扩散光环
+let SCORE = null, LAMPS = null, FEET = null;         // 第 3 批：计分牌、路段门进度灯、脚印点亮
 export function build(scene, ctx) {
   SFX = ctx.kit.stepFx(ctx, { dust: '#5fd3ff', flash: '#5fd3ff', add: true, dustA: 0.9 });   // 训练场：青色数据粒子
   const { world, kit, util, lights, meshes: M } = ctx;
   route = ctx.route; arches = [];
-  CHEV = makeChevrons(scene, ctx); WAVE = makeWave(scene);
+  CHEV = makeChevrons(scene, ctx); WAVE = makeWave(scene); LAMPS = makeArchLamps(scene, util);
   const { N, steps, segs } = route, c = kit.routeCenter(route);
   const kindAt = s => (s >= 0 && s < N) ? steps[Math.floor(s)].kind : 'flat';
   const yAt = s => { const k = kindAt(s); return stairs(k) ? steps[Math.floor(s)].top : route.heightAt(s); };   // 路面（踏面）高度
@@ -289,6 +290,7 @@ export function build(scene, ctx) {
   const fg = new THREE.PlaneGeometry(0.28, 0.12); fg.rotateX(-Math.PI / 2);
   const fm = util.instanced(fg, new THREE.MeshBasicMaterial({ map: footTex, alphaTest: 0.5, side: THREE.DoubleSide }), feet);
   fm.material.color.set('#ffffff'); fm.name = 'feet'; scene.add(fm);
+  FEET = { mesh: fm, base: feet.map(f => new THREE.Color(f.color)), k: new Float32Array(feet.length), last: null };   // 踩过的脚印亮一下
 
   // ---- 地面文字（一张图集 = 1 次绘制）：步号 + 起点（路段名挪到拱门上）----
   const signs = [];
@@ -329,7 +331,7 @@ export function build(scene, ctx) {
       const back = pnl.clone(); back.position.x = 0.07; back.rotation.y = Math.PI / 2;   // 背面也挂一块：正面镜头回看刚走过的门，字是正的
       g.add(pnl, back);
       g.position.set(a.pos.x, 0, a.pos.z); g.rotation.y = -a.heading;
-      g.userData.s = it.s; scene.add(g); arches.push(g);
+      g.userData.s = it.s; g.userData.y0 = y0; scene.add(g); arches.push(g);
     }
   }
 
@@ -389,6 +391,54 @@ function makeWave(scene) {
   };
 }
 
+// 路段门进度灯：眼前那座门（= 当前这段路的终点）横梁上一排灯，灯数 = 这段的步数，走一步亮一盏（路段色）。1 次绘制
+function makeArchLamps(scene, util) {
+  // 计分牌：挂在眼前那座门的横梁上方（灯排上面），「已走 n / N 步」+ 进度条；pos 变了才重画
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 192; const g2 = cv.getContext('2d'), tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const score = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.9), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, side: THREE.DoubleSide }));
+  score.name = 'scoreBoard'; score.visible = false; scene.add(score);
+  let lastPos = -1;
+  SCORE = (pos, total) => {
+    if (pos === lastPos) return; lastPos = pos;
+    g2.fillStyle = '#0c131b'; g2.fillRect(0, 0, 512, 192); g2.strokeStyle = C.glow; g2.lineWidth = 6; g2.strokeRect(3, 3, 506, 186);
+    g2.textBaseline = 'middle'; g2.textAlign = 'left'; g2.fillStyle = '#9fb3c6'; g2.font = `800 40px ${util.FONT}`; g2.fillText('已走', 28, 70);
+    g2.fillStyle = '#ffffff'; g2.font = `900 96px ${util.FONT}`; g2.fillText(String(pos), 124, 72);
+    const w = g2.measureText(String(pos)).width; g2.fillStyle = '#9fb3c6'; g2.font = `800 40px ${util.FONT}`; g2.fillText(`/ ${total} 步`, 140 + w, 80);
+    g2.fillStyle = '#1d2a38'; g2.fillRect(28, 138, 456, 30); g2.fillStyle = C.glow; g2.fillRect(28, 138, 456 * Math.min(1, pos / Math.max(1, total)), 30);
+    tex.needsUpdate = true;
+  };
+  SCORE(0, route.N);
+  const Yq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
+  const M = 20, m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.12, 0.1, 0.1), new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), M);
+  m.name = 'archLamps'; m.frustumCulled = false; m.count = 0; scene.add(m);
+  const m4 = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), c = new THREE.Color(), off = new THREE.Color('#2a3440');
+  return st => {
+    const g = arches.find(a => a.visible && a.userData.s > st.s);
+    if (!g || window.__camMode === 'front') { m.count = 0; score.visible = false; return; }
+    const seg = route.segs.find(q => q.start <= st.s && st.s < q.start + q.steps) || route.segs[0], n = Math.min(M, seg.steps), done = Math.max(0, Math.min(n, Math.floor(st.s) - seg.start + 1));
+    g.updateMatrixWorld(); q.setFromRotationMatrix(g.matrixWorld);
+    for (let j = 0; j < n; j++) {
+      p.set(0, g.userData.y0 + TB + 0.12, -AW + (j + 0.5) * 2 * AW / n).applyMatrix4(g.matrixWorld);
+      m.setMatrixAt(j, m4.compose(p, q, one)); m.setColorAt(j, j < done ? c.set(KC[seg.kind] || '#eef3f8') : off);
+    }
+    m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    score.position.set(-0.07, g.userData.y0 + TB + 0.66, 0).applyMatrix4(g.matrixWorld); score.quaternion.copy(q).multiply(Yq); score.visible = true;
+  };
+}
+// 脚印：化身踩过的那一步的脚印亮成白青色，0.9 s 退回原色
+const _fc = new THREE.Color(), HOT = new THREE.Color('#bff6ff');
+function feetGlow(st) {
+  const F = FEET, i = Math.floor(st.s), dt = st.dt || 0;
+  if (F.last !== null && i !== F.last && i >= 0 && i < F.k.length && Math.abs(i - F.last) < 3) F.k[i] = 1;
+  F.last = i;
+  let dirty = false;
+  for (let j = Math.max(0, i - 4); j <= Math.min(F.k.length - 1, i + 1); j++) {
+    if (F.k[j] <= 0) continue;
+    F.k[j] = Math.max(0, F.k[j] - dt / 0.9); F.mesh.setColorAt(j, _fc.copy(F.base[j]).lerp(HOT, F.k[j])); dirty = true;
+  }
+  if (dirty) F.mesh.instanceColor.needsUpdate = true;
+}
+
 function bodyBox(st, cam) {
   box2[0] = box2[2] = Infinity; box2[1] = box2[3] = -Infinity;
   for (const p of [st.avatar, st.ghost]) if (p) for (const h of [0, 1.85]) {
@@ -408,6 +458,8 @@ export function update(dt, st) {
   if (SFX) SFX.update(dt, st);
   if (CHEV) CHEV(st);
   if (WAVE) WAVE(st);
+  if (SCORE) SCORE(st.pos ?? Math.floor(st.s), st.total ?? route.N);
+  if (FEET) feetGlow(st);
   if (!route) return;
   const N = route.N, cam = st.camera;
   cam.updateMatrixWorld();
@@ -439,4 +491,5 @@ export function update(dt, st) {
     }
     p.needsUpdate = true;
   }
+  if (LAMPS) LAMPS(st);                                        // 要在上面定好哪座门可见之后
 }

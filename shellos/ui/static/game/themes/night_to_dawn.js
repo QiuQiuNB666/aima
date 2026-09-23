@@ -10,6 +10,7 @@ import { buildSky } from './night_to_dawn/sky.js';
 import { headlamps, glows, trailRibbon, zigzag } from './night_to_dawn/lamps.js';
 import { place, stoneGeo, stoneWalls, tinTexture, hut, torii, lantern, signpost, nobori, pillar, rockGeo } from './night_to_dawn/props.js';
 import { nightSky } from './night_to_dawn/night.js';
+import { buildInteract } from './night_to_dawn/interact.js';
 
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -81,7 +82,7 @@ let sky = null, lamps = null, lightsR = null, scn = null, torch = null, SCp = nu
 let trails = null, hAtR = null, baseF = null, ghostAt = null, avLook = null, ghostObj = null, avObj = null;
 const RIM_NIGHT = new THREE.Color('#9fdcff'), RIM_DAWN = new THREE.Color('#ffb070');
 
-let SFX = null, NIGHT = null;                                      // 落阶反馈（kit.stepFx）
+let SFX = null, NIGHT = null, ACT = null;                                      // 落阶反馈（kit.stepFx）
 export function build(scene, ctx) {
   SFX = ctx.kit.stepFx(ctx, { dust: '#c07a5c', flash: '#ffd9a0', add: true, dustA: 0.75 });   // 火山砂：红褐尘（吉田口下山道的「砂走り」）
   const { route, kit, util, lights, meshes: M } = ctx, N = route.N, R = ctx.rand;
@@ -197,9 +198,12 @@ export function build(scene, ctx) {
   const tin = tinTexture(util);
   const G = {};
   const grp = (key, from) => (G[key] ||= { from, body: [], roof: [], glass: [], red: [], cloth: [], texts: [], glow: [] });
+  const LAMPS = [], NOREN = [];                                        // 小屋提灯 / 暖帘：交给 interact.js（走近点亮、被风掀起）
   const addHut = (g, s, lat, o, sink = 0) => {
     const { p, ry } = onGround(s, lat), h = hut(o), r = ry + (lat > 0 ? Math.PI : 0); p.y -= sink;
     place(h.body, p, r, g.body); place(h.roof, p, r, g.roof); place(h.glass, p, r, g.glass); place(h.text, p, r, g.texts);
+    place(h.lamps, p, r).forEach((l, j) => LAMPS.push({ p: l.p, color: l.color, s, g, j }));
+    for (const n of place(h.noren, p, r)) NOREN.push({ p: n.p, q: n.q, s, g });
     for (const gI of place(h.glow, p, r)) g.glow.push({ p: gI.p, c: gI.c, sz: gI.sz });
   };
   const addLantern = (g, s, lat) => { const o = onGround(s, lat), L = lantern(); place(L.parts, o.p, o.ry, g.body); g.glow.push({ p: o.p.clone().add(new THREE.Vector3(...L.light)), c: '#ffc76a', sz: 2.0 }); };
@@ -243,7 +247,7 @@ export function build(scene, ctx) {
   addNobori(gT, N + 2.6, -4.0, '#c8361f'); addNobori(gT, N + 3.6, -4.3, '#f0ece0');   // 石柱和幟往右让：登顶时影子站在化身右边
 
   for (const [key, g] of Object.entries(G)) {
-    const U = { value: g.from < -50 ? 1 : 0 }, meshes = [];
+    const U = { value: g.from < -50 ? 1 : 0 }, meshes = []; g.U = U;
     const mk = (parts, mat, name) => { if (!parts.length) return; const m = new THREE.Mesh(util.merged(parts), revealable(mat, U)); m.name = `${name}-${key}`; scene.add(m); meshes.push(m); };
     mk(g.body, new THREE.MeshLambertMaterial({ vertexColors: true }), 'props');
     mk(g.roof, new THREE.MeshLambertMaterial({ vertexColors: true, map: tin, emissive: '#10141c' }), 'tinRoof');
@@ -254,6 +258,7 @@ export function build(scene, ctx) {
     const gl = g.glow.length ? glows(g.glow) : null; if (gl) { scene.add(gl.mesh); meshes.push(gl.mesh); }
     groups.push({ from: g.from, U, meshes, gl, top: key === 'top' });
   }
+  ACT = buildInteract(scene, ctx, { lamps: LAMPS, noren: NOREN });      // 场景互动：小屋提灯点亮 + 暖帘飘、御来光、流星抬头
 
   // ---- 火山岩：路边碎石 + 岩场大块 + 山顶火口缘一圈；左侧 4.4 以内只放矮的（镜头在左后方）
   const rocks = [], rc = ['#3b2826', '#4c3029', '#2a2022', '#5c3628', '#33292a'];
@@ -379,6 +384,7 @@ export function rigFor(s, rig) {
   const f = smooth(34, 39.5, s), F = rig.follow;
   F.lookY = baseF.lookY + (1.2 - baseF.lookY) * f; F.height = baseF.height + 0.3 * f;
   F.back = baseF.back + f; F.backStairs = baseF.backStairs + f;
+  if (NIGHT) F.lookY += 0.9 * NIGHT.glance;                             // 流星划过：镜头抬头看一眼
 }
 
 export function update(dt, st) {
@@ -395,6 +401,7 @@ export function update(dt, st) {
   L.sun.color.copy(k.sunCol); L.sun.intensity = k.sunI;
   const el = 0.95 + (Math.max(dir.y, 0.1) - 0.95) * e;
   L.sun.position.set(CEN.x + sunXZ.x * Math.cos(el) * 40, SCp.y + Math.sin(el) * 40, CEN.z + sunXZ.z * Math.cos(el) * 40);
+  if (ACT) ACT.update(dt, st, p, dir, CEN, L);
   lamps.uni.op.value = k.lamp;
   if (dt) lamps.update(dt);
   if (st.avatar) lamps.uni.av.value.copy(st.avatar);
