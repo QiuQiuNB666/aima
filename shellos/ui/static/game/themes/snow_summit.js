@@ -194,6 +194,7 @@ export function build(scene, ctx) {
   const texts = [];
   const rightOf = (s, lat, h = 0) => { const a = route.at(s, lat); return a.pos.clone().setY(Math.max(hAt(a.pos.x, a.pos.z), route.heightAt(s) - 0.4) + h); };
   const clearOfRoad = (x, z, m) => util.offRoad(route, x, z, m);
+  const clearH = lat => Math.abs(lat) < HW + 2 ? 1.5 : Math.abs(lat) < HW + 3 ? 2.4 : 99;   // 路两侧净空：离路沿 2 m 内 ≤ 1.5、3 m 内 ≤ 2.4（跟拍镜头左右各 3 m 看得见路）
 
   // ---------- 大本营：玛尼堆 + 经幡杆（路右 4.5）、帐篷群、大本营石 ----------
   const flagLines = [];
@@ -291,7 +292,8 @@ export function build(scene, ctx) {
     const s0 = Z.wall.start - 2, s1 = Z.end(Z.wall) - 0.4;              // 冰塔只沿冰壁：坳口（营地、氧气瓶）空出来
     for (let s = s0; s <= s1; s += 0.55) {
       // 冰块几何是 ±1 的多面体（顶面在 +0.85·tall）：p.y = 路面 + 露出高度 − 半高，扎进雪里
-      const put = (lat, w, up) => { const a = route.at(s, lat), y0 = route.heightAt(s); seracs.push({ p: [a.pos.x, y0 + up - 1.15 * (up + 0.8) / 2, a.pos.z], ry: R() * 6.28, s: [w, (up + 0.8) / 2, w * (0.7 + 0.4 * R())] }); };
+      // 净空（评审 r1）：路沿外 2 m 内不高于 1.5、跟拍视野左右 3 m 内不高于 2.4（镜头在身后 5–6、高 2）
+      const put = (lat, w, up) => { up = Math.min(up, clearH(lat)); const a = route.at(s, lat), y0 = route.heightAt(s); seracs.push({ p: [a.pos.x, y0 + up - 1.15 * (up + 0.8) / 2, a.pos.z], ry: R() * 6.28, s: [w, (up + 0.8) / 2, w * (0.7 + 0.4 * R())] }); };
       put(-(2.0 + R() * 0.5), 0.45 + 0.35 * R(), (0.7 + 1.4 * R()) * smooth(s0, s0 + 2, s) + 0.2);
       if (R() < 0.45) put(-(3.0 + R() * 2.5), 0.55 + 0.4 * R(), 1.0 + 1.4 * R());
       if (R() < 0.5) put(1.7 + R() * 0.8, 0.3 + 0.25 * R(), 0.3 + 0.6 * R());   // 左侧 < 1.0
