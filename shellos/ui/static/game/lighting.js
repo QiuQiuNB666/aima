@@ -1,16 +1,20 @@
 // L 线：全局光影与后期（色调映射 / 近景阴影 / 泛光 / 光束 / 调色 / 化身轮廓光）。主题不用改：按 theme.style 取下面 PRESET。
 //   engine.js：建好相机后 makeLighting(renderer, scene, camera, theme)；每帧 lit.render(ctx, A, s, summit) 代替 renderer.render。
-//   管线：RenderPass（HalfFloat + 4×MSAA）→ 泛光 → 光束（有太阳的主题）→ 输出（sRGB 解码 → 曝光 + ACES → 编码 → 冷暖分离、暗角、抖动）。
+//   管线：场景画进自己的 HalfFloat + 4×MSAA 目标 → 清洗拷贝进（不带 MSAA 的）后期缓冲 → 泛光 → 光束（有太阳的主题）→ 输出（sRGB 解码 → 曝光 + ACES → 编码 → 冷暖分离、暗角、抖动）。
+//   清洗拷贝（NaN → 0、夹到 0..64）不能省：Apple GPU（ANGLE / Metal）上 MSAA 场景 resolve 出来会带非有限值 / 负数像素，泛光的模糊链
+//   把一个坏点抹满整屏 → 整帧发黑；雨、车流让坏点时有时无 → 黑帧和正常帧交替 = 展位上的「一直闪」（9/23 第二轮，MacBook 上二分：
+//   ?aa=0 或关泛光都正常，MSAA × 泛光就黑）。Intel 上不出现。
 //   场景照旧在着色器里编码成 sRGB 再写进渲染目标（目标标成 isXRRenderTarget，three 才这么做）：半透明的雾团、雨、影子、光晕
 //   和直接画到屏幕时一样在 sRGB 空间混合——主题都是照这个调的；换成线性混合，雾和薄云会白成一片。半浮点存得下 >1 的高光。
 //   天空等自写 ShaderMaterial 没有 tonemapping_fragment，所以色调映射只在最后一道做：天、雾、远景过同一条曲线，不会接缝。
 // 档位 ?fx=high（缺省）| mid | low | off（off = 原来的直出，一点不动）。单项覆盖档位：
 //   ?bloom=0|1  ?shadow=0|1024|2048  ?rays=0|1  ?grade=0|1  ?tm=aces|agx|none  ?exp=1.2（乘在主题曝光上）  ?aa=0（关 MSAA）
-//   ?auto=0 不自动降档（缺省：连续 4 s 低于 45 fps 就降一级：光束 → 阴影 2048→1024→关 → 泛光）
+//   ?auto=1 自动降档（连续 4 s 低于 45 fps 降一级：光束 → 阴影 2048→1024→关 → 泛光）。缺省关：每降一级都要重编译材质、画面跳一下，
+//   世界切换 / 加载模型时掉帧也会误触发；展位 MacBook 余量很大（缺省档 160+ fps），不需要
 // 调试：window.__lighting.info() / .set('bloom', false) 等。
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { Pass } from 'three/addons/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { rng } from './path.js';
@@ -27,7 +31,7 @@ export const FX = tier === 'off' ? { post: false } : (() => {
   const T = TIERS[tier] || TIERS.high;
   return { post: true, tier, bloom: flag('bloom', T.bloom), rays: flag('rays', T.rays), grade: flag('grade', T.grade),
     shadow: Q.has('shadow') ? (+Q.get('shadow') ? Math.max(512, +Q.get('shadow') === 1 ? 2048 : +Q.get('shadow')) : 0) : T.shadow,
-    msaa: Q.get('aa') === '0' ? 0 : 4, tm: Q.get('tm') || 'aces', exp: +(Q.get('exp') || 1), auto: Q.get('auto') !== '0' };
+    msaa: Q.get('aa') === '0' ? 0 : 4, tm: Q.get('tm') || 'aces', exp: +(Q.get('exp') || 1), auto: Q.get('auto') === '1' };
 })();
 
 // 每个主题的光：exp 曝光；bloom [强度, 半径, 阈值（最亮通道，sRGB 编码值，可 >1）]；grade 冷暖分离 lo（暗部乘）/ hi（亮部乘）、sat 饱和度、vig 暗角；
@@ -43,6 +47,7 @@ const PRESET = {
     dawn: { exp: 0.8, white: 1.0, bloom: [0.3, 0.35, 2.4], lo: [0.94, 0.94, 1.08], hi: [1.1, 1.0, 0.88], rim: '#ffc890' } },
   subtropical: { exp: 0.88, white: 1.15, bloom: [0.25, 0.5, 1.0], grade: { lo: [1.06, 1.1, 1.14], hi: [1.06, 1.02, 0.94], sat: 1.08, vig: 0.28 }, rim: ['#fff2d0', 1.1],
     stairShade: 0.6, dapple: 0.55, shadeFloor: 0.5 },   // 石阶是不吃光的定色材质，单独补上接影（护栏影子、林荫光斑）
+  snow_summit: { exp: 0.95, white: 1.1, bloom: [0.2, 0.4, 1.6], grade: { lo: [0.96, 0.98, 1.06], hi: [1.03, 1.0, 0.97], sat: 1.05, vig: 0 }, rim: null },   // E 线给的：雪地整片近白，泛光阈值高；vig 0 = 主题自己有缺氧暗角（DOM 层）
   grid: { exp: 1.05, white: 1.3, bloom: [0.25, 0.3, 1.0], grade: { lo: [1.2, 1.22, 1.28], hi: [1.0, 1.0, 1.0], sat: 1.0, vig: 0.22 }, rim: null },   // 暗部提一点：ACES 脚趾会把地面细网格压没
 };
 
@@ -60,6 +65,16 @@ const RaysShader = {         // 在 sRGB 编码的 HDR 上做：太阳附近的�
         acc += max(s - uThr, 0.0) * near * w; w *= 0.965;
       }
       gl_FragColor = vec4(base + acc * uTint * (uK / 32.0) * (1.0 - clamp(base, 0.0, 1.0)), 1.0);   // 滤色：只提亮暗处（门、人、山的剪影边上出光束），本来就白的天不再加亮
+    }`,
+};
+const CleanShader = {        // 场景 → 后期缓冲，顺手洗掉 NaN / Inf / 负数：一个坏像素进了泛光的模糊链，会把整屏糊成黑（见文件头）
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      c = mix(c, vec3(0.0), vec3(isnan(c)));
+      gl_FragColor = vec4(clamp(c, 0.0, 64.0), 1.0);
     }`,
 };
 const OutShader = {          // 最后一道：sRGB → 线性 → 曝光 + ACES（three 自带的同一条曲线）→ sRGB；再在显示空间调色：冷暖分离 + 饱和度 + 暗角 + 抖动（去天空色带）
@@ -101,10 +116,15 @@ export function makeLighting(renderer, scene, camera, theme) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const size = renderer.getSize(new THREE.Vector2());
-  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: FX.msaa });
-  const composer = new EffectComposer(renderer, rt);
-  for (const t of [composer.renderTarget1, composer.renderTarget2]) { t.isXRRenderTarget = true; t.texture.colorSpace = THREE.SRGBColorSpace; }   // 见文件头：场景照旧编码成 sRGB 写进来
-  composer.addPass(new RenderPass(scene, camera));
+  const sceneRT = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: FX.msaa });
+  sceneRT.isXRRenderTarget = true; sceneRT.texture.colorSpace = THREE.SRGBColorSpace;   // 见文件头：场景照旧编码成 sRGB 写进来
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType }));   // 后期缓冲：不带 MSAA
+  const scenePass = new Pass(); scenePass.needsSwap = false;
+  scenePass.render = r => { r.setRenderTarget(sceneRT); r.render(scene, camera); };
+  composer.addPass(scenePass);
+  const copy = new ShaderPass(CleanShader, 'tScene');   // textureID 故意不叫 tDiffuse：composer 不会把读缓冲塞进来，读的永远是 sceneRT（已 resolve 的纹理）
+  copy.uniforms.tDiffuse.value = sceneRT.texture; copy.material.blending = THREE.NoBlending;
+  composer.addPass(copy);
   const bloom = new UnrealBloomPass(size.clone(), ...(P.bloom));
   // 阈值按最亮通道（不按亮度）：品红霓虹亮度才 0.25，按亮度切会先把白衣化身、浅青影子糊成一团光；按最亮通道，满格霓虹 / 灯 / 太阳过线，白衣服（漫反射 < 0.9）不过
   bloom.materialHighPassFilter.fragmentShader = bloom.materialHighPassFilter.fragmentShader.replace('float v = dot( texel.xyz, luma );', 'float v = max( max( texel.r, texel.g ), texel.b );');
@@ -116,7 +136,7 @@ export function makeLighting(renderer, scene, camera, theme) {
   const G = P.grade, gu = out.uniforms, grade = { enabled: FX.grade };   // 调色关掉 = 系数全 1（色调映射照做）
   gu.toneMappingExposure.value = P.exp * FX.exp; gu.uWhite.value = P.white || 0;
   if (grade.enabled) { gu.uLo.value.fromArray(G.lo); gu.uHi.value.fromArray(G.hi); gu.uSat.value = G.sat; gu.uVig.value = G.vig; }
-  addEventListener('resize', () => composer.setSize(innerWidth, innerHeight));
+  addEventListener('resize', () => { composer.setSize(innerWidth, innerHeight); sceneRT.setSize(innerWidth, innerHeight); });
 
   let ready = false, sun = null, T0 = null, sunGlow = null, rimU = [], nd = null;
   const dir = new THREE.Vector3(), lastPos = new THREE.Vector3(NaN, 0, 0), F = new THREE.Vector3(), lx = new THREE.Vector3(), ly = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
@@ -195,7 +215,7 @@ export function makeLighting(renderer, scene, camera, theme) {
     rays.uniforms.uAsp.value = camera.aspect;
   }
 
-  // 自动降档：连续 4 s 低于 45 fps（页面在前台）→ 光束 → 阴影 2048 → 1024 → 关 → 泛光
+  // 自动降档（?auto=1 才开）：连续 4 s 低于 45 fps（页面在前台）→ 光束 → 阴影 2048 → 1024 → 关 → 泛光
   let frames = 0, t0 = performance.now(), slow = 0, warm = t0 + 8000;
   function autoFx() {
     frames++;
