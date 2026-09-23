@@ -1,6 +1,7 @@
 // 珠峰北坡的道具：经幡、帐篷、氧气瓶、冰塔林、冰塔（北坳冰壁）、岩石、固定绳 + 雪锥、铝梯（中国梯）、测量觇标、排队的人影、岩壁。
 // 全部 instanced / merged：每类 1 次绘制。几何局部坐标：y 向上；沿路的东西按 route.at() 摆。
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 
 const Y = new THREE.Vector3(0, 1, 0), X = new THREE.Vector3(1, 0, 0);
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -68,16 +69,53 @@ export function bottleGeo(util) {
 
 // 冰塔：扭一点的六棱锥，底部冰蓝、顶上雪白；jag = 顶上歪几刀
 export function spireGeo(seed) {
-  const g = new THREE.CylinderGeometry(0.06, 0.5, 1, 6, 4).translate(0, 0.5, 0), p = g.attributes.position, col = [], c = new THREE.Color();
-  const lo = new THREE.Color('#7fb2d6'), mid = new THREE.Color('#cfe6f5'), hi = new THREE.Color('#fbfdff');
+  // 东绒布冰塔林：一簇三根尖冰塔（主塔 + 两根矮的，五棱锥拉成鳍状、各自歪一点、棱线抖开），竖向一道道冰纹，底下一圈脏冰（碛石屑），尖上发白
+  const G = [], lo = new THREE.Color('#79aed4'), mid = new THREE.Color('#cfe6f5'), hi = new THREE.Color('#fbfdff'), dirt = new THREE.Color('#8b8a84'), c = new THREE.Color();
+  for (const [x, z, h, r, tilt, k] of [[0, 0, 1, 0.5, 0.08, 1], [0.3, 0.14, 0.64, 0.34, 0.3, 2], [-0.28, -0.12, 0.5, 0.3, -0.34, 3]]) {
+    const g = new THREE.ConeGeometry(r, h, 5, 4).translate(0, h / 2, 0).toNonIndexed(), p = g.attributes.position, col = [];
+    for (let i = 0; i < p.count; i++) {
+      const px = p.getX(i), py = p.getY(i), pz = p.getZ(i), j = 0.75 + 0.5 * hsh(px, py, pz, seed + k);
+      p.setXYZ(i, px * j * 1.45 + tilt * py * py + x, py, pz * (0.62 + 0.3 * hsh(pz, px, py, seed + k)) + z);
+    }
+    for (let i = 0; i < p.count; i += 3) {                                             // 一面一个色：竖纹（按朝向）× 高度渐变；底一圈脏
+      const ym = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3 / h, az = Math.atan2(p.getZ(i) - z, p.getX(i) - x);
+      c.copy(lo).lerp(mid, smooth(0.05, 0.5, ym)).lerp(hi, smooth(0.6, 0.95, ym)).multiplyScalar(0.9 + 0.14 * Math.sin(az * 7 + k));
+      if (ym < 0.08) c.lerp(dirt, 0.7);
+      for (let q = 0; q < 3; q++) col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); G.push(g);
+  }
+  return mergeGeometries(G);
+}
+
+// 冰裂缝：冰川雪面上一道横着的缝（两头尖、中间宽、轻微弯），缝里深蓝近黑、缝沿浅蓝；平躺，实例缩放给长 / 宽
+export function crevasseGeo() {
+  const g = new THREE.PlaneGeometry(1, 1, 10, 4).rotateX(-Math.PI / 2), p = g.attributes.position, col = [], edge = new THREE.Color('#d6ecf8'), midC = new THREE.Color('#3d6f95'), deep = new THREE.Color('#0b2238'), c = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 0.8 + 0.4 * hsh(x, y, z, seed);
-    p.setX(i, x * k + 0.12 * y * y); p.setZ(i, z * (0.8 + 0.4 * hsh(z, x, y, seed)));
-    c.copy(lo).lerp(mid, smooth(0.0, 0.45, y)).lerp(hi, smooth(0.55, 0.95, y));
-    col.push(c.r, c.g, c.b);
+    const x = p.getX(i), z = p.getZ(i), taper = Math.sin(Math.PI * (x + 0.5)) ** 0.7;
+    p.setZ(i, z * taper + 0.12 * Math.sin(x * 5.5));
+    c.copy(Math.abs(z) > 0.4 ? edge : Math.abs(z) > 0.1 ? midC : deep); col.push(c.r, c.g, c.b);   // 缝沿浅 → 缝壁蓝 → 缝底黑
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
   return g;
+}
+
+// 冰面光泽：太阳方向一点镜面反光 + 边缘一圈冷色（湿冰那种亮），不是金属材质；mask = 'all' 全上，'blue' 只给偏蓝的（冰台阶，岩台阶不要）
+export function iceSheen(mat, amount = 1, mask = 'all') {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = sh => {
+    if (prev) prev(sh);
+    const m = mask === 'blue' ? 'smoothstep(0.8, 0.95, vColor.b) * smoothstep(0.0, 0.05, vColor.b - vColor.r + 0.02)' : '1.0';
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `#if NUM_DIR_LIGHTS > 0
+      { vec3 Vd = normalize(vViewPosition), Hh = normalize(directionalLights[0].direction + Vd);
+        float im = ${m} * ${amount.toFixed(2)};
+        outgoingLight += im * (pow(max(dot(normal, Hh), 0.0), 36.0) * 0.55 * directionalLights[0].color + pow(1.0 - max(dot(normal, Vd), 0.0), 3.0) * 0.22 * vec3(0.8, 0.9, 1.0)); }
+      #endif
+      #include <opaque_fragment>`);
+  };
+  const key = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+  mat.customProgramCacheKey = () => key + 'ice' + mask;
+  return mat;
 }
 
 // 冰塔（北坳冰壁旁的冰崖块）：和岩块同一个多面体生成器，冰蓝侧面 + 雪白顶面
