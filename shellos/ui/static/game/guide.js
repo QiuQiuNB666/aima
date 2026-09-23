@@ -6,6 +6,7 @@
 // 开关：?guide=0 关；?voice=0 只出气泡不出声。调试：window.__guide.play() / stop()。
 import * as THREE from 'three';
 import { STEP } from './path.js';
+import { bus } from './voice_bus.js';     // 峰哥声道仲裁：导游讲解期间占住声道，事件 / 地标台词不插嘴
 
 const Q = new URLSearchParams(location.search);
 const GAP_MS = 350, CPS = 4.5;                  // 句间停顿；没声音时按每秒 4.5 字估时长
@@ -59,7 +60,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
   async function play() {
     stop(); armed = false;
     const my = ++run;
-    body.classList.add('g-guide');
+    body.classList.add('g-guide'); bus.hold('guide');
     pos.copy(camera.position); camera.getWorldDirection(look).multiplyScalar(5).add(camera.position);
     t0 = tl = performance.now(); window.__camHold = true; cam();
     for (let i = 0; i < lines.length && my === run; i++) {
@@ -73,7 +74,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
     note('stop'); run++; cancelAnimationFrame(raf); window.__camHold = false;
     if (audio) { audio.pause(); audio.onended = audio.onerror = null; audio = null; }
     window.__fenggeHud?.say('guide', cur, 1);   // 同一句、1 ms 后收起（淡出）
-    body.classList.remove('g-guide');
+    body.classList.remove('g-guide'); bus.release('guide');
   }
 
   setInterval(() => {                          // 5 Hz：该不该开讲 / 该不该打断

@@ -39,6 +39,7 @@ export function initFenggeHud() {
   place(); addEventListener('resize', place);
   let timer = 0;
   const say = (event, text, hold = HOLD_MS) => {
+    if (event !== 'guide' && window.__voiceBus?.busy() === 'guide') return;   // G 线：导游讲解期间别的气泡（事件 / 地标 / 待机）不插进来，声音那边 voice_bus.js 同样丢掉
     el.querySelector('small').textContent = `峰哥 · ${EV[event] || '解说'}`;
     el.querySelector('span').textContent = text;
     el.className = `hud talk ev-${event}`; place();
