@@ -58,7 +58,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
   const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = LEGACY ? 角色名 : npc.name;
 
   let gap = preview && Q.has('npcgap') ? +Q.get('npcgap') : NPC.START;
-  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9, gph = 0;
+  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9, gph = 0, latS = null;
   const mute = preview || Q.get('voice') === '0';
   let audio = null;
   const quiet = LEGACY ? Q.get('npctalk') !== '1' : Q.get('npctalk') === '0';   // 9/23 球球：主角是峰哥，捷风先闭嘴（?npctalk=1 恢复）；助理按新需求说话（地标 / 互动 / 台词），?npctalk=0 静音
@@ -99,10 +99,12 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     if (T) laps = T.laps;
     if (ending && !summit && !preview) { ending = null; gap = NPC.START; sPrev = null; dashSaid = false; npc.resetTrail(); state = 'chase'; }
 
-    let s, latA = null, pointW = 0;
-    if (!LEGACY) {                                                       // 助理：跟在峰哥身边 / 前面半步、到地标停下指路（assistant/behavior.js）
+    let s, latA = null, pointW = 0, faceA = 0, actA = null;
+    if (!LEGACY) {                                                       // 助理：跟在峰哥身边 / 前面半步、到地标停下指路、北坳递氧 / 排队挡前 / 登顶击掌（assistant/behavior.js）
       const b = assist.step(t, dtR, { T, me, preview });
-      s = b.s; latA = b.lat; pointW = b.point; dash = b.dash;
+      latS = latS === null ? b.lat : latS + (b.lat - latS) * (1 - Math.exp(-dt * 4));   // 横向慢慢挪过去，不瞬移
+      s = b.s; latA = latS; pointW = b.point; dash = b.dash; faceA = b.face; actA = b.act;
+      if (preview && Q.get('npcact')) { actA = { oxygen: 0, guard: 0, five: 0, [Q.get('npcact')]: 1 }; faceA = Q.get('npcact') === 'guard' ? 0 : 0.9; }   // 预览 &npcact=oxygen|guard|five
       if (preview && Q.get('npcpoint') === '1') pointW = 1;              // 预览 &npcpoint=1：截指路姿势
       if (b.say) say(b.say.key, t, b.say.text);
     } else if (ending === 'caught') {                                           // 冲上山顶，站到峰哥右后侧
@@ -131,7 +133,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     if (!ending) s += 0.35 * arc;
     route.at(s, latA ?? NPC.LAT + NPC.ARC_IN * arc, A);
     npc.group.position.copy(A.pos);
-    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading + 0.5 * arc, 1 - Math.exp(-dt * 6));
+    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading + 0.5 * arc + faceA, 1 - Math.exp(-dt * 6));
     // 步态：按她自己的速度摆腿；冲刺前倾；被甩掉的结局弯腰喘气
     const v = sPrev === null ? 0 : (s - sPrev) / Math.max(dt, 1e-3); sPrev = s;
     spd += (Math.max(0, Math.min(6, v)) - spd) * (1 - Math.exp(-dt * 5));
@@ -154,6 +156,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       const [l, wl] = synthHip(gph, a, 8 * a), [r, wr] = synthHip((gph + 0.5) % 1, a, 8 * a);
       npc.animate(dt, t, { fl: l, fr: r, wl: wl * rate, wr: wr * rate, kind: A.kind, summit: ending === 'caught' });
       if (npc.point) npc.point(pointW);                                  // 助理指路：动作之后再抬右臂
+      if (npc.act && actA) npc.act(actA);                                // 助理互动：递氧气 / 挡前 / 击掌
     }
     else if (ending === 'shaken') npc.pose(30 + 4 * Math.sin(t * 5), 30 + 4 * Math.sin(t * 5 + 1));   // 撑膝喘气
     else if (walkV < 0.05) npc.pose(-4, 6);

@@ -41,6 +41,7 @@ export async function makeAssistant(scene) {
     av, group: av.group, name: 名字, body, head, pose: av.pose, statue: false, model: false,
     animate(dt, t, d) { av.animate(dt, t, d); sway(d); },
     point: pointer(av),
+    act: actor(av),
     headWorld: (out = tmp) => av.headWorld(out),
     stance: () => false, update(dt) { swing(dt); }, burst() {}, resetTrail() {},
     set visible(v) { av.group.visible = v; }, get visible() { return av.group.visible; },
@@ -118,3 +119,38 @@ function pointer(av) {
   };
 }
 export const POINT_DEG = 80;               // 往前上抬多少度（正负按截图对过）
+
+// ---- 第 6 轮：互动姿势（A2 之后叠）：oxygen 左臂往前递 + 左手里的氧气瓶；guard 两臂往外张；five 左臂举过头击掌 ----
+//   轴都用人物自己的坐标（x 前、y 上、z 左右，绑定姿态下 = 外层坐标），每帧换算到骨骼。
+function actor(av) {
+  const L = av.bones['Skeleton_arm_joint_L__4_'], R = av.bones['Skeleton_arm_joint_R'];
+  const bottle = makeBottle(av);
+  const ax = new THREE.Vector3(), qb = new THREE.Quaternion(), q = new THREE.Quaternion(), D = Math.PI / 180;
+  const rot = (b, x, y, z, deg) => {
+    if (!b || !deg) return;
+    b.parent.updateWorldMatrix(true, false); b.updateWorldMatrix(false, false);
+    ax.set(x, y, z).applyQuaternion(av.group.getWorldQuaternion(qb)).applyQuaternion(b.getWorldQuaternion(qb).invert()).normalize();
+    b.quaternion.multiply(q.setFromAxisAngle(ax, deg * D));
+  };
+  return a => {
+    rot(L, 0, 0, 1, 62 * a.oxygen + 150 * a.five);         // 左臂：往前递 / 举过头
+    rot(L, 1, 0, 0, 22 * a.guard + 12 * a.five);          // 左臂往外张（挡）/ 击掌时略往里
+    rot(R, 1, 0, 0, -22 * a.guard);                        // 右臂往外张
+    if (bottle) bottle.visible = a.oxygen > 0.3;
+  };
+}
+
+// 氧气瓶：橙红色小钢瓶 + 白瓶口，挂在左手腕骨上（绑定姿态下沿前臂方向摆好），只在递氧气时露出来
+function makeBottle(av) {
+  const w = av.bones['Skeleton_arm_joint_L__2_'], e = av.bones['Skeleton_arm_joint_L__3_']; if (!w || !e) return null;
+  av.group.updateMatrixWorld(true);
+  const pw = w.getWorldPosition(new THREE.Vector3()), dir = pw.clone().sub(e.getWorldPosition(new THREE.Vector3())).normalize();
+  const g = new THREE.Group(); g.name = 'oxygenBottle';
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.17, 8), new THREE.MeshLambertMaterial({ color: '#d9542c', emissive: '#d9542c', emissiveIntensity: 0.25, flatShading: true }));
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.04, 8).translate(0, 0.105, 0), new THREE.MeshLambertMaterial({ color: '#eef3f8', emissive: '#eef3f8', emissiveIntensity: 0.25 }));
+  g.add(body, cap);
+  g.position.copy(pw).addScaledVector(dir, 0.07); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 1, 0).lerp(dir, 0.4).normalize());
+  g.traverse(o => { o.frustumCulled = false; });
+  w.attach(g); g.visible = false;
+  return g;
+}
