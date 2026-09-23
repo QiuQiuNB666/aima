@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { makeJifeng, 角色名 } from './npc_jifeng.js';
 import { WHO } from './style.js';
+import { synthHip } from './anim.js';
 
 const Q = new URLSearchParams(location.search);
 export const NPC = {
@@ -52,7 +53,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
   const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = 角色名;
 
   let gap = preview && Q.has('npcgap') ? +Q.get('npcgap') : NPC.START;
-  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9;
+  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9, gph = 0;
   const mute = preview || Q.get('voice') === '0';
   let audio = null;
   const say = (key, t) => {
@@ -125,7 +126,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     phase += dt * Math.PI * walkV;
     const amp = Math.min(38, walkV * 14 + dash * 12);
     const wantLean = npc.statue ? (ending === 'shaken' ? 0.3 : 0.03 + dash * 0.32 + (walkV > 0.05 ? 0.1 : 0))
-      : ending === 'shaken' ? 0.5 : dash * 0.28;
+      : ending === 'shaken' ? 0.5 : dash * (npc.animate ? 0.12 : 0.28);   // A2 跑步自己会前倾，整体只再压一点
     lean += (wantLean - lean) * (1 - Math.exp(-dt * 5));
     npc.group.rotation.set(0, yaw, -lean);
     if (npc.statue) {                                                    // 雕像（STL）四肢不能动：风系飘行——离地浮着，走时上下起伏，停下来慢慢呼吸
@@ -134,6 +135,12 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     }
     const stand = walkV < 0.05 && (ending === 'caught' || (!ending && state === 'caught'));   // 追上后站定 / 登顶抓到：播模型自带的格斗站姿（有的话）
     if (npc.stance(stand)) { /* 自带动画在摆 */ }
+    else if (npc.animate) {                                              // CesiumMan 系：A2 全身动作，髋角用合成步态（一周期 = 两步），冲刺时步频 > 150 自动切成跑
+      const rate = walkV / 2, a = ending === 'shaken' ? 0 : Math.min(1.4, walkV / 1.8);
+      gph = (gph + dt * rate) % 1;
+      const [l, wl] = synthHip(gph, a, 8 * a), [r, wr] = synthHip((gph + 0.5) % 1, a, 8 * a);
+      npc.animate(dt, t, { fl: l, fr: r, wl: wl * rate, wr: wr * rate, kind: A.kind, summit: ending === 'caught' });
+    }
     else if (ending === 'shaken') npc.pose(30 + 4 * Math.sin(t * 5), 30 + 4 * Math.sin(t * 5 + 1));   // 撑膝喘气
     else if (walkV < 0.05) npc.pose(-4, 6);
     else npc.pose(amp * Math.sin(phase), amp * Math.sin(phase + Math.PI));
