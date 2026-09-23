@@ -84,7 +84,7 @@ async function main() {
     if (!S.terrain) S = { ...S, terrain: null, _T: statusFor(world, 0, null, '') };   // 共驾开场：先摆默认世界，切回 terrain 时同一个世界接着走
   }
   const theme = world.theme || {};
-  const hud = makeHud(world);
+  const hud = makeHud(world, !!PREVIEW);
   initFenggeHud();
 
   // ---------- 渲染器 / 场景 ----------
