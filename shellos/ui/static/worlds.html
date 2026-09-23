@@ -2,65 +2,99 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><title>峰哥亡命天涯 · 选择地图</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-/* U 线 9/23：和游戏页同一套样式（ART 美术范式 §7：系统字体、rem 字号层级、深色面板、霓虹紫强调色、路段色来自 style.js） */
-:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.86);--line:rgba(255,255,255,.12);--acc:#b48cff}
-html{font-size:clamp(13px,1.04vw,44px)}
-*{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at 30% 0,#1a1238 0,#07080c 60%) fixed;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;line-height:1.45}
-header{display:flex;align-items:flex-end;gap:1.4rem;padding:1.6rem 2rem .4rem}
-header h1{margin:0;font-size:2.5rem;font-weight:900;letter-spacing:.12em;text-shadow:0 0 1.6rem var(--acc)}
-header p{margin:0 0 .35rem;color:var(--dim);font-size:1.3rem}
-.back{margin-left:auto;align-self:center;color:var(--fg);text-decoration:none;font-size:1rem;font-weight:700;padding:.5rem 1rem;border-radius:.7rem;background:var(--panel);border:1px solid var(--line)}
-.keys{padding:0 2rem;color:var(--dim);font-size:1rem}
-.keys kbd{display:inline-block;font:inherit;font-weight:800;padding:0 .45rem;margin:0 .15rem;border-radius:.35rem;border:1px solid rgba(255,255,255,.35);color:var(--fg)}
-.mk{display:flex;gap:.8rem;align-items:center;padding:.8rem 2rem 0}
-.mk input{flex:1;max-width:48rem;padding:.7rem 1rem;font:inherit;font-size:1.3rem;border-radius:.8rem;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
-.mk input:focus{outline:none;border-color:var(--acc)}
-.mk button{padding:.7rem 1.4rem;font:inherit;font-size:1.3rem;font-weight:800;border-radius:.8rem;border:0;background:var(--acc);color:#000;cursor:pointer}
-.mk button:disabled{opacity:.5}#mkst{color:var(--dim);font-size:1rem}
-h2{padding:1rem 2rem 0;margin:0;font-size:1rem;color:var(--dim);letter-spacing:.2em;font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(26rem,1fr));gap:1.1rem;padding:1rem 2rem}
-.card{border-radius:1rem;overflow:hidden;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
-.card:hover{border-color:rgba(255,255,255,.35)}
-.card.sel{border-color:var(--acc);box-shadow:0 0 0 .15rem var(--acc),0 .6rem 2rem rgba(180,140,255,.25);transform:translateY(-.2rem)}
+/* D 线 9/24：设计系统（变量 / 面板 / 按钮 / kbd）在 /game/ui/design.js，和操作台共用；这里只放选山页自己的布局。
+   目标：1080p 一屏放下 8 张卡不滚动；珠峰主打占两格；选中态紫描边 + 轻微放大，方向键移动 120 ms 过渡 */
+:root{--bg:#070911;--panel:#0b0d14;--panel2:#10141d;--line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.18);--fg:#e8ecf3;--dim:#98a3b3;--mute:#5c6875;--acc:#b48cff;--acc-dim:rgba(180,140,255,.16);--warn:#ff9f1a;--r:.8rem;--r2:.5rem}
+body{margin:0;background:#070911;color:#e8ecf3}
+body{background:radial-gradient(ellipse 60% 50% at 20% -10%,rgba(180,140,255,.18) 0,transparent 70%),radial-gradient(ellipse 50% 40% at 100% 0,rgba(41,231,255,.06) 0,transparent 60%),var(--bg) fixed;min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:baseline;gap:1rem;padding:1rem 2rem .2rem}
+header h1{margin:0;font-size:2.2rem;font-weight:900;letter-spacing:.14em;line-height:1.1;text-shadow:0 0 1.6rem rgba(180,140,255,.55)}
+header p{margin:0;color:var(--dim);font-size:1rem;flex:1;min-width:0}
+.back{color:var(--fg);text-decoration:none;font-size:.85rem;font-weight:800;padding:.4rem .9rem;border-radius:var(--r2);background:var(--panel);border:1px solid var(--line2);white-space:nowrap;align-self:center}
+/* 造山：主视觉——大输入框、紫描边、发光 */
+.mk{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:.6rem;align-items:center;padding:.6rem 2rem .2rem}
+.mk input{height:3.4rem;padding:0 1.2rem;font:inherit;font-size:1.3rem;font-weight:700;border-radius:var(--r);border:1px solid rgba(180,140,255,.55);background:linear-gradient(90deg,rgba(180,140,255,.10),rgba(180,140,255,.03));color:var(--fg);box-shadow:0 0 0 .25rem rgba(180,140,255,.08),0 .6rem 2rem rgba(0,0,0,.4)}
+.mk input::placeholder{color:rgba(232,236,243,.42);font-weight:600}
+.mk input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 .3rem rgba(180,140,255,.22),0 0 2.5rem rgba(180,140,255,.3)}
+.mk button{height:3.4rem;padding:0 1.6rem;font:inherit;font-size:1.3rem;font-weight:900;letter-spacing:.1em;border-radius:var(--r);border:0;background:var(--acc);color:#000;cursor:pointer;white-space:nowrap;box-shadow:0 .4rem 1.6rem rgba(180,140,255,.35)}
+.mk button:disabled{opacity:.5;box-shadow:none}
+#mkst{color:var(--dim);font-size:.9rem;min-width:8rem;max-width:16rem}
+.keys{display:flex;flex-wrap:wrap;gap:.35rem 1rem;align-items:center;padding:.5rem 2rem 0;color:var(--dim);font-size:.85rem}
+.keys kbd{display:inline-block;font:inherit;font-size:.8rem;font-weight:800;line-height:1.5;padding:0 .5rem;margin:0 .1rem;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg)}
+.keys kbd.acc{background:var(--acc);border-color:var(--acc);color:#000}
+h2{padding:.7rem 2rem 0;margin:0;font-size:.8rem;color:var(--dim);letter-spacing:.24em;font-weight:800}
+h2 small{font-weight:600;letter-spacing:0;color:var(--mute);margin-left:.6rem}
+/* 名山：4 列，珠峰占 2 格 */
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.9rem;padding:.5rem 2rem 0}
+.card{border-radius:var(--r);overflow:hidden;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;cursor:pointer;min-width:0;
+  transition:transform .12s ease-out,border-color .12s,box-shadow .12s}
+.card:hover{border-color:var(--line2)}
+.card.sel{border-color:var(--acc);box-shadow:0 0 0 .15rem var(--acc),0 1rem 2.5rem rgba(180,140,255,.28);transform:scale(1.02);z-index:1}
 .card.gen{border-style:dashed}
-.sky{height:9rem;position:relative}
+.sky{height:6.5rem;position:relative;flex:none}
 .sky canvas{position:absolute;inset:0;width:100%;height:100%}
-.tag{position:absolute;top:.6rem;font-size:.85rem;font-weight:800;color:#fff;background:rgba(0,0,0,.55);padding:.1rem .55rem;border-radius:.4rem;letter-spacing:.1em}
-.tag.l{left:.7rem}.tag.r{right:.7rem}
-.body{padding:.8rem 1.1rem 1rem;display:flex;flex-direction:column;gap:.45rem;flex:1}
-.name{font-size:1.7rem;font-weight:900;line-height:1.2}
-.sub{color:var(--dim);font-size:1rem}
-.story{font-size:1rem}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-top:.2rem}
-.stats div{background:rgba(255,255,255,.04);border-radius:.5rem;padding:.35rem .5rem}
-.stats b{display:block;font-size:1.3rem;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.2}
-.stats span{font-size:.85rem;color:var(--dim)}
-.diff{font-size:.85rem;font-weight:900;padding:.05rem .5rem;border-radius:.35rem;margin-left:.5rem;vertical-align:.3rem;color:#000;background:var(--acc)}
-.diff.hard{background:#ff9f1a}
-.star{font-size:.85rem;font-weight:900;padding:.05rem .5rem;border-radius:.35rem;margin-left:.4rem;vertical-align:.3rem;color:#000;background:var(--who-fengge,#ffb03a)}
-.card.feat{grid-column:span 2}
-.card.feat .sky{height:12rem}
-.mix{display:flex;height:.45rem;border-radius:.25rem;overflow:hidden}
-.legend{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.85rem;color:var(--dim)}
-.legend i{display:inline-block;width:.6rem;height:.6rem;border-radius:.15rem;margin-right:.3rem}
-.rec{font-size:1rem;color:var(--fg)}.rec b{color:var(--acc)}
-.note{font-size:.85rem;color:var(--dim);margin-top:auto}
-.go{position:fixed;right:2rem;bottom:1.6rem;padding:.9rem 1.6rem;font:inherit;font-size:1.3rem;font-weight:900;border-radius:1rem;border:0;background:var(--acc);color:#000;cursor:pointer;display:none;box-shadow:0 .5rem 2rem rgba(0,0,0,.5)}
+.sky::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,var(--panel) 100%)}
+.tag{position:absolute;top:.5rem;z-index:1;font-size:.75rem;font-weight:800;color:#fff;background:rgba(0,0,0,.55);padding:.05rem .5rem;border-radius:.35rem;letter-spacing:.1em;font-variant-numeric:tabular-nums}
+.tag.l{left:.6rem}.tag.r{right:.6rem}
+.body{padding:.45rem .9rem .7rem;display:flex;flex-direction:column;gap:.3rem;flex:1;min-width:0}
+.name{font-size:1.45rem;font-weight:900;line-height:1.2;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{color:var(--dim);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.story,.note,.legend{display:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin-top:.1rem}
+.stats div{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r2);padding:.3rem .45rem;min-width:0}
+.stats b{display:block;font-size:1.3rem;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.1;letter-spacing:-.02em;white-space:nowrap}
+.stats span{font-size:.72rem;color:var(--dim);white-space:nowrap}
+.diff{font-size:.72rem;font-weight:900;padding:0 .45rem;border-radius:.3rem;margin-left:.5rem;vertical-align:.25rem;color:#000;background:var(--acc);letter-spacing:.06em}
+.diff.hard{background:var(--warn)}
+.star{font-size:.72rem;font-weight:900;padding:0 .45rem;border-radius:.3rem;margin-left:.3rem;vertical-align:.25rem;color:#000;background:var(--who-fengge,#ffb03a);letter-spacing:.06em}
+.mix{display:flex;height:.4rem;border-radius:.2rem;overflow:hidden;margin-top:.1rem}
+.rec{font-size:.85rem;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto}.rec b{color:var(--acc);font-variant-numeric:tabular-nums}
+/* 主打卡：占两格，天空更高，海拔大数字，右半放故事 */
+.card.feat{grid-column:span 2;border-color:rgba(255,176,58,.35)}
+.card.feat.sel{border-color:var(--acc)}
+.card.feat .sky{height:6.5rem}
+.card.feat .tag.r{top:auto;bottom:.4rem;right:.9rem;background:transparent;font-size:2.5rem;font-weight:900;letter-spacing:-.02em;text-shadow:0 .1rem .8rem rgba(0,0,0,.8);padding:0;z-index:1}
+.card.feat .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"name story" "sub story" "stats story" "mix story" "rec story";gap:.3rem 1.2rem}
+.card.feat .name{grid-area:name;font-size:1.7rem}.card.feat .sub{grid-area:sub}.card.feat .stats{grid-area:stats}.card.feat .mix{grid-area:mix}.card.feat .rec{grid-area:rec}
+.card.feat .story{grid-area:story;display:block;font-size:.95rem;line-height:1.5;color:var(--fg);padding-left:1.2rem;border-left:1px solid var(--line);align-self:start}
+.card.feat .legend{display:flex;grid-area:story;align-self:end;gap:.6rem;flex-wrap:wrap;font-size:.75rem;color:var(--dim);padding-left:1.2rem}
+.card.feat .legend i{display:inline-block;width:.55rem;height:.55rem;border-radius:.15rem;margin-right:.25rem}
+/* 训练场 + 跑酷：一行横条卡 */
+.strip{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);gap:.9rem;align-items:stretch;padding:.5rem 2rem 1rem}
+.strip h2{padding:0;writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.3em;align-self:center;color:var(--mute)}
+.strip .grid{display:flex;padding:0;gap:.9rem}
+.strip .card{flex:1;flex-direction:row;min-height:5.6rem}
+.strip .sky{width:9rem;height:auto;flex:none}
+.strip .sky::after{background:linear-gradient(90deg,transparent 40%,var(--panel) 100%)}
+.strip .tag.r{display:none}
+.strip .body{padding:.5rem .9rem;gap:.2rem;justify-content:center}
+.strip .name{font-size:1.2rem}
+.strip .stats{grid-template-columns:repeat(4,auto);justify-content:start;gap:.3rem .6rem}
+.strip .stats div{padding:.15rem .5rem;display:flex;align-items:baseline;gap:.3rem}
+.strip .stats b{font-size:1rem;display:inline}
+.strip .rec,.strip .mix{display:none}
+.strip .card.pk{background:linear-gradient(90deg,rgba(255,46,136,.12),var(--panel) 60%);border-color:rgba(255,46,136,.35)}
+.strip .card.pk .note{display:block;font-size:.8rem;color:var(--dim)}
+.strip .card.pk .note kbd{font:inherit;font-weight:800;padding:0 .4rem;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg)}
+.go{position:fixed;right:2rem;bottom:1.4rem;padding:.9rem 1.6rem;font:inherit;font-size:1.3rem;font-weight:900;border-radius:var(--r);border:0;background:var(--acc);color:#000;cursor:pointer;display:none;box-shadow:0 .5rem 2rem rgba(0,0,0,.55),0 0 0 .25rem rgba(180,140,255,.25);z-index:2}
+@media (max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.strip{grid-template-columns:auto minmax(0,1fr)}.strip .grid{flex-direction:column}}
+@media (max-width:700px){html{font-size:13px}.grid{grid-template-columns:1fr}.card.feat{grid-column:auto}.card.feat .body{display:flex}.card.feat .story{display:none}header{flex-wrap:wrap}.mk{grid-template-columns:1fr auto}#mkst{grid-column:1/-1}}
 </style></head><body>
 <header><h1>选择地图</h1><p>你在原地迈步，坡和台阶会变成腿上的力；上一位登山者化作影子，和你并排爬。</p><a class="back" href="/game">← 回游戏（Esc）</a></header>
-<div class="keys"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 选山 · <kbd>Enter</kbd> 进入 · <kbd>/</kbd> 跳到造山框 · <kbd>Esc</kbd> 回游戏 · <kbd>P</kbd> 跑酷闯关</div>
 <div class="mk"><input id="mk" placeholder="说一句话，现场造一座山：峰哥被追到泰山顶，一路狂奔上十八盘……"><button id="mkb">造山</button><span id="mkst"></span></div>
-<h2>名山</h2>
+<div class="keys"><span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 选山</span><span><kbd class="acc">Enter</kbd> 进入</span><span><kbd>/</kbd> 跳到造山框</span><span><kbd>Esc</kbd> 回游戏</span><span><kbd>P</kbd> 跑酷闯关</span></div>
+<h2>名山<small>珠峰是展位主打；卡片上的步数 / 台阶 / 红灯按路线现算，和游戏里一样</small></h2>
 <div class="grid" id="main"></div>
+<div class="strip">
 <h2>训练场</h2>
 <div class="grid" id="train"></div>
-<h2>跑酷闯关</h2>
-<div class="grid"><a class="card" href="/parkour" style="text-decoration:none;color:inherit"><div class="body"><div class="name">屋顶跑酷<span class="diff hard">闯关</span></div><div class="sub">峰哥在屋顶上被捷风追，起跳前外骨骼帮你抬腿</div><div class="note">按 <kbd>P</kbd> 直接进入 · 不占地图，随时回来爬山</div></div></a></div>
+<h2>跑酷</h2>
+<div class="grid"><a class="card pk" href="/parkour" style="text-decoration:none;color:inherit"><div class="body"><div class="name">屋顶跑酷<span class="diff hard">闯关</span></div><div class="sub">峰哥在屋顶上被捷风追，起跳前外骨骼帮你抬腿</div><div class="note">按 <kbd>P</kbd> 直接进入 · 不占地图，随时回来爬山</div></div></a></div>
+</div>
 <button class="go" id="go">进入 →</button>
 <script type="module">
-import { SEG, applyCssVars } from '/game/style.js';
-applyCssVars();
+import { inject, SEG } from '/game/ui/design.js';
+inject();
 const KN={flat:'平地',up:'上坡',down:'下坡',stairs_up:'上台阶',stairs_down:'下台阶',wait:'站定'};
 const RISE={flat:0,up:.08,down:-.08,stairs_up:.12,stairs_down:-.12,wait:0};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -71,6 +105,7 @@ let cards=[],chosen=null;
 const FEATURED='everest_north';   // 9/23 定：展位主打地图（docs/珠峰-架构.md），排第一张、大一号、带「主打」
 function drawSky(cv,w){
   const r=cv.getBoundingClientRect(),W=cv.width=r.width*devicePixelRatio,H=cv.height=r.height*devicePixelRatio,ctx=cv.getContext('2d');
+  if(!W||!H)return;
   const t=w.theme,g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,t.sky[0]);g.addColorStop(1,t.sky[1]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   ctx.fillStyle=t.fog;ctx.globalAlpha=.55;ctx.beginPath();ctx.moveTo(0,H);
   if(t.style==='cyber_night'){for(let x=0;x<W;x+=W/22){const bh=H*(.25+.45*Math.abs(Math.sin(x*.013+1)));ctx.lineTo(x,H-bh);ctx.lineTo(x+W/26,H-bh)}}
@@ -79,7 +114,7 @@ function drawSky(cv,w){
   let h=0;const pts=[];w.route.forEach(s=>{for(let k=0;k<s.steps;k++){pts.push([h,s.kind]);h+=RISE[s.kind]}});
   const hs=pts.map(p=>p[0]),mn=Math.min(...hs),mx=Math.max(...hs,mn+.01);
   const X=i=>W*.06+i/(pts.length-1)*W*.88,Y=v=>H*.92-(v-mn)/(mx-mn)*H*.62;
-  ctx.lineWidth=5*devicePixelRatio;ctx.lineCap='round';
+  ctx.lineWidth=4*devicePixelRatio;ctx.lineCap='round';
   for(let i=0;i<pts.length-1;i++){ctx.strokeStyle=SEG[pts[i][1]]||SEG.flat;ctx.beginPath();
     if(pts[i][1].startsWith('stairs')){ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}
     else{ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}ctx.stroke()}
@@ -123,6 +158,7 @@ async function load(pick_){
   const want=pick_||(cur&&cur.preset),hit=cards.find(c=>c.w.id===want)||cards[0];if(hit)pick(hit.el,hit.w);
 }
 load();
+addEventListener('resize',()=>cards.forEach(c=>drawSky(c.el.querySelector('canvas'),c.w)));
 // 键盘：方向键按屏幕位置在卡片之间走（两个网格一起算），Enter 进入，/ 跳到造山框，Esc 回游戏。造山框里打字时不抢键
 addEventListener('keydown',e=>{
   if(document.activeElement===$mk){if(e.key==='Escape')$mk.blur();return}
