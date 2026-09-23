@@ -4,7 +4,7 @@
 //   变回 armed = 来了新的一位：页面刚载入（进图 / 切世界）、出过标题屏或待机、换了穿戴者、登顶或复位后回到山脚（步数变小）。
 //   armed → playing：「准备」界面稳定 0.6 s、没开菜单、在山脚（前 3 步）、没在走 / 没按 R2、语音预加载完、声音已解锁（没解锁就提示按任意键，先不讲）。
 //   armed → done：没听就走出了山脚（步数 ≥ 3），或者走动 / 按着 R2 连续超过 2 s——这一位已经开玩了，跳过，别等他歇脚时突然开讲。
-//     登顶后回到山脚那一两步收脚（< 2 s）不算。
+//     登顶后回到山脚那一两步收脚不算（先要见过他站定一次）。
 //   playing → done：讲完；或走动 / 按 R2 / 急停 / 开菜单 / 离开「准备」→ 立刻停（body 的 class 一变就停，不等下一次轮询）。之后不会自己重讲。
 // 话术固定：GET /guide/<world>.json（shellos/agent/guide.py）；语音：/guide/<world>/<i>.wav（只读缓存，没有就只出气泡）。
 // 用到别人的接口：window.__fenggeHud.say（H 线气泡）、#fg .av（H 线头像，放大用本文件的 CSS）、window.__camHold（引擎：跳过它的镜头）。
@@ -85,8 +85,8 @@ export async function initGuide({ world, route, camera, me, getS }) {
     camera.position.copy(pos); camera.lookAt(look);
   }
 
-  let st = 'armed', readySince = 0, goSince = 0, lastWearer, lastPos = null;
-  const setSt = (v, why) => { if (st !== v) { note('st', v, why); st = v; } };
+  let st = 'armed', readySince = 0, goSince = 0, still = false, lastWearer, lastPos = null;
+  const setSt = (v, why) => { if (st !== v) { note('st', v, why); st = v; if (v === 'armed') still = false; } };
   async function play() {
     stop(); setSt('playing', 'start');
     const my = ++run;
@@ -125,8 +125,9 @@ export async function initGuide({ world, route, camera, me, getS }) {
     if (fresh && st !== 'armed') setSt('armed', fresh);
     if (st !== 'armed') return;
     if (T.pos != null && T.pos >= START_MAX) { if (!cls.contains('u-title') && !cls.contains('u-idle')) setSt('done', 'skipped'); return; }   // 没听就走出山脚了：这一位跳过
-    if (!go) goSince = 0; else if (!goSince) goSince = now;
-    if (go && now - goSince > GO_SKIP_MS && !cls.contains('u-title') && !cls.contains('u-idle')) { setSt('done', 'skipped-go'); return; }
+    if (!go) { goSince = 0; still = true; } else if (!goSince) goSince = now;
+    // 连续走 / 按 R2 超过 2 s 才算开玩了，而且要先见过他站定一次：登顶后回到山脚时人还在迈步（步态的 moving 还会拖 1–2 s），那段不算
+    if (go && still && now - goSince > GO_SKIP_MS && !cls.contains('u-title') && !cls.contains('u-idle')) { setSt('done', 'skipped-go'); return; }
     if (go) return;                              // 在走 / 按着 R2：先不讲（登顶那一步走完回到山脚时人还在迈步，停下来再讲）
     if (ready && now - readySince > READY_MS && preloaded) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲，提示按任意键
   }
