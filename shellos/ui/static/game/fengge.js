@@ -1,21 +1,33 @@
 // 峰哥：给 loadAvatar() 出来的化身换上峰哥的头和户外穿搭。独立模块，avatar.js 不用改：
 //   import { dressFengge } from '/game/fengge.js';  const av = await loadAvatar(...);  await dressFengge(av);
 // 在 loadAvatar 之后、第一次 pose()/animate() 之前调（按绑定姿态摆）；group 还没旋转 / 缩放（正面 = +X）。
-// 骨骼一根没加没改（名字、层级、绑定姿态都是 CesiumMan 原样）→ A2 的动作照常用；头 / 帽 / 头发挂在 Skeleton_neck_joint_2，
+// 骨骼名、层级、静止朝向都是 CesiumMan 原样（fengge/shape.js 只挪关节位置改比例）→ A2 的动作照常用；头 / 帽 / 头发挂在 Skeleton_neck_joint_2，
 //   围脖挂在 Skeleton_neck_joint_1，A2 转头时跟着走。
+// 第 4 轮（9/23 夜，身体）：CesiumMan 网格藏掉，换成 fengge/body.js 按骨骼现摆的低多边形身体（偏瘦、窄肩、头身比约 1:6.5），
+//   穿搭见 fengge/outfits.js（按当前世界的 theme.style 选，?outfit= 临时换），手见 fengge/hand.js（有指骨，能握拳 / 竖大拇指 / 伸手扣锁）。
 // 头 v2（P 线）：几何头型 = 放样（每层一个左右宽 W、前后深 Zf/Zb 的截面，从下巴到头顶 40 层）+ 脸部起伏（鼻梁 / 鼻翼 / 眼窝 / 眉弓 /
 //   颧骨 / 嘴唇 / 下巴带胡子），单位 = 参考照片的像素（原图 675×1200，两眼中点 = 原点，y 向上，z 朝前），最后整体缩到 headH 米。
 //   照片（models/fengge_face_hd.jpg，裁自 github.com/w466747380/talk-to-fengge-live 的 avatar.png，MIT）按正前方正投影贴上去：
 //   几何的五官位置就是照片里的五官位置，所以不用对齐；侧面（转开 60° 以上）照片淡出成肤色 / 胡茬，不会被拉成条。
 //   针织帽 = 翻边 + 帽身，罗纹针脚是 canvas 画的（贴图 + 凹凸）；头发 = 帽子下面两侧和后脑往外蓬的一圈发片（照片里就是这样）。
 // v3 = 候选 C（球球 9/23 晚挑的）：同一套几何 + 照片，改哑光、整张脸去饱和压色阶，见 STYLES。
-// 衣服：化身原材质（avatar.js 的分区材质）外面再包一层：深灰速干衣 + 胸前 / 背后青色竖条纹拼色（参考照片的户外打底衫，不带 logo）、
-//   袖口青色一圈、手套、深色长裤、登山鞋；身材沿法线鼓 0.4–1.2 cm（CesiumMan 太瘦）；黑色抓绒围脖（照片里就有）盖住脖口。
+// 黑色抓绒围脖（照片里就有）盖住脖口。
 // 开销：头 / 帽 / 头发两档 LOD（lodDist 3.6 m）：近档（正面镜头）头 5.8k、帽 3k、头发 1.9k 三角，远档（跟拍、登顶环绕）共约 1.8k；围脖 0.6k；
-//   贴图 = 400×540 照片 + 两张 128² canvas。登顶动作见 ⑤ summitGesture。
+//   身体约 2.3k、两只手 516；贴图 = 400×540 照片 + 两张 128² canvas。登顶动作见 ⑤ summitGesture。
 // 主题往头上挂东西：av.group.userData.fengge.lamp = 帽檐正前方（头骨局部坐标），有它就说明换了峰哥头。
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
+import { reshape } from './fengge/shape.js';
+import { buildBody } from './fengge/body.js';
+import { outfitFor } from './fengge/outfits.js';
+import { makeHands } from './fengge/hand.js';
+
+let HANDS = null;
+// 伸手扣锁（E 线华山南天门用）：target = 世界坐标 THREE.Vector3（会拷一份）；null = 松手收回。grip = 手到位（< 3 cm）后自动攥住。
+//   手臂两节骨 IK（hand.js），权重 0.4 s 渐入 / 渐出；reachStatus(side) → { k, gripped, dist }，gripped = 扣上了；reachGrip(side) = 手心抓握点（Object3D，锁扣可以 attach 上去）
+export function reach(target, { side = 'R', grip = true } = {}) { if (HANDS) HANDS.setReach(side, target, { grip }); }
+export const reachStatus = (side = 'R') => (HANDS ? HANDS.status(side) : null);
+export const reachGrip = (side = 'R') => (HANDS ? HANDS.grip[side] : null);
 
 export const FENGGE_LOOK = {
   skin: '#d29a84', beard: '#4a3a32', hair: '#2e2622', beanie: '#5a5c61', gaiter: '#1e1f22',   // 肤色 / 胡茬 / 帽子按参考照片取样
@@ -31,7 +43,7 @@ export const FENGGE_LOOK = {
 //   试过三阶卡通光（MeshToonMaterial）：背光面不变暗，泰山拂晓的暖光下整张脸成了发光的橙色面具，不用
 const STYLES = {
   v2: { relief: 1, headH: 0.25, mat: 'std' },
-  C: { relief: 0.8, headH: 0.26, mat: 'lam', post: true },
+  C: { relief: 0.8, headH: 0.23, mat: 'lam', post: true, flat: true },   // 第 4 轮起：头 0.23 m（身高约 1/6.5）、平面着色，和低多边形身体一个质感
 };
 let RK = 1;                                                // 当前造型的 relief（headAt 用）
 
@@ -166,42 +178,6 @@ function tune(mat, U, key, rimK, glow, more) {
   return mat;
 }
 
-// 衣服：包一层化身的分区材质（avatar.js 里 `diffuseColor.rgb *= zc;` 之前把 zc 换成衣服颜色）。坐标 = 绑定姿态：x 前、y 左、z 上（米）
-function dressClothes(mat, L) {
-  const ob = mat.onBeforeCompile, U = mat.userData.look;
-  if (!ob || !U) return;
-  U.uBody.value.set(L.fleece); U.uLeg.value.set(L.pants);
-  const C = { uTeal: { value: new THREE.Color(L.teal) }, uGlove: { value: new THREE.Color(L.glove) }, uShoe: { value: new THREE.Color(L.shoe) },
-    uSole: { value: new THREE.Color(L.sole) }, uGaiter: { value: new THREE.Color(L.gaiter) }, uFist: { value: 0 } };
-  mat.userData.fist = C.uFist;                              // 登顶竖大拇指时 = 1：CesiumMan 的右手（连指手套形状，没有手指骨）藏掉，换成拳头 + 拇指
-  mat.onBeforeCompile = (sh, r) => {
-    ob.call(mat, sh, r);
-    Object.assign(sh.uniforms, C);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vBP, vBN;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBP = position; vBN = normal;');
-    sh.fragmentShader = sh.fragmentShader.replace('pow(max(fr, 0.0), 2.2) * uRimK', 'pow(max(fr, 0.0), 2.6) * uRimK * 0.45')   // 深色衣服上轮廓光显得太亮，压一点
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBP, vBN;\nuniform vec3 uTeal, uGlove, uShoe, uSole, uGaiter;\nuniform float uFist;')
-      .replace('diffuseColor.rgb *= zc;', `{
-        vec3 bn = normalize(vBN); float ay = abs(vBP.y), z = vBP.z;
-        if (uFist > 0.5 && vBP.y < -0.475 && z > 0.7) discard;                      // 右手（绑定姿态 y < 0 = 右）
-        float torso = step(ay, 0.2) * step(0.8, z);
-        // 胸前 / 背后的青色竖条纹拼色：领口往下，下沿是 V 字（中间低、两边高）
-        float yoke = torso * smoothstep(0.15, 0.4, abs(bn.x)) * step(ay, 0.17) * smoothstep(-0.006, 0.006, z - 0.925 - 0.5 * ay);
-        float rib = 0.62 + 0.38 * smoothstep(-0.4, 0.4, sin(vBP.y * 520.0));
-        zc = mix(zc, uTeal * rib, yoke);
-        zc = mix(zc, uGaiter, torso * smoothstep(1.085, 1.1, z));                           // 领口（围脖盖住的地方）
-        float arm = step(0.21, ay) * step(0.7, z);
-        zc = mix(zc, uTeal, arm * step(0.93, dot(bn, normalize(vec3(0.0, sign(vBP.y) * 0.55, 0.85)))) * step(ay, 0.46));   // 袖子外侧一道青线
-        zc = mix(zc, uTeal, arm * step(0.462, ay) * step(ay, 0.485));                       // 袖口
-        zc = mix(zc, uGlove, arm * step(0.485, ay));                                        // 手（肤色）
-        zc = mix(zc, uShoe, step(z, 0.095)); zc = mix(zc, uSole, step(z, 0.022));            // 登山鞋
-      }
-      diffuseColor.rgb *= zc;`);
-  };
-  mat.customProgramCacheKey = () => 'fengge-clothes';
-  mat.needsUpdate = true;
-}
-
 export async function dressFengge(av, look = {}) {
   const L = { ...FENGGE_LOOK, ...look };
   const head = av.bones['Skeleton_neck_joint_2'], neck = av.bones['Skeleton_neck_joint_1'];
@@ -212,21 +188,13 @@ export async function dressFengge(av, look = {}) {
   const photo = await faceTexture();
   av.group.updateMatrixWorld(true);
   const U = mesh.material.userData.look || {};
-  dressClothes(mesh.material, L);
-
-  // 原来的头盔：沾一点头骨权重的顶点都塌到「脖口」中心（和它们相连的躯干顶点的中心），权重全给脖子骨 → 脖口封成一个平盖，
-  //   藏在围脖里。塌到头中心的话，肩膀到头中心会拉出一个锥（v2 第一版就是这样）。面罩 + 亮缝藏掉
-  const hi = mesh.skeleton.bones.indexOf(head), ni = mesh.skeleton.bones.indexOf(neck), GA = mesh.geometry.attributes, v = new THREE.Vector3();
-  const hw = new Float32Array(GA.position.count), IX = mesh.geometry.index.array, ring = new Set();
-  for (let i = 0; i < hw.length; i++) for (let k = 0; k < 4; k++) if (GA.skinIndex.getComponent(i, k) === hi) hw[i] += GA.skinWeight.getComponent(i, k);
-  for (let t = 0; t < IX.length; t += 3) { const a = [IX[t], IX[t + 1], IX[t + 2]]; if (a.some(i => hw[i] > 0)) for (const i of a) if (!hw[i]) ring.add(i); }
-  const o = new THREE.Vector3(); for (const i of ring) o.add(v.fromBufferAttribute(GA.position, i)); o.divideScalar(ring.size || 1);
-  for (let i = 0; i < hw.length; i++) if (hw[i] > 0) { GA.position.setXYZ(i, o.x, o.y, o.z); GA.skinIndex.setXYZW(i, ni, 0, 0, 0); GA.skinWeight.setXYZW(i, 1, 0, 0, 0); }
-    else {                                                 // 身材：CesiumMan 太瘦，衣服往外鼓一点（抓绒上衣 1.2 cm、袖子 0.8 cm、裤子 0.4 cm，沿法线）
-      const z = GA.position.getZ(i), d = Math.abs(GA.position.getY(i)) > 0.21 ? 0.008 : 0.004 + 0.008 * ss(0.78, 0.84, z);
-      v.fromBufferAttribute(GA.normal, i); GA.position.setXYZ(i, GA.position.getX(i) + v.x * d, GA.position.getY(i) + v.y * d, z + v.z * d);
-    }
-  GA.position.needsUpdate = GA.skinIndex.needsUpdate = GA.skinWeight.needsUpdate = true; mesh.geometry.computeBoundingSphere();
+  // 身体（第 4 轮）：先按峰哥的比例挪骨骼（shape.js），再按新骨骼现摆一副低多边形身体（body.js，穿搭见 outfits.js），CesiumMan 网格藏掉
+  reshape(av);
+  const outfit = await outfitFor();
+  const body = buildBody(av, outfit, { tune: (m, more) => tune(m, U, 'body', L.rimK, 0.18, more) });
+  if (outfit.uniforms.uSpan) { outfit.uniforms.uSpan.value = body.shY - body.hipY; outfit.uniforms.uHip.value = body.hipY; }
+  mesh.visible = false;
+  av.group.userData.fenggeBody = body;
   for (const x of head.children) if (x.name === 'exo') x.visible = false;
   for (const n of ['Skeleton_arm_joint_L__2_', 'Skeleton_arm_joint_R__3_']) for (const x of av.bones[n]?.children || []) if (x.name === 'exo') x.visible = false;   // 手腕上的深色小球（外骨骼没有手套）藏掉，露出手
 
@@ -237,7 +205,7 @@ export async function dressFengge(av, look = {}) {
   // 材质两档共用；几何按分辨率各造一份（LOD：近 = 全精度，远 = 约 1/6 面数）
   const SMILE = { value: 0 };                                // 登顶时嘴角上扬（0..1），见 ⑤
   const mk = (o, rough = 1) => ST.mat === 'std' ? new THREE.MeshStandardMaterial({ ...o, roughness: rough, metalness: 0 })
-    : new THREE.MeshLambertMaterial(o);
+    : new THREE.MeshLambertMaterial({ ...o, flatShading: !!ST.flat });
   const key = k => k + '-' + ST.mat + (ST.post ? 'P' : '');
   const headMat = tune(mk({ map: photo, vertexColors: true }, 0.72), U, key('head'), L.rimK * 0.3, L.faceGlow, sh => {
     sh.uniforms.uSmile = SMILE;
@@ -328,48 +296,38 @@ export async function dressFengge(av, look = {}) {
   const lamp = head.worldToLocal(H.localToWorld(headAt(edge(0) + 34, 0, new THREE.Vector3(), 1.16, false)));
   av.group.userData.fengge = { lamp };
   av.fengge = true;
-  summitGesture(av, head, SMILE, L, mesh.material.userData.fist);
+  // 手（hand.js）：自己的指骨，挂腕骨；身体的袖口收在腕骨上，手根往外 1 cm。登顶动作要用手，所以先建手、再包登顶、最后每帧收尾 apply
+  HANDS = makeHands(av, { skin: L.glove, shift: 0.01, tune: m => tune(m, U, 'hand', L.rimK, 0.18) });
+  summitGesture(av, head, SMILE, HANDS);
+  const a2 = av.animate;
+  if (a2) av.animate = function (dt, t, d) { a2.call(this, dt, t, d); HANDS.apply(Math.min(dt, 0.1)); };
   return true;
 }
 
 // ⑤ 登顶「这是个好事儿啊」：包一层 A2 的 animate（先原样跑，再按登顶程度 k 叠加），只管三样：
-//   头 = 先点两下头（1.6 s），再在 A2 的抬头上多仰 6°、往一侧歪 8°（得意）；右臂 = 竖大拇指举在头侧（上臂侧平举、小臂斜向上，拇指朝天）：
-//   登顶镜头多从背后开始拍（泰山是定机位），举在胸前从背后看不见；
-//   脸 = 照片嘴角往上挪（SMILE）。左臂和其余关节都是 A2 的（V 字挥手照旧）。k = A2 的登顶程度 av.body.P.cheer（和他的举臂、抬头
-//   同一时刻起落；A2 9/23 同意由 P 维护这层）。A2 每帧从 rest 重算这几根骨，所以这里改完不会逐帧累积；右臂按 k 在 A2 的姿态和目标之间 slerp。
-//   方向在化身自己的坐标里算（+X 前、+Y 上、+Z 右），每帧按骨骼当前朝向换算，躯干怎么前倾后仰都对。
-function summitGesture(av, head, SMILE, L, FIST) {
-  const B = av.bones, arm = B['Skeleton_arm_joint_R'], elb = B['Skeleton_arm_joint_R__2_'], wri = B['Skeleton_arm_joint_R__3_'], outer = av.group;
-  if (!av.animate || !arm || !elb || !wri) return;
-  const V = () => new THREE.Vector3(), a = V(), b = V(), c = V(), w = V(), qP = new THREE.Quaternion(), qR = new THREE.Quaternion(), q0 = new THREE.Quaternion(), eu = new THREE.Euler();
-  const d2r = Math.PI / 180, UPA = V().set(0.3, 0.25, 0.92).normalize(), FORE = V(), X = V().set(1, 0, 0);
-  const loc = (bone, out) => outer.worldToLocal(bone.getWorldPosition(out));
-  const parentQ = bone => { qP.identity(); for (let p = bone.parent; p && p !== outer; p = p.parent) qP.premultiply(p.quaternion); return qP; };
-  const inBody = (bone, q) => { parentQ(bone); bone.quaternion.premultiply(qR.copy(qP).invert().multiply(q).multiply(qP)); };   // q = 化身坐标里的转动
-  const aim = (bone, child, want, k) => {                  // 骨头（bone → child）转到 want 方向，按 k 和 A2 的姿态混合
-    q0.copy(bone.quaternion);
-    inBody(bone, qR.setFromUnitVectors(loc(child, b).sub(loc(bone, a)).normalize(), want).clone());
-    bone.quaternion.slerpQuaternions(q0, bone.quaternion.clone(), k); bone.updateMatrixWorld(true);
-  };
-  const skinM = new THREE.MeshLambertMaterial({ color: L.glove, emissive: L.glove, emissiveIntensity: 0.3 });
-  const fist = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8).scale(0.058, 0.048, 0.046), skinM);   // 拳头：长轴顺着小臂
-  const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.04, 4, 8), skinM);                 // 拇指：朝天
-  for (const m of [fist, thumb]) { m.name = 'fenggeThumb'; m.visible = false; m.frustumCulled = false; outer.add(m); }
+//   头 = 先点两下头（1.6 s），再在 A2 的抬头上多仰 6°、往一侧歪 8°（得意）；右手 = 用 hand.js 的 IK 把拳头举到头侧（小臂竖起、掌心朝里），
+//   手势 thumbsUp → 大拇指朝天（登顶镜头多从背后拍，举在胸前从背后看不见）；脸 = 照片嘴角往上挪（SMILE）。
+//   左臂和其余关节都是 A2 的（V 字挥手照旧）。k = A2 的登顶程度 av.body.P.cheer（和他的举臂、抬头同一时刻起落；A2 9/23 同意由 P 维护这层）。
+//   A2 每帧从 rest 重算这几根骨，所以这里改完不会逐帧累积；右臂 IK 按 k 和 A2 的姿态 slerp。
+function summitGesture(av, head, SMILE, HANDS) {
+  const outer = av.group;
+  if (!av.animate) return;
+  const qP = new THREE.Quaternion(), qR = new THREE.Quaternion(), eu = new THREE.Euler(), d2r = Math.PI / 180, tgt = new THREE.Vector3();
+  const inBody = (bone, q) => { qP.identity(); for (let p = bone.parent; p && p !== outer; p = p.parent) qP.premultiply(p.quaternion); bone.quaternion.premultiply(qR.copy(qP).invert().multiply(q).multiply(qP)); };
   const orig = av.animate;
   let k = 0, tS = 0;
   av.animate = function (dt, t, d) {
     orig.call(this, dt, t, d);
     k = this.body ? this.body.P.cheer : k + ((d.summit ? 1 : 0) - k) * (1 - Math.exp(-Math.min(dt, 0.1) / 0.35));
     tS = d.summit ? tS + dt : 0;
-    SMILE.value = k; thumb.visible = fist.visible = k > 0.3; if (FIST) FIST.value = +(k > 0.3);
+    SMILE.value = k;
+    HANDS.pose('R', 'thumbsUp', Math.min(1, k * 1.5));
     if (k < 0.002) return;
     const nod = tS < 1.6 ? 16 * Math.sin(Math.PI * tS / 0.8) ** 2 : 0, smug = ss(1.2, 2.0, tS);
     inBody(head, qR.setFromEuler(eu.set(8 * smug * k * d2r, 0, (6 * smug - nod) * k * d2r, 'YZX')).clone());
     outer.updateMatrixWorld(true);
-    aim(arm, elb, UPA, k);
-    aim(elb, wri, FORE.set(0.75, 0.45 + 0.12 * Math.sin(tS * 7), 0.35).normalize(), k);   // 小臂往前上方伸，一下一下往上顶
-    loc(wri, w); c.copy(w).addScaledVector(FORE, 0.05);    // 拳头中心：手腕往前 5 cm
-    fist.position.copy(c); fist.quaternion.setFromUnitVectors(X, FORE);
-    thumb.position.copy(c).add(a.set(0, 0.06, 0)); thumb.quaternion.identity();
+    // 右手：拳头举到头侧（化身坐标：比头骨前 0.12、高 0.2、往右 0.26）→ 肘朝外下、小臂竖起来，掌心朝里 → 大拇指朝天；一下一下往上顶
+    head.getWorldPosition(tgt); outer.worldToLocal(tgt).add(new THREE.Vector3(0.12, 0.2 + 0.03 * Math.sin(tS * 7) * k, 0.26));
+    HANDS.reach('R', outer.localToWorld(tgt), k, [0, 0, -1]);
   };
 }
