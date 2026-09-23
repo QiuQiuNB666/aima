@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { loadAvatar, preloadAvatar } from '/game/avatar.js';
 import { dressFengge } from '/game/fengge.js';
-import { makeJifeng } from '/game/npc_jifeng.js';
+import { makeMech } from './mech.js';
 import { PALETTE, UI, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
 import { makeRunner, damp } from './runner.js';
@@ -29,7 +29,6 @@ const simRestore = () => { if (simCad0 != null && !DEMO) navigator.sendBeacon('/
 addEventListener('pagehide', simRestore);
 addEventListener('beforeunload', simRestore);
 const KNEE = Q.get('lane') === 'knee';   // 免手换道：抬一条腿保持 0.3 s = 往那边换一道 / 路口往那边转；快速抬腿仍是跳（缺省 = 手柄 / 键盘换道）
-const TALK = Q.get('npctalk') === '1';   // 9/24 球球「跑酷还是有捷风的废话」：和主游戏一样缺省不说话（不出气泡不出声），?npctalk=1 才开
 const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : DEMO ? 1 : 0, MUTE = Q.get('voice') === '0' || DEMO;
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
 const LEG_READY_S = 5;          // 走满 5 s（anim.js 学完零点）才认高抬腿 / 下蹲：零点没学出来时穿戴偏屈 15–20°，正常走路会被当成高抬腿
@@ -37,7 +36,6 @@ const $ = id => document.getElementById(id);
 const post = (p, b) => DEMO ? Promise.resolve(null) : fetch(p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json()).catch(() => null);   // 预览一个请求都不发
 const err = (m, e) => { console.error(m, e); if (window.__err) window.__err(`${m}${e ? '：' + (e.stack || e) : ''}`); };
 const best = { get: () => { try { return +localStorage.getItem('pk_best') || 0; } catch { return 0; } }, set: v => { try { localStorage.setItem('pk_best', v); } catch {} } };
-const JF = { start: '가자！你先跑三秒。', dash: '就这？빨리빨리！', caught: '逮到了，慢死了。', lost: '哟，跑挺快嘛。' };   // 都在 voice.py NPC_LINES 白名单里
 
 // ---------- 腿上的力 ----------
 // 非 null 的力带 ttl 发、每 300 ms 续一次：页面崩了 / 卡死（续不上）服务端 1 s 内自己回 null。设回 null 不带 ttl
@@ -77,13 +75,13 @@ async function main() {
   const speedLines = makeSpeedLines(scene, { n: LOW ? 32 : 64 }), sfx = makeAudio(!MUTE && !AUTO);   // 速度线 / 风声（fx=low 线减半）
   const cloth = runner ? makeCloth(scene, av) : null;             // 在第一次摆姿势之前建：按绑定姿态找挂点
   const avLook = av.mats[0] && av.mats[0].userData.look, rim0 = avLook && avLook.uRim.value.clone(), rimK0 = avLook && avLook.uRimK.value, DANGER = new THREE.Color(UI.danger), TS = { t: 0, yaw: 0 };   // 峰哥衣服 / 头共用这组 uniform
-  const jf = await makeJifeng(scene);
+  const jf = makeMech(scene);                                          // 9/24：追兵 = 四脚机甲（mech.js），不加载任何 NPC 模型
   if (Q.get('hud') === '0') document.body.classList.add('clean');
   if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
   if (KNEE) document.body.classList.add('knee');
 
   // ---------- 一局 ----------
-  let level, run, legs = KNEE ? makeKneeLegs() : makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', bubbleUntil = 0, autoWalk = false;
+  let level, run, legs = KNEE ? makeKneeLegs() : makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', autoWalk = false;
   const seed0 = +(Q.get('seed') || (DEMO ? 5 : Date.now() % 100000));
   const rand = DEMO ? rng(7) : Math.random;
   let seed = seed0;
@@ -98,7 +96,7 @@ async function main() {
   let pend = { jump: false, slide: false, lane: 0, turn: 0, slideHold: false };
 
   // ---------- /state ----------
-  let S = null, sAt = 0, lastT = null, legWalk = 0, audio = null;
+  let S = null, sAt = 0, lastT = null, legWalk = 0;
   async function poll() {
     const t0 = performance.now();
     try {
@@ -129,15 +127,13 @@ async function main() {
     const pl = ((demoPh - G_MIN) % 1 + 1) % 1;                     // 估计器相位 0 = 髋最伸（屈曲最小），和 shellos/gait 一样
     S = { t: clock, frame: { l: -a, r: -b, ldps: -va * f, rdps: -vb * f }, gait: { moving: on, cadence: on ? CAD_DEMO : 0, phase_l: pl, phase_r: (pl + 0.5) % 1 }, sim: { on: false }, terrain: { hs_phase: 0.5 } };
   }
+  // 追兵事件（开追 / 逼近 / 追上 / 被甩开）：不说话，右上角小图标亮一下；逼近和追上时机甲低鸣一声
   const say = key => {
     jfSaid = key;
-    const ic = $('jfIcon'); ic.classList.remove('ping'); void ic.offsetWidth; ic.classList.add('ping');   // 不说话时只剩右上角小图标亮一下
-    if (!TALK) return;
-    $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
-    if (MUTE || AUTO) return;
-    if (audio) audio.pause();
-    audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(JF[key])); audio.play().catch(() => {});
+    const ic = $('jfIcon'); ic.classList.remove('ping'); void ic.offsetWidth; ic.classList.add('ping');
+    if (key === 'dash' || key === 'caught') sfx.hum();
   };
+
 
   // ---------- 键盘 ----------
   const isSim = () => !!(S && S.sim && S.sim.on);
@@ -214,7 +210,7 @@ async function main() {
   const PW = {}, CW = {}, LW = {};
   av.group.rotation.order = jf.group.rotation.order = 'YXZ';          // 先转朝向（路口 90°），再侧倾 / 前后倾——转弯以后侧倾还是绕身体自己的轴
   const legFor = s => s >= run.leg.s0 ? run.leg : level.legAt(s);   // 镜头在身后：还没过路口的那段用老腿
-  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, lastZ = 0, clock = DEMO ? 0 : last / 1000;
+  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, lastZ = 0, clock = DEMO ? 0 : last / 1000;
   const HINT = { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！', turnL: '← 左转（A / L1）', turnR: '右转 →（D / R1）' };
   function frame(dtFix) {
     if (!MANUAL) requestAnimationFrame(() => frame());
@@ -238,8 +234,8 @@ async function main() {
     for (const ev of run.events.splice(0)) {
       if (ev === 'start') { document.body.classList.remove('title'); say('start'); }
       if (ev === 'turn' || ev === 'turnMiss') lastZ = run.z;               // 转弯时横向坐标换了一套，别当成横向速度
-      if (['low', 'high', 'block', 'fall', 'wall', 'caught', 'corner'].includes(ev)) { shake = 0.5; flash = 1; $('hitWhy').textContent = { low: '撞上空调外机', high: '被晾衣杆拦住', block: '撞上水箱', fall: '掉下楼缝', wall: '撞上楼沿', caught: '被捷风追上', corner: '没转弯，撞上路口的墙' }[ev]; if (ev === 'caught') { say('caught'); jf.burst(); } }
-      if (ev === 'over') { overAt = t; $('goT').textContent = $('hitWhy').textContent === '被捷风追上' ? '被捷风抓住了' : '峰哥倒下了'; const b = best.get(), d = Math.floor(run.dist); if (d > b) best.set(d); $('goDist').textContent = d; $('goBest').textContent = Math.max(b, d); $('goNew').style.display = d > b ? 'block' : 'none'; document.body.classList.add('over'); }
+      if (['low', 'high', 'block', 'fall', 'wall', 'caught', 'corner'].includes(ev)) { shake = 0.5; flash = 1; $('hitWhy').textContent = { low: '撞上空调外机', high: '被晾衣杆拦住', block: '撞上水箱', fall: '掉下楼缝', wall: '撞上楼沿', caught: '被机甲追上', corner: '没转弯，撞上路口的墙' }[ev]; if (ev === 'caught') { say('caught'); jf.burst(); } }
+      if (ev === 'over') { overAt = t; $('goT').textContent = $('hitWhy').textContent === '被机甲追上' ? '被机甲抓住了' : '峰哥倒下了'; const b = best.get(), d = Math.floor(run.dist); if (d > b) best.set(d); $('goDist').textContent = d; $('goBest').textContent = Math.max(b, d); $('goNew').style.display = d > b ? 'block' : 'none'; document.body.classList.add('over'); }
     }
     if (run.jfGap > 14 && jfSaid !== 'lost' && run.started) say('lost');
     else if (run.jfGap < 4 && jfSaid !== 'dash' && jfSaid !== 'caught' && run.started && !run.over) say('dash');
@@ -286,19 +282,15 @@ async function main() {
     }
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
 
-    // 捷风：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
-    //   jfGap ≤ 1.8（离镜头 ≥ 2.5）才现身；再远只留右上角距离条。STL 雕像四肢不能动：和登山游戏一样风系飘行（npc.js）
+    // 机甲追兵：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
+    //   jfGap ≤ 1.8（离镜头 ≥ 2.5）才现身；再远只留右上角距离条。逼近时只有红色轮廓光 + 一声低鸣，不说话
     const jx = run.x - run.jfGap, jy = level.ground(jx) ?? run.y, camZ = run.z * 0.55, chasing = run.jfV > 0, jleg = legFor(jx);
     jfZ += ((camZ <= 0 ? camZ + 1.8 : camZ - 1.8) - jfZ) * (1 - Math.exp(-dtR * 4));
-    atLeg(jleg, jx, jfZ, LW); jfP.set(LW.x, jy, LW.z); dir.set(H4[jleg.dir][0], 0, H4[jleg.dir][1]);
+    atLeg(jleg, jx, jfZ, LW); jfP.set(LW.x, jy, LW.z);
     jf.group.position.copy(jfP);
-    jfPhase += dtR * Math.PI * Math.max(1.5, (run.jfV || 6) / 2.2);
-    const jfLean = jf.statue ? (chasing ? 0.13 + (run.jfGap < 5 ? 0.32 : 0) : 0.03) : chasing ? 0.25 : 0;
-    jf.group.rotation.set(0, yawOf(jleg.dir), -jfLean);
-    if (jf.statue) { jf.group.position.y += chasing ? 0.1 + 0.05 * Math.sin(jfPhase * 2) : 0.07 + 0.03 * Math.sin(t * 2.2); jf.group.scale.y = 1 + 0.012 * Math.sin(t * 1.8); }
-    if (chasing) jf.pose(38 * Math.sin(jfPhase), 38 * Math.sin(jfPhase + Math.PI)); else jf.pose(-4, 6);
+    jf.group.rotation.set(0, yawOf(jleg.dir), 0);
     jf.visible = run.jfGap <= 1.8;
-    jf.update(dtR, jfP, dir, run.jfGap < 5 ? 1 : 0.3);
+    jf.update(dtR, chasing ? run.jfV : 0, chasing ? Math.max(0, Math.min(1, (4 - run.jfGap) / 3)) : 0);
 
     // 镜头：身后偏上；跳的时候不跟满，落地有顿挫；撞了抖
     camY += ((gy ?? run.y) - camY) * (1 - Math.exp(-dtR * 4));
@@ -347,7 +339,6 @@ async function main() {
     $('jfBar').style.width = `${(1 - gp) * 100}%`; $('jfM').textContent = `${run.jfGap.toFixed(1)} m`;
     document.body.classList.toggle('danger', run.started && run.jfGap < 4);
     $('flash').style.opacity = flash * 0.55;
-    document.body.classList.toggle('talk', t < bubbleUntil);
     const th = run.started && !run.over ? nextThreat(run, level, run.speed * 1.4 + 3) : null;
     const hk = th ? (th.what === 'turn' ? (th.o.d < 0 ? 'turnL' : 'turnR') : th.what) : '';
     $('hint').textContent = hk ? HINT[hk] : ''; $('hint').className = 'hud ' + (th ? th.what : '');
