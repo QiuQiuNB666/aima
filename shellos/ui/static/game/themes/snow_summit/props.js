@@ -41,8 +41,8 @@ export function prayerFlags(ctx, lines, { spacing = 0.26, cap = 600, rev = null 
     Object.assign(sh.uniforms, U);
     sh.vertexShader = 'uniform float uT, uWind; uniform vec4 uGust;\n' + sh.vertexShader.replace('#include <begin_vertex>',
       `#include <begin_vertex>
-       { float hang = -transformed.y / 0.2; float ph = float(gl_InstanceID) * 1.37;
-         transformed.z += (sin(uT * 7.0 + ph) * 0.05 + 0.03) * hang * uWind; transformed.x += sin(uT * 5.3 + ph * 0.7) * 0.02 * hang * uWind;
+       { float hang = -transformed.y / 0.2; float ph = float(gl_InstanceID) * 1.37, wA = min(uWind, 2.2), stream = clamp(uWind - 1.2, 0.0, 1.6);   // 风大了旗被扯平（往下风飘起来）
+         transformed.z += (sin(uT * 7.0 + ph) * 0.05 + 0.03) * hang * wA + 0.1 * stream * hang; transformed.x += sin(uT * 5.3 + ph * 0.7) * 0.02 * hang * wA; transformed.y += 0.05 * stream * hang;
          vec3 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
          float g = uGust.w * smoothstep(4.0, 1.0, distance(ip.xz, uGust.xz));
          transformed.z += g * (sin(uT * 23.0 + ph) * 0.1 + 0.14) * hang; transformed.x += g * sin(uT * 17.0 + ph * 1.3) * 0.08 * hang; transformed.y += g * (0.1 + 0.04 * sin(uT * 19.0 + ph)) * hang; }`);   // 被风掀起来：往外、往上飞
@@ -122,21 +122,34 @@ export function iceSheen(mat, amount = 1, mask = 'all') {
 export const seracGeo = seed => rockGeo('#a9d0ea', seed, 1.35);
 
 // 固定绳：沿路 lat 处，每 every 步一根雪锥（铝杆）+ 绳子下垂；绳子颜色按段交替（红 / 蓝，常见的登山绳）
-export function fixedRope(ctx, ranges, { lat = 1.0, every = 2, h = 0.85 } = {}) {
+// 路绳随风晃：sway = { uT, uWind（0–3）, uWD（下风方向）}；每段绳在两根雪锥之间按跨中最大往下风荡、上下轻弹（雪锥不动）
+export function fixedRope(ctx, ranges, { lat = 1.0, every = 2, h = 0.85, sway = null } = {}) {
   const { route, util } = ctx, stakes = [], rope = [];
   for (const [s0, s1] of ranges) {
     let prev = null, k = 0;
     for (let s = s0; s <= s1 + 1e-6; s += every) {
       const a = route.at(s, lat), top = a.pos.clone().setY(route.heightAt(s) + h);
       stakes.push({ p: a.pos.clone().setY(route.heightAt(s) + h / 2 - 0.1), ry: -a.heading });
-      if (prev) { const pts = sagPts(prev, top, 0.12, 6); const col = (k++ % 3) ? '#d7342b' : '#2f6fd6'; for (let j = 0; j < 6; j++) seg(pts[j], pts[j + 1], rope, { color: col }); }
+      if (prev) { const pts = sagPts(prev, top, 0.12, 6); const col = (k++ % 3) ? '#d7342b' : '#2f6fd6'; for (let j = 0; j < 6; j++) seg(pts[j], pts[j + 1], rope, { color: col, f: (j + 0.5) / 6 }); }
       prev = top;
     }
   }
-  const out = [
-    util.instanced(new THREE.BoxGeometry(0.035, h + 0.2, 0.035), new THREE.MeshLambertMaterial({ color: '#c8ced6', emissive: '#222831' }), stakes),
-    util.instanced(new THREE.CylinderGeometry(0.018, 0.018, 1, 4).rotateZ(Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#1a1a1a' }), rope),
-  ];
+  const rm = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#1a1a1a' });
+  if (sway) {
+    rm.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, sway);
+      sh.vertexShader = 'attribute float aSpan; uniform float uT, uWind; uniform vec3 uWD;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+        vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+        float sp = sin(3.14159 * aSpan), ph = uT * (1.6 + 0.5 * uWind) + wp.x * 0.7 + wp.z * 0.5;
+        wp.xyz += uWD * sp * (0.03 + 0.05 * uWind) * (0.65 + 0.35 * sin(ph));
+        wp.y += sp * 0.02 * uWind * cos(ph * 1.7);
+        vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
+    };
+    rm.customProgramCacheKey = () => 'ropeSway';
+  }
+  const rp = util.instanced(new THREE.CylinderGeometry(0.018, 0.018, 1, 4).rotateZ(Math.PI / 2), rm, rope);
+  if (sway) rp.geometry.setAttribute('aSpan', new THREE.InstancedBufferAttribute(Float32Array.from({ length: Math.max(1, rope.length) }, (_, i) => rope[i] ? rope[i].f : 0), 1));
+  const out = [util.instanced(new THREE.BoxGeometry(0.035, h + 0.2, 0.035), new THREE.MeshLambertMaterial({ color: '#c8ced6', emissive: '#222831' }), stakes), rp];
   out.forEach(m => { m.name = 'fixedRope'; });
   return out;
 }
