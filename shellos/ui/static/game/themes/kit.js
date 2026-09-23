@@ -210,7 +210,8 @@ export function stepFx(ctx, { dust = '#d8cbb4', flash = '#fff2c8', add = false, 
 // 一次性触发：edge(on) 在 on 从假变真的那一帧返回 true（同一圈只响一次；on 变回假再变真才再响）
 export function edge() { let was = false; return on => { const r = on && !was; was = !!on; return r; }; }
 
-// 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter')。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
+// 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter' | 'click' | 'clink' | 'creak' | 'wind' | 'hiss' | 'yakbell', vol, { pitch })；
+//   持续音 sfxLoop('rotor') → { set(vol, rate) } 每帧调（E 线：直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
 //   音量再乘 U 设置页的「捷风 / 音效音量」（window.__settings.get('vSfx')，0–100；设置页只管 <audio>，WebAudio 这里自己乘）。
 //   浏览器不让没交互过的页面出声：上下文挂起时等第一次按键 / 点击再恢复（空格走路就算）。音量都压低，峰哥说话时不抢
 const SFX_Q = new URLSearchParams(location.search), SFX_ON = SFX_Q.get('sfx') !== '0' && !SFX_Q.has('preview');
@@ -224,7 +225,7 @@ function audio() {
   }
   return AC.state === 'running' ? AC : (AC.resume(), null);
 }
-export function sfx(name, vol = 1) {
+export function sfx(name, vol = 1, { pitch = 1 } = {}) {
   const ac = audio(), k = window.__settings ? window.__settings.get('vSfx') / 100 : 1;
   if (!ac || !(k > 0)) return;
   const t = ac.currentTime, out = ac.createGain(); out.gain.value = 0.22 * vol * k; out.connect(ac.destination);
@@ -233,17 +234,50 @@ export function sfx(name, vol = 1) {
     e.gain.setValueAtTime(0, t + t0); e.gain.linearRampToValueAtTime(g, t + t0 + 0.005); e.gain.exponentialRampToValueAtTime(0.0001, t + t0 + dur);
     o.connect(e); e.connect(out); o.start(t + t0); o.stop(t + t0 + dur + 0.05); return o;
   };
-  const noise = (dur, f, q, g = 1, t0 = 0) => {
+  const noise = (dur, f, q, g = 1, t0 = 0, type = 'bandpass', swell = false) => {   // swell：先涌上来再落下去（风）；缺省一下就衰减
     const b = ac.createBuffer(1, Math.ceil(ac.sampleRate * dur), ac.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
-    const src = ac.createBufferSource(), bp = ac.createBiquadFilter(), e = ac.createGain(); src.buffer = b; bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; e.gain.value = g;
-    src.connect(bp); bp.connect(e); e.connect(out); src.start(t + t0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (swell ? Math.sin(Math.PI * i / d.length) : (1 - i / d.length) ** 2);
+    const src = ac.createBufferSource(), bp = ac.createBiquadFilter(), e = ac.createGain(); src.buffer = b; bp.type = type; bp.frequency.value = f; bp.Q.value = q; e.gain.value = g;
+    src.connect(bp); bp.connect(e); e.connect(out); src.start(t + t0); return bp;
   };
   if (name === 'can') { const o = tone(150, 0.22, 1, 'sine'); o.frequency.exponentialRampToValueAtTime(70, t + 0.2); noise(0.08, 2400, 3, 0.5); tone(1900, 0.18, 0.12, 'triangle', 0.03); }   // 咚 + 罐子碰一下
   else if (name === 'bell') for (let k = 0; k < 3; k++) for (const [f, g, d] of [[196, 1, 4], [196 * 2.76, 0.5, 2.5], [196 * 5.4, 0.25, 1.2], [196 * 1.5, 0.3, 3]]) tone(f, d, g * (1 - k * 0.2), 'sine', k * 1.6);   // 寺钟：三声，非谐和泛音
   else if (name === 'splash') { noise(0.35, 1400, 0.8, 1); noise(0.2, 3200, 1.5, 0.5, 0.05); }
   else if (name === 'chime') [880, 1175, 1480, 1760].forEach((f, k) => tone(f, 1.6, 0.35, 'sine', k * 0.09));
   else if (name === 'flutter') for (let k = 0; k < 6; k++) noise(0.05, 2600 + k * 200, 2, 0.35, k * 0.045);
+  // E 线（华山 / 珠峰）
+  else if (name === 'click') { noise(0.025, 3800, 6, 1.2); tone(2600, 0.07, 0.5, 'triangle'); noise(0.03, 2900, 6, 1.4, 0.08); tone(1900, 0.1, 0.6, 'triangle', 0.08); }   // 安全锁咔嗒：锁舌弹开、合上
+  else if (name === 'clink') [1870, 2630, 3710].forEach((f, k) => tone(f * (0.97 + Math.random() * 0.06), 0.28 - k * 0.06, 0.35 / (k + 1), 'sine', k * 0.012));   // 铁链碰一下
+  else if (name === 'creak') { const o = tone(150 + Math.random() * 40, 0.32, 0.5, 'sawtooth'); o.frequency.exponentialRampToValueAtTime(105, t + 0.3); noise(0.05, 420, 1, 0.8, 0, 'lowpass'); }   // 木板吱一声 + 闷一下
+  else if (name === 'wind') { const bp = noise(3.2, 420, 0.8, 1.6, 0, 'bandpass', true); bp.frequency.linearRampToValueAtTime(950, t + 1.4); bp.frequency.linearRampToValueAtTime(380, t + 3.2); }   // 一阵风
+  else if (name === 'hiss') noise(0.9, 2600, 0.6, 0.7, 0, 'highpass', true);             // 吸一口氧：嘶——
+  else if (name === 'yakbell') for (const [f, g, d] of [[1250, 1, 0.45], [1250 * 2.63, 0.4, 0.22], [1250 * 4.1, 0.18, 0.12]]) tone(f * pitch, d, g * 0.9, 'triangle');   // 牦牛铜铃：不和谐泛音、快衰减
+}
+// 持续音：sfxLoop('rotor') 返回 { set(vol 0..1, rate 0..1) }，每帧调；第一次真要响才搭线路。rotor = 低通噪声 × 桨叶拍频（「突突突」），rate 降 → 拍频变慢
+export function sfxLoop(name) {
+  let g = null, lfo = null;
+  return {
+    set(vol, rate = 1) {
+      const ac = audio(), k = window.__settings ? window.__settings.get('vSfx') / 100 : 1;
+      if (!ac) return;
+      const v = Math.max(0, Math.min(1, vol)) * 0.32 * (k > 0 ? k : 0);
+      if (!g) {
+        if (v < 0.002 || name !== 'rotor') return;
+        const b = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = ac.createBufferSource(); src.buffer = b; src.loop = true;
+        const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340; lp.Q.value = 0.8;
+        const am = ac.createGain(); am.gain.value = 0.5;
+        lfo = ac.createOscillator(); lfo.type = 'triangle'; lfo.frequency.value = 11;
+        const lg = ac.createGain(); lg.gain.value = 0.48; lfo.connect(lg); lg.connect(am.gain);
+        g = ac.createGain(); g.gain.value = 0;
+        src.connect(lp); lp.connect(am); am.connect(g); g.connect(ac.destination);
+        src.start(); lfo.start();
+      }
+      g.gain.setTargetAtTime(v, ac.currentTime, 0.15);
+      lfo.frequency.setTargetAtTime(4 + 8 * Math.max(0, Math.min(1, rate)), ac.currentTime, 0.4);
+    },
+  };
 }
 
 // 惊起的鸟：fire(pos, away) 从 pos 一下飞出 count 只（往 away 方向 ±60° 散开、往上爬），扇着翅 3 s 飞远就没了。1 次绘制

@@ -7,14 +7,15 @@
 // 正面镜头（V / ?cam=front）：栈道和苍龙岭上镜头挪到悬崖那一侧、压低往下看，拍出脚下的深谷。
 // 互动（只动画面和声音）：扣安全锁「咔嗒」+ 头顶锁扣图标 + 一根安全绳从腰上连到保险链、跟着走完栈道；走过铁链近处的链荡几下、叮当响；
 //   栈道木板踩上去那几块往下沉、吱一声；上苍龙岭起风，云海翻涌、风线掠过、所有链轻轻晃。?fx=low 不要风线和云海的扰动。
-// 子模块：cliff_path/sky.js（天、云海、秦岭）、rock.js（绝壁、巨石、刻字）、props.js（铁链、松、山门、栈道铁架、木板）、interact.js（音效、头顶图标）。
+// 子模块：cliff_path/sky.js（天、云海、秦岭）、rock.js（绝壁、巨石、刻字）、props.js（铁链、松、山门、栈道铁架、木板）、interact.js（头顶图标）；音效用 kit.sfx。
 import * as THREE from 'three';
 import { STEP, ROAD_W } from '../path.js';
 import { SEG, WHO } from '../style.js';
 import { buildSky } from './cliff_path/sky.js';
 import { cliffWall, boulderGeo, carving, graniteColor } from './cliff_path/rock.js';
 import { chains, pineGeo, gateParts, plankIron, harnessParts, revealable, show, stairNoses, swayUniforms, plankBoards } from './cliff_path/props.js';
-import { sfx as play, popIcon } from './cliff_path/interact.js';
+import { sfx as play } from './kit.js';
+import { popIcon } from './cliff_path/interact.js';
 
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;

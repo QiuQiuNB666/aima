@@ -3,10 +3,9 @@
 //      落地后旋翼慢慢降速、停在坪上，走远了就不画
 //   ② 北山脊·大风口（zonesOf 的 ridge）：远处侧前方悬停，一束探照灯往前面的山脊上扫；出了大风口就飞走
 //   ③ 登顶：绕顶飞一圈（半径 26、高 +7，起点在镜头看过去的后方），一圈后飞走
-//   旋翼声（audio.rotorLoop）按离镜头的距离和转速混音，?sfx=0 关。
+//   旋翼声（kit.sfxLoop('rotor')）按离镜头的距离和转速混音，?sfx=0 关。
 //   4 次绘制（机身 / 主旋翼 / 尾桨 / 光束）+ 扬雪粒子 1 次（300 粒，?fx=low 不要）+ 在场时机身阴影 1 次，约 900 三角形。藏起来 = 缩成点（照样在绘制列表里，第一次出场不卡）
 import * as THREE from 'three';
-import { rotorLoop } from './audio.js';
 
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const Y = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
@@ -56,7 +55,7 @@ export function buildHeli(ctx, { Z, pad, LOW, onTouchdown }) {
   beam.name = 'heliBeam'; beam.renderOrder = 6; scene.add(beam);
   for (const m of [body, rotor, tail, beam]) m.frustumCulled = false;
   const spray = LOW ? null : kit.particles(ctx, { color: '#f4f8ff', alpha: 0.75, n: 300, gravity: 0.5, name: 'heliSnow' });
-  const snd = rotorLoop();
+  const snd = kit.sfxLoop('rotor');
 
   const bcEnd = route.segs[0] ? route.segs[0].start + route.segs[0].steps : 3, ridge = Z.ridge;
   const h0 = route.heightAt(0), P0 = route.at(-16, 2).pos.setY(h0 + 13), C0 = route.at(4, -1.5).pos.setY(h0 + 10), P1 = pad.clone().setY(pad.y + 6);
