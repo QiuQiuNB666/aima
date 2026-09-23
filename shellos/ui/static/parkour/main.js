@@ -1,4 +1,4 @@
-// 峰哥屋顶跑酷（R 线）：/parkour。只读 /state（10 Hz）；唯一会写的控制接口是 POST /terrain/force（改腿上力的「形状」，大小仍归 Guard + R2），
+// 峰哥屋顶跑酷（R 线）：/parkour。只读 /state（10 Hz）；唯一会写的控制接口是 POST /terrain/force（改腿上力的「形状」，大小仍归 Guard + R2；非 null 带 ttl 1 s 每 300 ms 续），
 //   模拟模式下另外发 /sim（空格走路）。页面失焦 / 隐藏 / 关掉 / 一局结束 → force 设回 null。
 // 操作：步频 = 跑速；高抬腿（一条腿屈髋 > 45° 且还在抬）= 跳；双腿下蹲 = 滑铲；← → 换道。键盘备份：↑/W 跳、↓/S 滑、←→/AD 换道、回车再来一局。
 //   模拟：按住空格走，1/2/3/4 = 步频 80/105/130/140。
@@ -22,11 +22,13 @@ const best = { get: () => { try { return +localStorage.getItem('pk_best') || 0; 
 const JF = { start: '가자！你先跑三秒。', dash: '就这？빨리빨리！', caught: '逮到了，慢死了。', lost: '哟，跑挺快嘛。' };   // 都在 voice.py NPC_LINES 白名单里
 
 // ---------- 腿上的力 ----------
+// 非 null 的力带 ttl 发、每 300 ms 续一次：页面崩了 / 卡死（续不上）服务端 1 s 内自己回 null。设回 null 不带 ttl
+const FORCE_TTL = 1.0, FORCE_RENEW = 0.3;
 let forceSent, forceAt = 0;
 function setForce(kind, now) {
-  if (kind === forceSent || now - forceAt < 0.15) return;
+  if (kind === forceSent ? !kind || now - forceAt < FORCE_RENEW : now - forceAt < 0.15) return;
   forceSent = kind; forceAt = now;
-  post('/terrain/force', { kind });
+  post('/terrain/force', kind ? { kind, ttl: FORCE_TTL } : { kind: null });
 }
 const forceOff = () => { forceSent = null; navigator.sendBeacon('/terrain/force', JSON.stringify({ kind: null })); };
 addEventListener('pagehide', forceOff);
