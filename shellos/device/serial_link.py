@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 import glob
+import itertools
 import queue
 import threading
 import time
@@ -28,7 +29,16 @@ def find_port() -> str:
 
 class SerialLink:
     def __init__(self, port: str | None = None, on_frame=None):
-        self.port = port or find_port()
+        if port is None:                      # 启动时外骨骼没插 / 没开机：等着，插上就接（以前直接抛异常，ShellOS 起不来）
+            for i in itertools.count():
+                try:
+                    port = find_port()
+                    break
+                except RuntimeError as e:
+                    if i % 10 == 0:
+                        print(f"[link] {e} 每秒再找一次…", flush=True)
+                    time.sleep(1.0)
+        self.port = port
         # timeout 必须设：断线时 readline 才不会永远阻塞
         self.ser = serial.Serial(self.port, BAUD, timeout=0.05)
         self.frames: deque[Frame] = deque(maxlen=2000)   # 10 秒
