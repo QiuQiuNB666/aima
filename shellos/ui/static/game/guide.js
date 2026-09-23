@@ -22,6 +22,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const body = document.body, mute = Q.get('voice') === '0';
   const clips = mute ? [] : lines.map((_, i) => Object.assign(new Audio(`/guide/${world.id}/${i}.wav`), { preload: 'auto' }));   // 先下好，句与句之间不卡
+  bus.bless(clips);                          // Safari / 严格自动播放策略：第一次按键时把这几段预热一遍，之后不靠手势也能播
   let run = 0, armed = true, audio = null, cur = '', t0 = 0, tl = 0, raf = 0;
   const log = [], note = (...a) => { log.push([Math.round(performance.now()), ...a]); if (log.length > 60) log.shift(); };   // 调试：window.__guide.log
   const pos = new THREE.Vector3(), look = new THREE.Vector3(), want = new THREE.Vector3(), wantLook = new THREE.Vector3(), rel = new THREE.Vector3();
@@ -85,7 +86,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
     const atStart = T.pos != null && T.pos < 1;   // 只在山脚开讲：半路停下来（u-play 回到 u-ready）不能突然开始导游
     if (body.classList.contains('g-guide')) { if (!ready || go) stop(); }
     else if (armed && ready && go) armed = false;  // 没听就走了（按住 R2 关掉标题屏）：这一位跳过，别等他半山腰歇脚时再讲
-    else if (armed && ready && !go && atStart) play();
+    else if (armed && ready && !go && atStart) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲（讲了也是哑的），提示按任意键
   }, 200);
   window.__guide = { play, stop, lines, log };
   return window.__guide;

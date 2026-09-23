@@ -16,6 +16,8 @@ CHECK = r"""
 let now = 0, allow = false; const played = [], L = {};
 Object.defineProperty(performance, 'now', { value: () => now, configurable: true });
 globalThis.window = globalThis;
+const dom = { shown: 0, removed: 0 };
+globalThis.document = { body: { append() { dom.shown++; } }, createElement: () => ({ style: {}, remove() { dom.removed++; } }) };
 globalThis.addEventListener = (t, f) => (L[t] ||= []).push(f);
 globalThis.removeEventListener = (t, f) => { L[t] = (L[t] || []).filter(g => g !== f); };
 class M {
@@ -37,9 +39,10 @@ const g0 = new M('/guide/tokyo_night/0.wav'), ev = t => new M('/voice/last.wav?_
 bus.bless([g0]);
 out.lockedGuide = await g0.play().then(() => 'ok', e => e.name);             // 解锁前：导游被拒（guide.js 会等解锁再开讲）
 out.lockedEvent = await ev(1).play().then(() => 'ok', e => e.name);          // 事件：静默丢掉，不让 voice.js 弹按钮
+out.hint = dom.shown;                                                          // 想出声但没解锁：出「按任意键」提示
 let woke = 0; bus.onUnlock(() => woke++);
 allow = true; L.keydown.forEach(f => f({ type: 'keydown' })); await tick(); await tick();
-out.unlocked = bus.unlocked(); out.woke = woke; out.blessed = g0.paused && g0.muted === false;
+out.unlocked = bus.unlocked(); out.woke = woke; out.hintGone = dom.removed; out.blessed = g0.paused && g0.muted === false;
 const e2 = ev(2); await e2.play(); out.curEvent = bus.state().cur;
 await map.play(); out.mapCutsEvent = [e2.paused, bus.state().cur];            // 地标打断事件
 const e3 = ev(3); await e3.play(); out.queued = bus.state().queue;             // 事件排队
@@ -69,6 +72,7 @@ def test_voice_bus(tmp_path):
     assert r.returncode == 0, r.stderr
     o = json.loads(r.stdout.strip().splitlines()[-1])
     assert o["lockedGuide"] == "NotAllowedError" and o["lockedEvent"] == "ok"
+    assert o["hint"] == 1 and o["hintGone"] == 1
     assert o["unlocked"] and o["woke"] == 1 and o["blessed"]
     assert o["curEvent"] == "event" and o["mapCutsEvent"] == [True, "map"]
     assert o["queued"] == ["event"] and o["afterMap"] == ["event", False]

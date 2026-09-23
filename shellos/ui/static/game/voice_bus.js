@@ -4,7 +4,8 @@
 //   导游开讲时 hold('guide') 占住声道：整段讲解期间（包括句与句之间的停顿）低优先级的一律丢掉，不会插进句缝里。
 //   捷风 / 音效不归这里管。
 // 做法：再包一层 HTMLMediaElement.prototype.play（settings.js 那层管音量，这层在它外面），voice.js / lines.js 一行不用改。
-// 自动播放：浏览器没收到过按键 / 点击之前，峰哥语音一律不放（事件那句直接丢，不让 voice.js 弹按钮）；unlocked() 告诉导游等一等。
+// 自动播放：浏览器没收到过按键 / 点击之前，峰哥语音一律不放（事件那句直接丢，不让 voice.js 弹按钮）；unlocked() 告诉导游等一等，
+//   这时画面下方出一个「按任意键开启峰哥声音」（ask()；有人想出声才出，解锁就收）。
 //   第一次按键 / 点击 / 触摸时在同一个事件里放一段静音 wav 解锁，之后整页都能出声。展位 Chrome 带 --autoplay-policy=no-user-gesture-required
 //   启动时，开页面探测一下就是解锁的。
 // 调试：window.__voiceBus.log（最近 80 条：[毫秒, 动作, 谁, 网址尾巴]）、.state()。
@@ -45,7 +46,7 @@ function start(el, k, args = []) {
 P.play = function (...args) {
   const k = kindOf(this.currentSrc || this.src || '');
   if (!k) return inner.apply(this, args);
-  if (!unlocked) { note('locked', k, this); return k === 'event' ? Promise.resolve() : Promise.reject(new DOMException('峰哥声音还没解锁', 'NotAllowedError')); }
+  if (!unlocked) { note('locked', k, this); ask(); return k === 'event' ? Promise.resolve() : Promise.reject(new DOMException('峰哥声音还没解锁', 'NotAllowedError')); }
   if (held && PRIO[k] < PRIO[held]) { note('drop:held', k, this); return Promise.resolve(); }
   if (cur && cur.el !== this) {
     if (PRIO[k] > PRIO[cur.k] || k === cur.k) { note('cut', cur.k, cur.el); const o = cur.el; cur = null; o.pause(); }
@@ -69,9 +70,17 @@ function tryUnlock(e) {
   if (unlocked) return;
   inner.call(new Audio(SILENT)).then(() => {
     if (unlocked) return;
-    unlocked = true; note('unlock', e ? e.type : 'probe');
+    unlocked = true; note('unlock', e ? e.type : 'probe'); if (hint) { hint.remove(); hint = null; }
     wakers.splice(0).forEach(f => { try { f(); } catch (err) { console.error(err); } });
   }, () => { if (!e) note('locked-at-load'); });
+}
+let hint = null;
+function ask() {                                // 有人想出声但还没解锁：提示按任意键（点它本身也算）
+  if (unlocked || hint || !globalThis.document?.body) return;
+  hint = document.createElement('div'); hint.id = 'vbHint'; hint.className = 'hud panel';
+  hint.style.cssText = 'left:50%;top:74%;transform:translateX(-50%);padding:.5rem 1.2rem;font-size:1.4rem;font-weight:800;pointer-events:auto;cursor:pointer;z-index:30';
+  hint.textContent = '🔈 按任意键开启峰哥声音';
+  document.body.append(hint);
 }
 const onGesture = e => { blessAll(); tryUnlock(e); };
 for (const t of ['keydown', 'pointerdown', 'touchstart']) addEventListener(t, onGesture, true);   // 捕获阶段、比菜单先挂：菜单吃掉按键也照样解锁
@@ -81,6 +90,7 @@ export const bus = {
   unlocked: () => unlocked,
   onUnlock(f) { if (unlocked) f(); else wakers.push(f); },
   bless(els) { els.forEach(el => toBless.add(el)); },
+  ask,
   hold(k) { held = k; queue = queue.filter(q => PRIO[q.k] >= PRIO[k]); note('hold', k); },
   release(k) { if (held === k) { held = null; note('release', k); drain(); } },
   busy: () => held || (cur && cur.k) || null,
