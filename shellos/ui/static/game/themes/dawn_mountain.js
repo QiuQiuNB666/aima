@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { buildSky } from './dawn_mountain/sky.js';
 import { zhongTianMen, nanTianMen, tianJie, lanternGeo, yuHuangMiao, shengXianFang, duiSongTing } from './dawn_mountain/arch.js';
 import { railings, forest, scatter, cliff, carving, graniteColor, RAIL_LAT } from './dawn_mountain/props.js';
+import { buildInteract } from './dawn_mountain/interact.js';
 
 const C = {
   zenith: '#4a6a9c', hz: '#f6c28a', below: '#e8d3bb', sun: '#ffcf8c', fog: '#e3d6c8',
@@ -18,7 +19,7 @@ const C = {
 const ZT = 3, NT = 34.5, SUN_AZ = 25 * Math.PI / 180;     // 中天门、南天门所在步；太阳在终点朝向右偏 25°
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
-let sky = null, rig = null, RT = null, GATE = null, AT = {}, HAWK = null;
+let sky = null, rig = null, RT = null, GATE = null, AT = {}, HAWK = null, ACT = null;
 
 // 石板路：每步一道缝（v 每 0.5 一块），错缝，两侧一条深色路缘石。灰度图，乘材质色
 function slabTexture(util, kit) {
@@ -173,9 +174,10 @@ export function build(scene, ctx) {
 
   // ---------- 刻字 / 碑 ----------
   const face = (s, k) => { const a = route.at(s); return a.left.clone().multiplyScalar(-k).addScaledVector(a.dir, -(1 - k)).normalize(); };
+  const CARV = [];                                                            // 摩崖石刻（interact.js 路过时发金光）
   const put = (text, s, lat, up, o, k = 0.72) => {
     const a = route.at(s, lat), at = a.pos.clone().setY(route.heightAt(s) + up), cv = carving(ctx, text, at, face(s, k), o);
-    if (cv.slabPart) slabs.push(cv.slabPart); texts.push(cv.txt);
+    if (cv.slabPart) slabs.push(cv.slabPart); texts.push(cv.txt); CARV.push({ s, txt: cv.txt });
   };
   put('青云梯', 19.5, 3.8, 1.2, { w: 0.9, h: 1.75, charH: 1.5, slab: '#b6ab98' });
   put('天门长啸', 27.6, 1.9, 2.6, { w: 1.0, h: 3.4, charH: 3.1, slab: '#a89f8e' }, 0.4);   // 紧十八两侧崖上的摩崖石刻（李白「天门一长啸，万里清风来」）：窄槽里仰拍，满屏的红字
@@ -230,6 +232,7 @@ export function build(scene, ctx) {
     { s: 41.5, lat: -7.2, sc: 0.95, y: hy(41.5) - 1.4, ry: -0.2 },
   ], kit.LOW ? 45 : 95);
   for (const m of F.meshes) scene.add(m);
+  ACT = buildInteract(scene, ctx, { carvings: CARV, gate: nt.F, gateS: NT });   // 场景互动：挑山工、石刻金光、南天门钟声惊鸟
   HAWK = kit.flock(ctx, { count: kit.LOW ? 4 : 6, center: route.at(36, -7).pos.setY(route.heightAt(34)), radius: 6, spread: 3, height: 8, size: 1.7, color: '#2e2a26', speed: 0.18, flap: 1.1, name: 'hawks' });   // 山谷云海上空盘旋的鹰
 
   // ---------- 栏杆外 1–4 单位：灌丛 / 草簇 / 碎石 ----------
@@ -347,5 +350,6 @@ export function rigFor(s, r, summit) {
 export function update(dt, st) {
   if (SFX) SFX.update(dt, st);
   if (HAWK) HAWK.update(dt);
+  if (ACT) ACT.update(dt, st);
   if (sky) sky.update(st.t, st.progress, st.summit);
 }

@@ -71,6 +71,7 @@ export function buildLandmarks(scene, ctx) {
 // ③ 路口小物：カーブミラー、止まれ、共享单车（东京塔试过：跟拍镜头朝下看，远处高塔不是出画就是埋在楼后面，放弃）
 import { shade } from './lib.js';
 let screenTex = null;
+export const HOUNOU = { mesh: null, s: [], on: [] };   // 奉納提灯：每盏在路线上的步数 + 点亮后的颜色（interact.js 按化身位置一盏盏点亮）
 
 export function buildLandmarks2(scene, ctx) {
   const { route, util, rand } = ctx, gy = (x, z) => util.nearestRoute(route, x, z).y - 0.06, N = route.N;
@@ -110,7 +111,8 @@ export function buildLandmarks2(scene, ctx) {
         if (prev) {
           for (let k = 0; k < 2; k++) {                          // 两盏挂在绳的 1/3、2/3 处
             const u = (k + 1) / 3, q = prev.clone().lerp(p, u); q.y -= 0.12 * Math.sin(Math.PI * u) + 0.32;
-            lam.push({ p: q.toArray(), s: [1, 1.25, 1], color: lam.length % 2 ? '#e8402a' : '#e8c9a0' });
+            HOUNOU.on.push(lam.length % 2 ? '#e8402a' : '#e8c9a0'); HOUNOU.s.push(s - 1.1 * (1 - u));
+            lam.push({ p: q.toArray(), s: [1, 1.25, 1], color: HOUNOU.on[HOUNOU.on.length - 1] });
           }
           rope.push(prev.x, prev.y, prev.z, (prev.x + p.x) / 2, (prev.y + p.y) / 2 - 0.12, (prev.z + p.z) / 2, (prev.x + p.x) / 2, (prev.y + p.y) / 2 - 0.12, (prev.z + p.z) / 2, p.x, p.y, p.z);
         }
@@ -118,7 +120,7 @@ export function buildLandmarks2(scene, ctx) {
       }
     }
     const lm = util.instanced(new THREE.SphereGeometry(0.12, 12, 8),   // 提灯：椭圆（s.y 1.25）
-      new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), lam); lm.name = 'hounouLanterns';
+      new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), lam); lm.name = 'hounouLanterns'; HOUNOU.mesh = lm;
     const pm = util.instanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#2a1a14' }), posts); pm.name = 'lanternPosts';
     const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(rope, 3));
     const rl = new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: '#0d0806' })); rl.name = 'lanternRope';
