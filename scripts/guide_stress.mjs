@@ -37,7 +37,8 @@ while (!page) { try { page = (await (await fetch(`http://127.0.0.1:${port}/json/
 const ws = new WebSocket(page.webSocketDebuggerUrl), wait = new Map(); let id = 0;
 await new Promise(r => { ws.onopen = r; });
 ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && wait.has(d.id)) { wait.get(d.id)(d); wait.delete(d.id); } };
-const call = (method, params = {}) => new Promise(r => { wait.set(++id, r); ws.send(JSON.stringify({ id, method, params })); });
+const call = (method, params = {}) => new Promise(r => { const i = ++id; wait.set(i, r); ws.send(JSON.stringify({ id: i, method, params }));
+  setTimeout(() => { if (wait.has(i)) { wait.delete(i); r({ timeout: true }); } }, 30000); });   // 页面卡死时别把整轮压测卡住
 const ev = async e => (await call('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true })).result?.result?.value;
 const post = (p, b = {}) => fetch(BASE + p, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json()).catch(() => null);
 const state = () => fetch(BASE + '/state').then(r => r.json()).catch(() => ({}));
@@ -100,8 +101,9 @@ for (let k = 0; k < +N; k++) {
   if (!S0.terrain || S0.terrain.preset !== world) { await post('/terrain', { preset: world }); await sleep(500); }
   await post('/demo/reset'); await sleep(300);
   intercept = scen;
-  await call('Page.navigate', { url: `${BASE}/game?npc=0&fx=off&title=${scen === 'reload' ? 0 : 1}${scen === 'idle' ? '&idle=8' : ''}` });
-  row.readyMs = await until(async () => (await ev("document.body && document.body.dataset.ready === '1' && !!window.__guide")) === true, 90000, 200);
+  await call('Page.navigate', { url: `${BASE}/game?npc=0&fx=off&title=${scen === 'reload' ? 0 : 1}${scen === 'idle' ? '&idle=8' : ''}&_n=${k}` });
+  // 认准是这一轮的新页面（带 _n=k）再往下：负载高时导航慢，不然会对着上一轮的旧页面按键、取数
+  row.readyMs = await until(async () => (await ev(`location.search.includes('_n=${k}') && document.body && document.body.dataset.ready === '1' && !!window.__guide`)) === true, 90000, 200);
   if (row.readyMs == null) { row.f = ['加载失败 / 没有 __guide']; rows.push(row); fails++; console.log(JSON.stringify(row)); continue; }
   const f = [];
   if (scen === 'r2') {                // 按住 R2 关标题屏 → 这一位跳过导游
@@ -152,7 +154,7 @@ for (let k = 0; k < +N; k++) {
       row.doneMs = await until(async () => !(await guiding()), 90000, 200);
       const lg = (await snap()).log || [], t3 = lg.find(x => /^\d+:3:say$/.test(x)), t4 = lg.find(x => /^\d+:4:say$/.test(x));
       row.gap3 = t3 && t4 ? +t4.split(':')[0] - +t3.split(':')[0] : null;
-      if (row.gap3 == null || row.gap3 > 9000) f.push('②缺 wav 那句卡住');
+      if ((await ev('window.__guide.lines.length')) > 4 && (row.gap3 == null || row.gap3 > 9000)) f.push('②缺 wav 那句卡住');   // 训练场只有 3 句，没有第 3 句可拦
     } else if (scen === 'estop') {
       await sleep(4000); await post('/estop'); row.estopStopMs = await until(async () => !(await guiding()), 3000);
       if (row.estopStopMs == null) f.push('④急停没打断');
@@ -171,7 +173,7 @@ for (let k = 0; k < +N; k++) {
   const g = await snap(), j = judge(g, scen);
   row.f = [...f, ...j.f]; row.says = j.says; row.played = j.played; row.hold = g.hold; row.ms = Date.now() - t0;
   if (g.hold && !/u-title|u-idle/.test(g.cls) && !(await guiding())) row.f.push('④镜头没交还');
-  if (row.f.length) { fails++; row.log = g.log; row.probe = g.probe.filter(p => /guide|voice/.test(p[2])).map(p => `${p[0]}:${p[1]}:${p[2].split('/').slice(-2).join('/')}`); }
+  if (row.f.length) { fails++; row.cls = g.cls; row.st = g.st; row.bus = await ev('JSON.stringify(window.__voiceBus && window.__voiceBus.state())'); row.hintEl = await ev("!!document.getElementById('vbHint')"); row.act = await ev('navigator.userActivation && navigator.userActivation.hasBeenActive'); row.preset = ((await state()).terrain || {}).preset; row.log = g.log; row.probe = g.probe.filter(p => /guide|voice/.test(p[2])).map(p => `${p[0]}:${p[1]}:${p[2].split('/').slice(-2).join('/')}`); }
   rows.push(row); console.log(JSON.stringify(row));
   if (OUT) appendFileSync(OUT, JSON.stringify(row) + '\n');
 }
