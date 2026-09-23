@@ -44,3 +44,28 @@ def test_claude_proposal_is_clamped(tmp_path, monkeypatch):
         "changes": [{"param": "strength", "delta": 9.0}, {"param": "nope", "delta": 1}], "confidence": 3, "why": "x"})
     it = a.feedback("随便说一句")
     assert it["source"] == "claude" and abs(it["delta"]["strength"] - 0.45) < 1e-9 and list(it["delta"]) == ["strength"] and it["confidence"] == 1.0   # 范围 3 × 15%
+
+
+def test_fengge_speaks_on_summit_and_red_offline(tmp_path):
+    import time
+    a = app(tmp_path)
+    t = a.ctl
+    a.story_tick()                                        # 记下基线，不说话
+    t.laps, t.last_lap, t.best = 1, 31.0, 31.0
+    a.story_tick()
+    for _ in range(50):
+        if a.fengge.last["text"]:
+            break
+        time.sleep(0.02)
+    assert a.fengge.last["event"] == "summit" and a.fengge.last["source"] == "canned"
+    assert a.swarm[-1]["who"] == "峰哥"
+    a.set_terrain("tokyo_night")                          # 东京有红灯：走到红灯前一格
+    a.story_tick()
+    t = a.ctl
+    t.pos = next(i for i in range(t.total) if t.segment_at(i) == "wait")
+    a.story_tick()
+    for _ in range(50):
+        if a.fengge.last["event"] == "red":
+            break
+        time.sleep(0.02)
+    assert a.fengge.last["event"] == "red"

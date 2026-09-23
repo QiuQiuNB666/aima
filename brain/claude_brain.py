@@ -11,6 +11,7 @@
 
 POST /coach  {quote, controller, params:{k:[cur,lo,hi]}, profile}  → {changes:[{param,delta}], confidence, why}
 POST /world  {text, styles:[...], kinds:[...]}                      → 世界草稿（ShellOS 再校验、裁剪、套主题）
+POST /fengge {event: summit|red|world|ghost, ctx}                     → {line}：峰哥口吻一句解说
 GET  /health
 只听 127.0.0.1。
 """
@@ -77,6 +78,29 @@ def coach(b: dict) -> dict:
     return ask(prompt, schema, effort="low", max_tokens=4000)
 
 
+# 人设节选自 github.com/YixiaJack/feng-ge-skill（MIT）的 SKILL.md，只留口吻，展位用不碰两性 / 政治
+FENGGE = (
+    "你在一个叫「峰哥亡命天涯」的体感登山游戏里当解说，口吻模仿 B 站 UP 主峰哥亡命天涯：\n"
+    "- 辩证反转（赢学）：坏事先说「这是个好事儿啊」再讲为什么；好事就「恰恰相反」提醒别飘。\n"
+    "- 短句，口语，一本正经地说荒诞的话；自称「我」或「老峰」，对玩家说「兄弟」或「你」。\n"
+    "- 常用收尾：「这不就完了吗」「面子有什么用」。不煽情，平淡语气说事。\n"
+    "- 绝对不碰：两性 / 性相关的黑话、政治、封号、真实人物的私事；不冒充他本人讲真实经历。\n"
+    "只说一句，不超过 30 个字，不加引号。"
+)
+EVENTS = {
+    "summit": "玩家刚登顶。数据：{ctx}。评一句（破纪录 / 输给影子 / 第一次，都能说成赢）。",
+    "red": "玩家在「{ctx}」遇到红灯，必须站定 2 秒才能走。劝他停下。",
+    "world": "现场刚造了一座山：{ctx}。给这座山来一句开场白。",
+    "ghost": "{ctx}。评一句。",
+}
+
+
+def fengge(b: dict) -> dict:
+    ev = EVENTS.get(b.get("event"), "{ctx}").format(ctx=json.dumps(b.get("ctx", {}), ensure_ascii=False))
+    schema = {"type": "object", "properties": {"line": {"type": "string"}}, "required": ["line"], "additionalProperties": False}
+    return ask(FENGGE + "\n\n" + ev, schema, effort="low", max_tokens=2000)
+
+
 def world(b: dict) -> dict:
     prompt = (
         f"评委说：「{b['text']}」\n"
@@ -86,7 +110,7 @@ def world(b: dict) -> dict:
         f"画面风格只能从这些里选一个最贴切的：{json.dumps(b['styles'], ensure_ascii=False)}\n"
         "约束：总步数 30~70；4~9 段；起点是 flat；台阶段合计不超过总步数一半；wait 最多 2 段、每段 1 步；"
         "每段 label 是 2~8 个字的地名/路标；name ≤ 10 字；subtitle 用「A → B → C」串起关键路段；"
-        "story 一两句，第二人称；summit_text 是登顶时屏幕上的一句话。真实地点就按真实地形比例压缩，虚构的也要自洽。"
+        "游戏叫「峰哥亡命天涯」：story 一两句、第二人称，summit_text 是登顶时屏幕上的一句话，这两个用峰哥的口吻（辩证反转、短句、「这是个好事儿啊」），不碰两性和政治。真实地点就按真实地形比例压缩，虚构的也要自洽。"
     )
     schema = {
         "type": "object",
@@ -127,7 +151,7 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         body = json.loads(self.rfile.read(n) or b"{}")
-        fn = {"/coach": coach, "/world": world}.get(self.path)
+        fn = {"/coach": coach, "/world": world, "/fengge": fengge}.get(self.path)
         if not fn:
             return self._json({"error": "not found"}, 404)
         try:

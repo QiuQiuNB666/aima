@@ -184,7 +184,7 @@ $('say').addEventListener('keydown',e=>{if(e.key==='Enter')$('sayb').click()});
 $('mkb').onclick=async()=>{const t=$('mk').value.trim();if(!t)return;$('mkb').disabled=true;$('mkb').textContent='造山中…';
  try{const r=await (await post('/world/generate',{text:t})).json();if(r.world){toast('造好了：'+r.world.name);$('mk').value=''}}catch(e){}$('mkb').disabled=false;$('mkb').textContent='造山'};
 $('mk').addEventListener('keydown',e=>{if(e.key==='Enter')$('mkb').click()});
-const WHO={'教练':'#7fd1ff','地形导演':'#d9b8ff','记忆员':'#ffd54f','安全员':'#ff8a65'},VC={'否决':'#ff5252','裁剪':'#ff8a65','生效':'#3ddc84','同意':'#9aa7b4','提议':'#7fd1ff'};let swSig='';
+const WHO={'峰哥':'#3ddc84','教练':'#7fd1ff','地形导演':'#d9b8ff','记忆员':'#ffd54f','安全员':'#ff8a65'},VC={'解说':'#3ddc84','否决':'#ff5252','裁剪':'#ff8a65','生效':'#3ddc84','同意':'#9aa7b4','提议':'#7fd1ff'};let swSig='';
 $('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});$('trsel').onchange=()=>post('/terrain',{preset:$('trsel').value});
 $('gameb').onclick=()=>window.open('/game','shellos_game');
 // 演示态 / 累积态：只是操作员习惯，记在本机浏览器

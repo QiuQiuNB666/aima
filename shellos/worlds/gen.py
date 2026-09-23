@@ -41,7 +41,7 @@ def by_rule(text: str) -> dict:
     name = re.sub(r"[，。！？,.!?\s]", "", t)[:10] or "无名山"
     return {"name": name, "subtitle": " → ".join(lab for _, _, lab in route[::2]), "story": f"你说「{t}」，山就长出来了。",
             "style": style, "alt_start": 100, "alt_end": 100 + 30 * sum(n for k, n, _ in route if k in ("up", "stairs_up")),
-            "summit_name": route[-1][2], "summit_text": "到了。下一位，接着爬。",
+            "summit_name": route[-1][2], "summit_text": "这是个好事儿啊，爬上来了。面子有什么用，腿是自己的。",
             "route": [{"kind": k, "steps": n, "label": lab} for k, n, lab in route]}
 
 

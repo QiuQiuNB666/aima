@@ -56,6 +56,8 @@ class Dashboard:
                     return self._json(worlds.summary())
                 if self.path.split("?")[0] in ("/worlds", "/worlds.html"):
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "worlds.html"), "text/html; charset=utf-8")
+                if self.path.split("?")[0] in ("/fengge", "/fengge.html"):
+                    return self._file(os.path.join(os.path.dirname(__file__), "static", "fengge.html"), "text/html; charset=utf-8")
                 if self.path.split("?")[0] in ("/game", "/game.html"):
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "game.html"), "text/html; charset=utf-8")
                 if self.path.startswith(("/vendor/", "/models/", "/body3d.js", "/game/")):
@@ -84,7 +86,8 @@ class Dashboard:
                 full = os.path.normpath(os.path.join(base, path.lstrip("/")))
                 if not full.startswith(base) or not os.path.isfile(full):
                     self.send_response(404); self.end_headers(); return
-                ctype = "application/javascript" if full.endswith(".js") else "model/gltf-binary" if full.endswith(".glb") else "application/octet-stream"
+                ctype = ("application/javascript" if full.endswith(".js") else "model/gltf-binary" if full.endswith(".glb")
+                         else "image/jpeg" if full.endswith(".jpg") else "application/octet-stream")
                 data = open(full, "rb").read()
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
@@ -153,6 +156,7 @@ class Dashboard:
                         "terrain": a.terrain, "bin": a.glasses.bin, "error": a.glasses.last_error[-120:]},
             "swarm": a.swarm[-20:],
             "brain": brain.status,
+            "fengge": a.fengge.last,
             "loop_ms": getattr(a, "loop_ms", 0),
         }
 

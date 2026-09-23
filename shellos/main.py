@@ -65,6 +65,9 @@ class App:
         self.min_strides = 6
         self.swarm: list = []        # 蜂群发言：教练 / 地形导演 / 记忆员 / 安全员，仪表盘按时间线显示
         self._recent_changes: list = []   # (t, 参数)：安全员防拉锯
+        from .agent.fengge import Commentator
+        self.fengge = Commentator(self.say)
+        self._story = (None, 0, "")       # (世界, 圈数, 路段)：变了才解说
 
     # 已套用的经验 id / 是否检索过，挂在控制律实例上：差值就改在这个实例的参数里。
     # 切到新实例（缺省参数）自然清零；切回缓存的 terrain 仍记得；开场 puppet 的检索不占掉 terrain 的。
@@ -219,6 +222,23 @@ class App:
         self.say("教练", f"经验卡 #{it['id']} 生效 → 现在 {out}", "生效")
         return it
 
+    def story_tick(self):
+        """0.5 s 一次（主循环打印处）：登顶 / 进红灯 → 峰哥解说。只看状态变化，不碰力矩。"""
+        t = self.ctl
+        if self.ctl_key() != "terrain":
+            return
+        seg = t.segment_at(t.pos)
+        prev_w, prev_laps, prev_seg = self._story
+        self._story = (t.preset, t.laps, seg)
+        if prev_w != t.preset:
+            return
+        if t.laps > prev_laps and t.last_lap is not None:
+            self.fengge.speak("summit", {"world": t.world["name"], "lap_s": round(t.last_lap, 1),
+                                         "best_s": round(t.best, 1) if t.best is not None else None,
+                                         "new_record": t.best == t.last_lap, "laps": t.laps, "who": self.wearer})
+        elif seg == "wait" and prev_seg != "wait":
+            self.fengge.speak("red", t.route[t.seg_index(t.pos)[0]]["label"])
+
     def make_world(self, text):
         """一句话造一座山：地形导演（Claude）出草稿，安全员裁剪，马上切过去。"""
         from .worlds import gen
@@ -235,6 +255,7 @@ class App:
             self.say("安全员", "路线检查通过：起步平地、台阶不过半、红灯 ≤2", "同意")
         self.set_terrain(w["id"])
         self.say("地形导演", f"已切到「{w['name']}」", "生效")
+        self.fengge.speak("world", {"name": w["name"], "subtitle": w["subtitle"], "steps": steps, "judge_said": text})
         return w
 
     def add_exp(self, delta, quote, source="ladder"):
@@ -435,6 +456,7 @@ def main():
         if now - last_print > 0.5:
             last_print = now
             app.auto_recall()
+            app.story_tick()
             app.loop_ms, max_gap = round(max_gap * 1000), 0.0
             gs = guard.state
             fr = (f"L{f.l_deg:6.1f}° R{f.r_deg:6.1f}° φ{st.l.phase:.2f}/{st.r.phase:.2f} "
