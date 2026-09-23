@@ -23,8 +23,10 @@ export const 角色名 = Q.get('npcname') || '捷风';
 export const LOOK = { leg: '#27344c', body: WHO.jett.coat, head: WHO.jett.hair, rim: WHO.jett.rim, rimK: 0.55, self: 0.28, headScale: 0.86, exo: false, pointK: 0.35 };
 export const WIND = WHO.jett.wind;        // 拖尾 / 风刃颜色（风白）
 const MODEL = Q.get('npcmodel') || '/models/jett/scene.gltf';
-// 9/23 热修：展位 M2 上 STL 雕像渲染成满屏黑块（开发机正常），默认先关；?npcstl=1 打开，?npcstl=<url> 换文件。J 线修好后改回默认开
-const STL = !Q.has('npcstl') || Q.get('npcstl') === '0' ? '0' : Q.get('npcstl') === '1' ? '/models/jett/jett.stl' : Q.get('npcstl');
+// STL 默认开。9/23 展位 M2 满屏黑块的根因不在雕像：lighting.js 的 MSAA 半浮点目标在 Apple GPU 上 resolve 出 NaN，泛光扩散满屏
+//   （连 ?npc=0 都黑）；L 加了清洗拷贝（d260001）后，M2 无头 Chrome 缺省档实测：?npc=0 / 原创造型 / 雕像都 0% 黑、60 fps。
+//   ?npcstl=0 关掉雕像（用原创造型），?npcstl=<url> 换文件。
+const STL = Q.get('npcstl') === '0' ? '0' : !Q.has('npcstl') || Q.get('npcstl') === '1' ? '/models/jett/jett.stl' : Q.get('npcstl');
 // STL 雕像分区（高度按身高的比例；前后按头部中心沿前进方向 +X 的偏移，单位 = 头宽）。在浏览器里对着截图调的
 // （yaw 0 = 这个 STL 本来就面朝 +X；站姿、双臂下垂、没有底座）
 export const STATUE = { yaw: 0, hair: WHO.jett.hair, skin: '#f0c5a4', coat: WHO.jett.coat, leg: '#27344c', boot: '#1a2230', gloveC: '#1f2733',
