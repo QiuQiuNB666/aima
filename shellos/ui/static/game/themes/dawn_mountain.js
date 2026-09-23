@@ -11,6 +11,7 @@ import { buildSky } from './dawn_mountain/sky.js';
 import { zhongTianMen, nanTianMen, tianJie, lanternGeo, yuHuangMiao, shengXianFang, duiSongTing } from './dawn_mountain/arch.js';
 import { railings, forest, scatter, cliff, carving, graniteColor, RAIL_LAT } from './dawn_mountain/props.js';
 import { buildInteract } from './dawn_mountain/interact.js';
+import { WHO } from '../style.js';
 
 const C = {
   zenith: '#4a6a9c', hz: '#f6c28a', below: '#e8d3bb', sun: '#ffcf8c', fog: '#e3d6c8',
@@ -85,7 +86,7 @@ export function build(scene, ctx) {
   lights.sun.position.set(c.x + sunXZ.x * 26, 24, c.z + sunXZ.z * 26);    // 从前方照：台阶立面背光、踏面亮
   ctx.theme.ghostOpacity = 0.5;
   // 化身：深色连体服 + 橙色外骨骼件（3 米外先认出髋部发光环和腿侧连杆），头盔浅色；影子是浅青色，两者错开
-  ctx.theme.avatar = { leg: '#222a34', body: '#3b4d63', head: '#e3e8ee', exo: '#ff9a3c', rim: '#ffd9a8', rimK: 0.85, self: 0.18 };                                              // 影子再实一点：身后的铁链透得少
+  ctx.theme.avatar = { leg: '#222a34', body: '#3b4d63', head: '#e3e8ee', exo: WHO.fengge.exo, rim: '#ffd9a8', rimK: 0.85, self: 0.18 };                                              // 影子再实一点：身后的铁链透得少
 
   // ---------- 山体：左侧抬成山壁，右侧跌进云海；按坡度上色（陡 = 花岗岩，缓 = 三色草地），不贴拉伸的贴图 ----------
   const ground = kit.terrain(ctx, { amp: 11, drop: 1.35, rough: 1.8, reach: 15, seed: 3 });
