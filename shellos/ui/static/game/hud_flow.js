@@ -7,8 +7,8 @@
 // 地址参数：?ui=idle|ready|play|summit 固定一个状态（截图用；离线预览默认 play）；?idle=秒 改待机门槛；?qr=网址 改二维码内容。
 import { qrSvg } from './hud_qr.js';
 
-const Q = new URLSearchParams(location.search);
-const IDLE_S = +(Q.get('idle') || 45), MIN_S = 8, LINGER_S = 25, CAMS = ['front', 'side', 'follow'], CAM_S = 7, SAY_S = 25;
+const Q = new URLSearchParams(globalThis.location ? location.search : '');   // node 跑单测时没有 location
+const IDLE_S = +(Q.get('idle') || 45), MIN_S = 8, LINGER_S = 25, LEAVE_PLAY_S = 1.2, CAMS = ['front', 'side', 'follow'], CAM_S = 7, SAY_S = 25;
 // ponytail: 仓库现在是私有的（公网 404），二维码先指向 GitHub 上的一页纸；有公开网址了用 ?qr= 换，或改这里
 export const QR_URL = 'https://github.com/QiuQiuNB666/aima/blob/main/docs/%E6%8F%90%E4%BA%A4/onepager.html';
 const STEPS = [['按住手柄 R2', '腿上才有力，松手立刻没力'], ['原地踏步', '屏幕里在爬山，坡和台阶打在腿上'], ['说一句「太陡了」', 'AI 蜂群改手感，存成经验卡'], ['说一句话', 'AI 现场造一座山']];
@@ -49,6 +49,17 @@ body.u-idle #uidle,body.u-idle #uqr,body.u-ready #uready{display:block}
 #summit .sgh{font-size:1.6rem;font-weight:800;margin-top:.3rem}
 #summit .sck{font-size:1.35rem;margin-top:.35rem;color:var(--acc);font-weight:700}`;
 
+// 下一个状态（纯函数，tests/test_hud_flow.py 用 node 跑）。只有「离开游戏中」带迟滞：LEAVE_PLAY_S 秒里一直不是 ACTIVE 才切回「按住 R2」——
+//   评委扳机轻搭在门槛上、ACTIVE / ARMED 10 Hz 来回跳时，大字和面板不跟着闪。进游戏中、急停都不等（急停一帧都不能晚）。
+export function pickMode(prev, { forced, state, summit, idleFor, notActiveFor, idleS = IDLE_S }) {
+  if (forced) return forced;
+  if (state === 'DISARMED') return 'ready';
+  if (summit) return 'summit';
+  if (idleFor > idleS) return 'idle';
+  if (state === 'ACTIVE') return 'play';
+  return prev === 'play' && notActiveFor < LEAVE_PLAY_S ? 'play' : 'ready';
+}
+
 const fmt = s => s == null ? '—' : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -67,7 +78,7 @@ export function makeFlow(world, preview) {
     <div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div></div><div><div class="qr">${qr}</div><div class="qrc">扫码看一页纸</div></div></div>`;
 
   const now = () => performance.now() / 1000;
-  let mode = '', lastAct = now(), sig = null, lastS = null, lastT = null, ghostDone = null, shownAt = 0, linger = false;
+  let mode = '', lastAct = now(), lastActive = -1e9, sig = null, lastS = null, lastT = null, ghostDone = null, shownAt = 0, linger = false;
   let camPrev = null, camT = 0, camI = 0, sayT = 0, sayI = Math.floor(Math.random() * LINES.length), stepI = 0, stepT = 0;
 
   function setMode(m) {
@@ -103,12 +114,13 @@ export function makeFlow(world, preview) {
       const r2 = S.pad && S.pad.connected ? S.pad.r2 : null;
       ready.classList.toggle('stop', sf.state === 'DISARMED');
       ready.querySelector('.rt').innerHTML = sf.state === 'DISARMED' ? '急停中' : '按住 <kbd>R2</kbd> 开始';
-      ready.querySelector('.rs').textContent = sf.state === 'DISARMED' ? '已经断开，等操作员重新上膛' : `按住扳机才有力，松手立刻没力${S.wearer && S.wearer !== 'anon' ? ` · 穿戴者：${S.wearer}` : ''}`;
+      if (sf.state === 'ACTIVE') lastActive = t;
+      ready.querySelector('.rs').textContent = sf.state === 'DISARMED' ? '已经断开，等操作员重新上膛' : sf.state === 'DISCONNECTED' ? '外骨骼还没连上，等操作员' : `按住扳机才有力，松手立刻没力${S.wearer && S.wearer !== 'anon' ? ` · 穿戴者：${S.wearer}` : ''}`;
       ready.querySelector('.rb').style.display = r2 == null ? 'none' : '';
       ready.querySelector('.rb i').style.width = `${(r2 || 0) * 100}%`;
       const forced = Q.get('ui') || (preview ? (sm.classList.contains('show') ? 'summit' : 'play') : '');
       if (sf.state === 'DISARMED' && !forced) { linger = false; sm.classList.remove('show'); }   // 急停压过一切：收成绩卡，大字「急停中」
-      setMode(forced || (sf.state === 'DISARMED' ? 'ready' : sm.classList.contains('show') ? 'summit' : t - lastAct > IDLE_S ? 'idle' : sf.state === 'ACTIVE' ? 'play' : 'ready'));
+      setMode(pickMode(mode, { forced, state: sf.state, summit: sm.classList.contains('show'), idleFor: t - lastAct, notActiveFor: t - lastActive }));
     },
     // 引擎登顶 / 收起：成绩卡。T = 登顶后的新状态（laps 已 +1），lastT = 登顶前最后一帧（影子还在第几步）
     summit(show, T, prevBest) {

@@ -382,6 +382,8 @@ def main():
     ap.add_argument("--sim", action="store_true", help="模拟外骨骼：按住空格/网页按钮走路")
     ap.add_argument("--ctl", default="transparent", choices=CTLS)
     ap.add_argument("--cap", type=float, default=3.0, help="软限 Nm")
+    ap.add_argument("--strength", type=float, default=1.5, help="地形缺省强度 Nm（换人 / 复位回到它）；展位 3.0")
+    ap.add_argument("--width", type=float, default=12.0, help="地形脉冲缺省底宽 %% 周期（10–20）；展位 16")
     ap.add_argument("--wearer", default="anon")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--no-input", action="store_true", help="不起手柄线程（诊断用）")
@@ -411,6 +413,8 @@ def main():
     guard = Guard(link, soft_cap=a.cap, on_sent=(rec.torque if rec else None))
     from .control import terrain as _terrain
     _terrain.CAP = guard.soft_cap        # 地形控制律的自限跟着 --cap 走（以前写死 3，--cap 4 也只出 3）
+    _terrain.DEFAULT_STRENGTH = min(a.strength, guard.soft_cap)
+    _terrain.DEFAULT_WIDTH = max(10.0, min(20.0, a.width))
     ver = link.handshake()
     guard.arm()
     print(f"[handshake] firmware {ver}  state {guard.state}  cap {guard.soft_cap} Nm")

@@ -3,9 +3,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 import { rng, LANE } from './logic.js';
+import { SEG, PALETTE } from '/game/style.js';
 
 export const ROOF_W = 8;                     // 屋顶宽（z），三条道在中间 ±2.4
-const NEON = ['#29e7ff', '#ff2e88', '#ffd54f', '#7c5cff'];
+// 颜色按 ART 范式（game/style.js）：路段色只标腿上有力的地方——起跳前沿 = 台阶黄（起跳前给 lift）、斜板 = 上坡绿、落地沿 = 下坡蓝；
+//   其余用跑酷色板（品红 + 月光），不用青（撞下坡蓝）、不用琥珀（峰哥专用）、不用黄（台阶专用）
+const [MAGENTA, MOON] = PALETTE.parkour.accent;
+const lin = hex => { const c = new THREE.Color(hex); return `vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)})`; };
 
 // 楼：一个材质一次绘制。竖墙 = 窗户（按 (横向坐标, y) 分格，hash 决定亮不亮 / 暖还是冷）；roof = 顶面画成屋顶（混凝土方砖 + 三条道的发光分隔线 + 两边警示带）。
 // local = 用几何自己的坐标（天际线整体平移时窗户不跳）
@@ -32,9 +36,9 @@ function winMat(base, local, roof) {
           diffuseColor.rgb *= 0.85 + 0.15 * step(0.03, min(g.x, g.y));
           float z = abs(vP.z);
           float lane = 1.0 - smoothstep(0.03, 0.07, abs(z - ${(LANE / 2).toFixed(2)}));
-          totalEmissiveRadiance += lane * step(0.45, fract(vP.x / 3.0)) * vec3(0.16, 0.9, 1.0) * 0.8;
+          totalEmissiveRadiance += lane * step(0.45, fract(vP.x / 3.0)) * ${lin(MOON)} * 0.6;
           float edge = step(${(LANE * 1.5 + 0.1).toFixed(2)}, z) * step(z, ${(LANE * 1.5 + 0.45).toFixed(2)});
-          diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(1.0, 0.75, 0.1), vec3(0.08), step(0.5, fract((vP.x + z) / 1.2))), edge);
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.62, 0.64, 0.68), vec3(0.08), step(0.5, fract((vP.x + z) / 1.2))), edge);
         }` : ''}`);
   };
   m.customProgramCacheKey = () => 'win' + (local ? 'L' : 'W') + (roof ? 'R' : '');
@@ -45,12 +49,13 @@ export function makeCity(scene, { low = false } = {}) {
   const M = {
     win: winMat('#1d2333', false, true),
     parapet: new THREE.MeshLambertMaterial({ color: '#2a2f3a' }),
-    neon: NEON.map(c => new THREE.MeshBasicMaterial({ color: c })),
+    side: new THREE.MeshBasicMaterial({ color: MAGENTA }),
+    jump: new THREE.MeshBasicMaterial({ color: SEG.stairs_up }), up: new THREE.MeshBasicMaterial({ color: SEG.up }), land: new THREE.MeshBasicMaterial({ color: SEG.down }),
     ramp: new THREE.MeshLambertMaterial({ color: '#8a6a3a', emissive: '#2a1a08' }),
     ac: new THREE.MeshLambertMaterial({ color: '#d7dde4' }), fan: new THREE.MeshBasicMaterial({ color: '#15181e' }),
-    warn: new THREE.MeshBasicMaterial({ color: '#ffb03a' }),
+    warn: new THREE.MeshBasicMaterial({ color: SEG.stairs_up }),   // 要跳的障碍前沿 = 台阶黄
     pole: new THREE.MeshLambertMaterial({ color: '#8d96a3' }), cloth: new THREE.MeshLambertMaterial({ color: '#ff2e88', emissive: '#6a0d36', side: THREE.DoubleSide }),
-    tank: new THREE.MeshLambertMaterial({ color: '#6d7b86' }), tankBand: new THREE.MeshBasicMaterial({ color: '#29e7ff' }),
+    tank: new THREE.MeshLambertMaterial({ color: '#6d7b86' }), tankBand: new THREE.MeshBasicMaterial({ color: MOON }),
   };
 
   // ---- 天空 + 远景 ----
@@ -76,20 +81,23 @@ export function makeCity(scene, { low = false } = {}) {
   // ---- 关卡物件 ----
   const live = new Map();                                  // 关卡里的 seg / obs 对象 → 网格
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  function segMesh(s) {
+  function segMesh(s, prev, next) {
     const L = s.x1 - s.x0, g = new THREE.Group();
     if (s.kind === 'roof') {
       const b = new THREE.Mesh(box(L, 80, ROOF_W).translate(0, -40, 0), M.win);
       const par = new THREE.Mesh(mergeGeometries([box(L, 0.5, 0.25).translate(0, 0.25, ROOF_W / 2 - 0.12), box(L, 0.5, 0.25).translate(0, 0.25, -ROOF_W / 2 + 0.12)]), M.parapet);
-      const neon = new THREE.Mesh(mergeGeometries([box(L, 0.08, 0.1).translate(0, -0.3, ROOF_W / 2 + 0.05), box(L, 0.08, 0.1).translate(0, -0.3, -ROOF_W / 2 - 0.05), box(0.1, 0.08, ROOF_W).translate(L / 2 + 0.05, -0.3, 0)]),
-        M.neon[Math.floor(s.x0 / 7) % NEON.length]);   // 楼沿一圈霓虹：楼缝在哪一眼看清
-      g.add(b, par, neon);
+      g.add(b, par, new THREE.Mesh(mergeGeometries([box(L, 0.08, 0.1).translate(0, -0.3, ROOF_W / 2 + 0.05), box(L, 0.08, 0.1).translate(0, -0.3, -ROOF_W / 2 - 0.05)]), M.side));
+      // 楼头楼尾的亮沿：前面是楼缝 = 起跳（台阶黄），前面是斜板 = 上坡绿；后面是楼缝 = 落地（下坡蓝）。楼缝在哪一眼看清
+      if (next) g.add(new THREE.Mesh(box(0.14, 0.1, ROOF_W).translate(L / 2 - 0.07, 0.02, 0), next.kind === 'ramp' ? M.up : M.jump));
+      if (prev && prev.kind === 'gap') g.add(new THREE.Mesh(box(0.14, 0.1, ROOF_W).translate(-L / 2 + 0.07, 0.02, 0), M.land));
       g.position.set((s.x0 + s.x1) / 2, s.h0, 0);
     } else if (s.kind === 'ramp') {
       const dy = s.h1 - s.h0, len = Math.hypot(L, dy);
       const p = new THREE.Mesh(box(len, 0.25, ROOF_W - 1.5), M.ramp);
       p.rotation.z = Math.atan2(dy, L); p.position.y = -0.12;
-      const rails = new THREE.Mesh(mergeGeometries([box(len, 0.06, 0.06).translate(0, 0.9, ROOF_W / 2 - 0.8), box(len, 0.06, 0.06).translate(0, 0.9, -ROOF_W / 2 + 0.8)]), M.neon[0]);
+      const e = (ROOF_W - 1.5) / 2;                     // 斜板上给的是 up：扶手 + 两侧板沿都用上坡绿
+      const rails = new THREE.Mesh(mergeGeometries([box(len, 0.06, 0.06).translate(0, 0.9, ROOF_W / 2 - 0.8), box(len, 0.06, 0.06).translate(0, 0.9, -ROOF_W / 2 + 0.8),
+        box(len, 0.08, 0.12).translate(0, 0.02, e - 0.06), box(len, 0.08, 0.12).translate(0, 0.02, -e + 0.06)]), M.up);
       rails.rotation.z = p.rotation.z;
       g.add(p, rails);
       g.position.set((s.x0 + s.x1) / 2, (s.h0 + s.h1) / 2, 0);
@@ -128,7 +136,7 @@ export function makeCity(scene, { low = false } = {}) {
     // 每帧：把关卡里新出现的物件建出来、没了的扔掉；天际线跟着人挪
     sync(level, px) {
       const want = new Set();
-      for (const s of level.segs) { want.add(s); if (!live.has(s)) { const m = segMesh(s); live.set(s, m); if (m) scene.add(m); } }
+      level.segs.forEach((s, i) => { want.add(s); if (!live.has(s)) { const m = segMesh(s, level.segs[i - 1], level.segs[i + 1]); live.set(s, m); if (m) scene.add(m); } });
       for (const o of level.obs) { want.add(o); if (!live.has(o)) { const m = obsMesh(o, level.ground(o.x) ?? 0); live.set(o, m); scene.add(m); } }
       for (const [k, m] of live) if (!want.has(k)) { if (m) kill(m); live.delete(k); }
       skyline.position.x = Math.floor(px / T) * T;

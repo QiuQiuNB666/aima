@@ -10,6 +10,8 @@
 // 子模块：snow_summit/sky.js（天、群峰、远处北壁、云海）、snow.js（雪粒）、props.js（道具几何）、hypoxia.js（缺氧）。
 import * as THREE from 'three';
 import { STEP, ROAD_W } from '../path.js';
+import { SEG, WHO } from '../style.js';
+import { stairNoses } from './cliff_path/props.js';
 import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
@@ -24,7 +26,7 @@ const HW = ROAD_W / 2;
 const PAL = {
   low:   { top: '#1447a2', hz: '#a8c8ea', below: '#d9e3ee', fog: '#c6d6ea', fogN: 45, fogF: 380, hemiS: '#e2ecff', hemiG: '#8d887c', hemiI: 1.0, sunC: '#fff3de', sunI: 1.75, band: 0.35, halo: 1, sun: 1, haze: 0.1 },
   high:  { top: '#0a2266', hz: '#86aee0', below: '#dde6f0', fog: '#bccfe6', fogN: 45, fogF: 380, hemiS: '#dfe9ff', hemiG: '#8b93a3', hemiI: 1.0, sunC: '#fff7ea', sunI: 1.8, band: 0.45, halo: 1, sun: 1, haze: 0.12 },
-  storm: { top: '#9aa6b8', hz: '#d3d9e1', below: '#e1e5ea', fog: '#d5dbe3', fogN: 5, fogF: 36, hemiS: '#eef2f7', hemiG: '#a5adb8', hemiI: 1.3, sunC: '#eef2f8', sunI: 0.5, band: 0, halo: 0.08, sun: 0.1, haze: 1 },
+  storm: { top: '#9aa6b8', hz: '#d3d9e1', below: '#e1e5ea', fog: '#d5dbe3', fogN: 6, fogF: 36, hemiS: '#eef2f7', hemiG: '#a5adb8', hemiI: 1.3, sunC: '#eef2f8', sunI: 0.5, band: 0, halo: 0.08, sun: 0.1, haze: 1 },
   summit:{ top: '#030c36', hz: '#4f80cc', below: '#e6edf6', fog: '#c9d9ee', fogN: 90, fogF: 650, hemiS: '#e2eaff', hemiG: '#7d879a', hemiI: 0.95, sunC: '#fffaf0', sunI: 1.95, band: 0.6, halo: 1.3, sun: 1, haze: 0.06 },
 };
 for (const k in PAL) for (const n in PAL[k]) if (typeof PAL[k][n] === 'string') PAL[k][n] = new THREE.Color(PAL[k][n]);
@@ -161,6 +163,8 @@ export function build(scene, ctx) {
     });
     M.stairs.instanceColor.needsUpdate = true;
   }
+  const nose = stairNoses(ctx, SEG.stairs_up); if (nose) scene.add(nose);   // 美术范式：雪白台阶在雪地里认不出，每级前缘一条台阶黄
+  const sfx = kit.stepFx(ctx, { dust: '#f4f8ff', flash: '#dff0ff' });       // 落阶反馈：雪地踩下去是雪沫
   for (const k of ['lines', 'edges', 'startLine', 'camp', 'flag']) if (M[k]) M[k].visible = false;
   for (const sg of M.signals) { sg.group.visible = false; sg.stop.visible = false; }   // 红灯 = 北坳歇脚 / 排队：不要车用信号灯
 
@@ -342,9 +346,9 @@ export function build(scene, ctx) {
 
   // ---------- 化身 / 影子：雪地上影子用深一点的蓝 + 深色描边，白底上才看得见 ----------
   ctx.theme.avatar = { leg: '#262b34', body: '#d2342a', head: '#e8ecf0', exo: '#ffb03a', rim: '#fff0da', rimK: 0.55, self: 0.12 };
-  ctx.theme.ghost = ctx.theme.ghost || '#2c62f0';
-  ctx.theme.ghostOpacity = ctx.theme.ghostOpacity || 0.58;
-  if (ctx.theme.ghostRim === undefined) ctx.theme.ghostRim = '#0b1f63';
+  ctx.theme.ghost = ctx.theme.ghost || WHO.ghost.bright;                     // 美术范式：雪地里影子用深青（不用蓝：撞捷风、撞下坡）
+  ctx.theme.ghostOpacity = ctx.theme.ghostOpacity || 0.55;
+  if (ctx.theme.ghostRim === undefined) ctx.theme.ghostRim = '#063f3a';
 
   // ---------- 镜头 ----------
   const rig = ctx.camRig;
@@ -355,7 +359,7 @@ export function build(scene, ctx) {
   const hyp = makeHypoxia({ blur: !LOW });
 
   ctx.theme.summitCard = 'left';                                              // 化身 + 觇标在画面正中，登顶卡放左下
-  S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, waitKey: '', anchors: camAnchors(Z, N),
+  S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, sfx, anchors: camAnchors(Z, N),
     a0: world.alt ? +world.alt[0] : 0, a1: world.alt ? +world.alt[1] : 0, revRock, revTop, revLow, hideRock, hideTop, hideLow,
     rockS: Z.rocks.length ? Z.rocks[0].start : N, topS: Z.queue ? Z.queue.start : N - 4 };
   rigFor(0, rig, false);
@@ -402,19 +406,19 @@ export function rigFor(s, r, summit) {
 
 // ---------- 每帧 ----------
 const _c = new THREE.Vector3(), _mid = new THREE.Vector3(), _head = new THREE.Vector3(), _sc = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _m4 = new THREE.Matrix4(), _t = new THREE.Vector3(), _u = new THREE.Vector3();
-let waitEl = null;
 // 「藏」= 缩成一个点（退化三角形，不出片元、不投影），不用 visible = false：还在绘制列表里，第一帧就把着色器 / 管线建好
 //   （ANGLE / Metal 在第一次绘制时才建管线，隐藏的东西第一次露面那帧会卡 0.2 s）；缩成点后包围球也缩了，关掉视锥裁剪保证照画
 export function show(m, on) {
   if (m.userData.on === on) return;
-  if (m.userData.fc === undefined) m.userData.fc = m.frustumCulled;
-  m.userData.on = on; m.scale.setScalar(on ? 1 : 1e-6); m.frustumCulled = on && m.userData.fc;
+  if (m.userData.fc === undefined) { m.userData.fc = m.frustumCulled; m.userData.s0 = m.scale.clone(); }   // 记下原来的缩放（有的石头 build 里就缩放过）
+  m.userData.on = on; if (on) m.scale.copy(m.userData.s0); else m.scale.setScalar(1e-6); m.frustumCulled = on && m.userData.fc;
 }
 const _A = {};
 // 点 p 到线段 ab 的距离
 function segDist(p, a, b) { _t.subVectors(b, a); _u.subVectors(p, a); const u = Math.max(0, Math.min(1, _t.dot(_u) / (_t.lengthSq() || 1))); return p.distanceTo(_t.multiplyScalar(u).add(a)); }
 export function update(dt, st) {
   if (!S) return;
+  S.sfx.update(dt, st);
   const { route, Z } = S, N = route.N, p = Math.max(0, Math.min(1, st.s / N));
   S.summitK = st.summit ? (st.preview ? 1 : Math.min(1, S.summitK + dt * 0.8)) : Math.max(0, S.summitK - dt * 2);
   const sk = S.summitK * S.summitK * (3 - 2 * S.summitK);
@@ -463,12 +467,5 @@ export function update(dt, st) {
       _m4.compose(_c, _q, _sc); P.sm.setMatrixAt(k, _m4); P.gm.setMatrixAt(k, _m4);
     }
     P.sm.instanceMatrix.needsUpdate = P.gm.instanceMatrix.needsUpdate = true;
-  }
-  // 红灯面板写成这一段的名字（北坳歇脚 / 排队），不说「红灯」
-  const key = st.terrain && st.terrain.segment === 'wait' ? st.terrain.label || '' : '';
-  if (key !== S.waitKey) {
-    S.waitKey = key;
-    waitEl = waitEl || document.querySelector('#wait .big');
-    if (waitEl && key) waitEl.textContent = `● ${key}`;
   }
 }

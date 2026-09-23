@@ -11,7 +11,8 @@
 </script>
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
 <style>
-:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.86);--line:rgba(255,255,255,.14);--acc:#29e7ff;--acc0:#ff2e88;--jf:#9ff3ff}
+/* 颜色全从 game/style.js 来（main.js 开头 applyCssVars()，覆盖这里的缺省值）：--ui-* / --acc = HUD，--seg-* = 路段，--who-jett = 捷风；--acc0 = 跑酷色板品红 */
+:root{--fg:var(--ui-fg,#f4f7fa);--dim:var(--ui-dim,#a9b3bf);--panel:var(--ui-panel,rgba(8,10,16,.86));--line:var(--ui-line,rgba(255,255,255,.12));--acc:#b48cff;--acc0:#ff2e88;--jf:var(--who-jett,#2f7fe0);--bad:var(--ui-danger,#ff4d4f)}
 html{font-size:clamp(13px,1.04vw,44px)}
 *{box-sizing:border-box}
 body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;user-select:none}
@@ -19,7 +20,7 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 .hud{position:fixed;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 /* 不用 backdrop-filter：盖在 WebGL 画布上每帧都要重新模糊，这台 AMD 555 上 34 → 60 fps 就差它 */
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:.7rem 1.1rem}
-#flash{inset:0;background:radial-gradient(ellipse at center,transparent 35%,#ff2040 100%);opacity:0}
+#flash{inset:0;background:radial-gradient(ellipse at center,transparent 35%,var(--bad) 100%);opacity:0}
 #tl{left:1.4rem;top:1.2rem;display:flex;flex-direction:column;gap:.5rem}
 #back{pointer-events:auto;align-self:flex-start;color:var(--fg);text-decoration:none;font-size:1rem;padding:.4rem .9rem;border-radius:.7rem;background:var(--panel);border:1px solid var(--line)}
 #name{font-size:1.5rem;font-weight:900;letter-spacing:.12em}
@@ -36,20 +37,20 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #jf{margin-top:.6rem;font-size:1rem;text-align:left}
 #jf b{color:var(--jf)}
 #jfTrack{height:.55rem;border-radius:.3rem;background:rgba(255,255,255,.14);overflow:hidden;margin-top:.3rem}
-#jfBar{height:100%;width:0;background:linear-gradient(90deg,var(--jf),#ff4d6d);transition:width .2s}
-body.danger #tr{border-color:#ff4d6d;box-shadow:0 0 1.2rem rgba(255,77,109,.5)}
-#jfSay{right:1.4rem;top:12.5rem;font-size:1.3rem;font-weight:800;color:#dffaff;border-color:var(--jf);opacity:0;transform:translateY(-.4rem);transition:opacity .25s,transform .25s}
-#jfSay::before{content:"疾风";display:block;font-size:.75rem;letter-spacing:.2em;color:var(--jf)}
+#jfBar{height:100%;width:0;background:linear-gradient(90deg,var(--jf),var(--bad));transition:width .2s}
+body.danger #tr{border-color:var(--bad);box-shadow:0 0 1.2rem var(--bad)}
+#jfSay{right:1.4rem;top:12.5rem;font-size:1.3rem;font-weight:800;color:var(--fg);border-color:var(--jf);opacity:0;transform:translateY(-.4rem);transition:opacity .25s,transform .25s}
+#jfSay::before{content:"捷风";display:block;font-size:.75rem;letter-spacing:.2em;color:var(--jf)}
 body.talk #jfSay{opacity:1;transform:none}
 #hint{left:50%;top:38%;transform:translate(-50%,-50%);font-size:2.6rem;font-weight:900;letter-spacing:.1em;text-shadow:0 0 1rem rgba(0,0,0,.8)}
-#hint.jump{color:#ffd54f}#hint.slide{color:#ff5fa8}#hint.lane{color:var(--acc)}
+#hint.jump{color:var(--seg-stairs-up)}#hint.slide{color:var(--acc0)}#hint.lane{color:var(--acc)}   /* 跳 = 台阶黄（起跳前给 lift，和台阶同类） */
 #bl{left:1.4rem;bottom:1.4rem;width:24rem;display:flex;flex-direction:column;gap:.45rem;font-size:1rem}
 .leg{display:grid;grid-template-columns:2.8rem 1fr;align-items:center;gap:.5rem}
 .bar{position:relative;height:.9rem;border-radius:.45rem;background:rgba(255,255,255,.12);overflow:hidden}
 .bar::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:rgba(255,255,255,.35)}
 .bar i{position:absolute;top:0;bottom:0;left:50%;width:0;background:var(--acc)}
 #force{color:#fff;font-weight:700}
-#r2{color:#ffb03a;font-weight:700}#r2.ok{color:#3ddc84}
+#r2{color:var(--ui-warn);font-weight:700}#r2.ok{color:var(--ui-ok)}
 #legs{color:var(--dim)}
 #keys{right:1.4rem;bottom:1.4rem;font-size:.95rem;color:var(--dim);text-align:right;line-height:1.7}
 #keys kbd{display:inline-block;padding:0 .4rem;margin:0 .1rem;border-radius:.3rem;border:1px solid rgba(255,255,255,.35);color:#fff;font:inherit}
@@ -60,11 +61,11 @@ body.title #hint,body.over #hint{display:none}
 #title .s{font-size:1.4rem;margin-top:.6rem}
 #title .s b{color:var(--acc)}
 #title .d{font-size:1.05rem;color:var(--dim);margin-top:.8rem;line-height:1.8}
-#over{border-color:var(--acc0)}
+#over{border-color:var(--bad)}
 #over .n{font-size:5rem;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
 #over .n small{font-size:1.6rem;color:var(--dim)}
-#over .w{font-size:1.3rem;color:#ff8fa3;margin:.2rem 0 .6rem}
-#goNew{color:#ffd54f;font-size:1.3rem;font-weight:800;display:none}
+#over .w{font-size:1.3rem;color:var(--bad);margin:.2rem 0 .6rem}
+#goNew{color:var(--acc);font-size:1.3rem;font-weight:800;display:none}
 #over .d{font-size:1.1rem;color:var(--dim);margin-top:.6rem}
 #banner{left:50%;top:50%;transform:translate(-50%,-50%);font-size:1.3rem;display:none}
 #fps{left:.5rem;bottom:.3rem;font-size:.75rem;color:rgba(255,255,255,.45)}
@@ -72,12 +73,12 @@ body.title #hint,body.over #hint{display:none}
 </style></head><body class="title">
 <canvas id="c"></canvas>
 <div class="hud" id="flash"></div>
-<div class="hud" id="tl"><a id="back" href="/game">← 回登山</a><div class="panel"><div id="name">屋顶跑酷<small>峰哥亡命天涯 · 疾风在追</small></div><div id="lives"></div></div></div>
+<div class="hud" id="tl"><a id="back" href="/game">← 回登山</a><div class="panel"><div id="name">屋顶跑酷<small>峰哥亡命天涯 · 捷风在追</small></div><div id="lives"></div></div></div>
 <div class="hud panel" id="tc"><span id="dist">0</span><small>m</small></div>
 <div class="hud panel" id="tr">
   <div class="big"><span id="spd">0</span><small>km/h</small></div>
   <div class="big" style="font-size:1.4rem"><span id="cad">—</span><small>步/分</small></div>
-  <div id="jf"><b>疾风</b> 在身后 <span id="jfM">—</span><div id="jfTrack"><div id="jfBar"></div></div></div>
+  <div id="jf"><b>捷风</b> 在身后 <span id="jfM">—</span><div id="jfTrack"><div id="jfBar"></div></div></div>
 </div>
 <div class="hud panel" id="jfSay"></div>
 <div class="hud" id="hint"></div>
@@ -89,7 +90,7 @@ body.title #hint,body.over #hint{display:none}
   <div id="legs">—</div>
 </div>
 <div class="hud panel" id="keys">步频越快跑越快<br>高抬腿 <kbd>↑</kbd> 跳 · 下蹲 <kbd>↓</kbd> 滑铲 · <kbd>←</kbd><kbd>→</kbd> 换道<span id="simHint" style="display:none"><br>模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd>–<kbd>4</kbd> 步频</span></div>
-<div class="hud panel" id="title"><div class="t">屋顶跑酷</div><div class="s">迈开腿就开跑 —— <b>别让疾风追上</b></div>
+<div class="hud panel" id="title"><div class="t">屋顶跑酷</div><div class="s">迈开腿就开跑 —— <b>别让捷风追上</b></div>
   <div class="d">步频 = 速度 · 高抬腿跳过空调和楼缝 · 下蹲钻晾衣杆 · ← → 绕开水箱<br>撞 3 次结束</div></div>
 <div class="hud panel" id="over"><div class="t" id="goT">峰哥倒下了</div><div class="w" id="hitWhy"></div><div class="n"><span id="goDist">0</span><small> m</small></div>
   <div id="goNew">★ 新纪录</div><div class="d">最好成绩 <b id="goBest">0</b> m · <b>高抬腿</b> 或 <b>回车</b> 再来一局</div></div>

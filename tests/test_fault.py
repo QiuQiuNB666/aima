@@ -226,3 +226,18 @@ def test_stress_stack_end_to_end():
     assert p.returncode == 0, p.stdout + p.stderr
     r = json.loads(p.stdout.splitlines()[0])
     assert r["ok"] and r["loop_med"] is not None
+
+
+def test_serial_link_starts_without_device(monkeypatch):
+    """外骨骼没插也要能起 ShellOS（仪表盘先起来）：不抛异常、写是空操作、握手返回「未连接」。"""
+    from shellos.device import serial_link as SL
+    monkeypatch.setattr(SL, "find_port", lambda: (_ for _ in ()).throw(RuntimeError("没找到串口")))
+    link = SL.SerialLink(None)
+    try:
+        assert link.ser is None and link.port == "(未连接)"
+        link.send_torque(1.0, 1.0)                     # 不抛
+        assert link.replies_seen.get("SEND_FAIL", 0) >= 1 and not link.enabled
+        assert link.handshake() == "未连接"
+        assert link.needs_recovery()
+    finally:
+        link._alive = False

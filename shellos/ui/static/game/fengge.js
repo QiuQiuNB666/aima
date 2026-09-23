@@ -10,17 +10,30 @@
 //   针织帽 = 翻边 + 帽身，罗纹针脚是 canvas 画的（贴图 + 凹凸）；头发 = 帽子下面两侧和后脑往外蓬的一圈发片（照片里就是这样）。
 // 衣服：化身原材质（avatar.js 的分区材质）外面再包一层：深灰速干衣 + 胸前 / 背后青色竖条纹拼色（参考照片的户外打底衫，不带 logo）、
 //   袖口青色一圈、手套、深色长裤、登山鞋；身材沿法线鼓 0.4–1.2 cm（CesiumMan 太瘦）；黑色抓绒围脖（照片里就有）盖住脖口。
-// 开销（东京 pos 18）：+2 次绘制、+1.1 万三角形（头 5.8k、帽 3k、头发 1.9k、围脖 0.6k），贴图 = 400×540 照片 + 两张 128² canvas。
+// 开销：头 / 帽 / 头发两档 LOD（lodDist 3.6 m）：近档（正面镜头）头 5.8k、帽 3k、头发 1.9k 三角，远档（跟拍、登顶环绕）共约 1.8k；围脖 0.6k；
+//   贴图 = 400×540 照片 + 两张 128² canvas。登顶动作见 ⑤ summitGesture。
 // 主题往头上挂东西：av.group.userData.fengge.lamp = 帽檐正前方（头骨局部坐标），有它就说明换了峰哥头。
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 
 export const FENGGE_LOOK = {
   skin: '#d29a84', beard: '#4a3a32', hair: '#2e2622', beanie: '#5a5c61', gaiter: '#1e1f22',   // 肤色 / 胡茬 / 帽子按参考照片取样
-  fleece: '#34373d', pants: '#25282d', teal: '#27a9b8', glove: '#1d1f23', shoe: '#4a4038', sole: '#9b948a',
-  headH: 0.25,             // 下巴到头顶（米，不算帽子）；身高 1.46 的约 1/5.8，比真人大一点：正面镜头 2.4 m 外脸才认得出
+  fleece: '#34373d', pants: '#25282d', teal: '#1d7d88', glove: '#c48c76', shoe: '#4a4038', sole: '#9b948a',   // glove = 手：峰哥没戴手套（登顶竖大拇指要看得见）
   faceGlow: 0.32, rimK: 0.35,           // rimK = 头部件轮廓光占化身轮廓光的比例（深色帽子 / 头发整片被照亮就不像头发了）
+  lodDist: 3.6,            // 头离镜头超过这么远（米）换远档：正面镜头约 2.4 m、跟拍约 5 m
+  style: 'v2',             // 造型，见 STYLES；?fgstyle=A|B|C 临时换（第 3 轮候选，球球挑）
 };
+// 第 3 轮候选造型（球球说 v2「还是太丑」：真人照片贴在几何头上，一转头就是纸片脸）。tex = 脸用照片还是手绘平涂；relief / wide = 五官起伏、脸宽的倍数；
+//   mat = std（v2 的 PBR）/ lam（哑光平滑，和身体一样）/ poly（平面着色低多边形，脸按块上色，五官是几何片）；headH = 头高（米）。
+//   试过三阶卡通光（MeshToonMaterial）：背光面也不变暗，泰山拂晓的暖光下整张脸成了发光的橙色面具，不用
+//   v2 的头 0.25 m = 身高 1/5.8，比真人大：正面镜头 2.4 m 外脸才认得出；A 再 Q 一点。look.headH 可以覆盖
+const STYLES = {
+  v2: { tex: 'photo', relief: 1, wide: 1, headH: 0.25, mat: 'std' },
+  A: { tex: 'paint', relief: 0.45, wide: 1.08, headH: 0.29, mat: 'lam' },              // 平涂卡通：头身比 Q 一点（约 1:5）
+  B: { tex: 'paint', relief: 0.7, wide: 1.06, headH: 0.28, mat: 'poly' },             // 低多边形雕塑：和泰山松、岩石一个路子
+  C: { tex: 'photo', relief: 0.8, wide: 1, headH: 0.26, mat: 'lam', poster: true },   // v2 改良：照片去掉一点饱和、压成色阶 + 卡通光，不那么「照片」
+};
+let RK = 1, WK = 1;                                        // 当前造型的 relief / wide（headAt 用）
 
 // —— 头型：照片像素单位 ——
 const EYE = [313, 505], CROP = [113, 300, 400, 540];     // 原图里两眼中点；贴图 = 原图 (113,300) 起 400×540
@@ -53,9 +66,9 @@ function relief(x, y) {                                    // 脸部起伏（z �
 // 头表面：φ = 0 正前（+z）、往 +x（看脸时的右边）转；x = W·sinφ，前半 z = ZC + (Zf−ZC)·cos^0.6（脸比椭圆平），后半椭圆
 function headAt(y, phi, out, k = 1, face = true) {
   const [W, Zf, Zb] = prof(y), c = Math.cos(phi);
-  const x = W * Math.sin(phi);
+  const x = W * WK * Math.sin(phi);
   let z = c >= 0 ? ZC + (Zf - ZC) * Math.pow(c, 0.6) : ZC - (ZC - Zb) * Math.pow(-c, 0.9);
-  if (face && c > 0) z += relief(x, y) * ss(0, 0.45, c);
+  if (face && c > 0) z += relief(x, y) * RK * ss(0, 0.45, c);
   return out.set(x * k, y, ZC + (z - ZC) * k);
 }
 
@@ -93,6 +106,40 @@ function faceTexture() {                                   // 照片 + 脸的遮
     img.onerror = rej;
     img.src = '/models/fengge_face_hd.jpg';
   }));
+}
+// 手绘平涂脸（A / B 用）：照着参考照片画成扁平色块，坐标和照片贴图一样（两眼中点 = 原点，y 向上，单位 = 照片像素），所以还是正投影贴上去。
+//   眯眯眼（照片里是没睡醒的半睁眼）、一字粗眉、八字胡连山羊胡、下巴一圈胡茬
+// 五官色块（照片像素坐标；A 画进贴图，B 做成贴在脸上的几何片）。s = 左右（−1 / +1）
+const FEATURES = s => [
+  ['brow', '#2b211c', [[s * 32, 66], [s * 152, 58], [s * 150, 44], [s * 34, 52]]],                                              // 一字粗眉，外侧略低
+  ['eye', '#2f2320', [[s * 122, 2], [s * 100, 12], [s * 70, 13], [s * 48, 6], [s * 70, 2], [s * 100, 1]]],                      // 眯眯眼：扁杏仁
+];
+const BEARD = [
+  ['lipLo', '#b06f63', [[-44, -198], [44, -198], [36, -214], [0, -220], [-36, -214]]],
+  ['lipUp', '#8c4f47', [[-44, -190], [0, -180], [44, -190], [38, -196], [0, -194], [-38, -196]]],
+  ['mous', '#3b2b22', [[-82, -212], [-72, -166], [-36, -150], [0, -156], [36, -150], [72, -166], [82, -212], [64, -186], [32, -172], [0, -175], [-32, -172], [-64, -186]]],   // 八字胡
+  ['goat', '#3b2b22', [[-46, -222], [46, -222], [58, -268], [32, -306], [0, -316], [-32, -306], [-58, -268]]],               // 山羊胡
+];
+let paintC = null;
+function paintCanvas(L) {
+  if (paintC) return paintC;
+  const [ox, oy, W, H] = CROP, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), X = x => x + EYE[0] - ox, Y = y => EYE[1] - oy - y;
+  const poly = (pts, c) => { g.fillStyle = c; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))); g.closePath(); g.fill(); };
+  const line = (pts, c, w) => { g.strokeStyle = c; g.lineWidth = w; g.lineCap = g.lineJoin = 'round'; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))); g.stroke(); };
+  g.fillStyle = L.skin; g.fillRect(0, 0, W, H);
+  g.globalAlpha = 0.3; poly([[-160, -130], [-120, -250], [-50, -310], [50, -310], [120, -250], [160, -130], [150, -200], [90, -290], [-90, -290], [-150, -200]], '#6b5040'); g.globalAlpha = 1;   // 下巴一圈胡茬
+  for (const s of [-1, 1]) {
+    for (const [, c, pts] of FEATURES(s)) poly(pts, c);
+    line([[s * 124, 3], [s * 100, 14], [s * 70, 15], [s * 46, 7]], '#1d1512', 5);                                             // 上眼皮
+    g.globalAlpha = 0.35; line([[s * 118, -16], [s * 88, -24], [s * 58, -18]], '#8a5a48', 4); g.globalAlpha = 1;             // 眼袋
+    g.fillStyle = '#6b4034'; g.beginPath(); g.ellipse(X(s * 19), Y(-104), 10, 6, 0, 0, Math.PI * 2); g.fill();               // 鼻孔
+    line([[s * 44, -82], [s * 48, -98], [s * 36, -110]], '#a86e5c', 4);                                                       // 鼻翼
+  }
+  BEARD.slice(0, 2).forEach(([, c, pts]) => poly(pts, c));
+  line([[-46, -192], [0, -197], [46, -192]], '#4a2622', 4);                                                                    // 嘴缝
+  BEARD.slice(2).forEach(([, c, pts]) => poly(pts, c));
+  return (paintC = cv);
 }
 let knitT = null;
 function knitTexture() {                                   // 罗纹针织：每列一串 V 字针脚，列间一道凹缝，加点麻灰杂色（照片里的帽子是麻灰的）
@@ -159,16 +206,18 @@ function dressClothes(mat, L) {
   if (!ob || !U) return;
   U.uBody.value.set(L.fleece); U.uLeg.value.set(L.pants);
   const C = { uTeal: { value: new THREE.Color(L.teal) }, uGlove: { value: new THREE.Color(L.glove) }, uShoe: { value: new THREE.Color(L.shoe) },
-    uSole: { value: new THREE.Color(L.sole) }, uGaiter: { value: new THREE.Color(L.gaiter) } };
+    uSole: { value: new THREE.Color(L.sole) }, uGaiter: { value: new THREE.Color(L.gaiter) }, uFist: { value: 0 } };
+  mat.userData.fist = C.uFist;                              // 登顶竖大拇指时 = 1：CesiumMan 的右手（连指手套形状，没有手指骨）藏掉，换成拳头 + 拇指
   mat.onBeforeCompile = (sh, r) => {
     ob.call(mat, sh, r);
     Object.assign(sh.uniforms, C);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vBP, vBN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBP = position; vBN = normal;');
     sh.fragmentShader = sh.fragmentShader.replace('pow(fr, 2.2) * uRimK', 'pow(fr, 2.6) * uRimK * 0.45')   // 深色衣服上轮廓光显得太亮，压一点
-      .replace('#include <common>', '#include <common>\nvarying vec3 vBP, vBN;\nuniform vec3 uTeal, uGlove, uShoe, uSole, uGaiter;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBP, vBN;\nuniform vec3 uTeal, uGlove, uShoe, uSole, uGaiter;\nuniform float uFist;')
       .replace('diffuseColor.rgb *= zc;', `{
         vec3 bn = normalize(vBN); float ay = abs(vBP.y), z = vBP.z;
+        if (uFist > 0.5 && vBP.y < -0.475 && z > 0.7) discard;                      // 右手（绑定姿态 y < 0 = 右）
         float torso = step(ay, 0.2) * step(0.8, z);
         // 胸前 / 背后的青色竖条纹拼色：领口往下，下沿是 V 字（中间低、两边高）
         float yoke = torso * smoothstep(0.15, 0.4, abs(bn.x)) * step(ay, 0.17) * smoothstep(-0.006, 0.006, z - 0.925 - 0.5 * ay);
@@ -178,7 +227,7 @@ function dressClothes(mat, L) {
         float arm = step(0.21, ay) * step(0.7, z);
         zc = mix(zc, uTeal, arm * step(0.93, dot(bn, normalize(vec3(0.0, sign(vBP.y) * 0.55, 0.85)))) * step(ay, 0.46));   // 袖子外侧一道青线
         zc = mix(zc, uTeal, arm * step(0.462, ay) * step(ay, 0.485));                       // 袖口
-        zc = mix(zc, uGlove, arm * step(0.485, ay));                                        // 手套
+        zc = mix(zc, uGlove, arm * step(0.485, ay));                                        // 手（肤色）
         zc = mix(zc, uShoe, step(z, 0.095)); zc = mix(zc, uSole, step(z, 0.022));            // 登山鞋
       }
       diffuseColor.rgb *= zc;`);
@@ -192,10 +241,16 @@ export async function dressFengge(av, look = {}) {
   const head = av.bones['Skeleton_neck_joint_2'], neck = av.bones['Skeleton_neck_joint_1'];
   let mesh = null; av.group.traverse(o => { if (o.isSkinnedMesh && !mesh) mesh = o; });
   if (!head || !neck || !mesh) return false;
-  const photo = await faceTexture();
+  const ST = STYLES[new URLSearchParams(location.search).get('fgstyle')] || STYLES[L.style] || STYLES.v2;
+  if (ST.tex === 'paint' && !look.skin) L.skin = '#e2b49d';     // 平涂脸在卡通光下会偏橙，肤色提亮一点
+  RK = ST.relief; WK = ST.wide;
+  let photo;
+  if (ST.tex === 'photo') photo = await faceTexture();
+  else if (ST.mat !== 'poly') { photo = new THREE.CanvasTexture(paintCanvas(L)); photo.colorSpace = THREE.SRGBColorSpace; photo.anisotropy = 4; }
   av.group.updateMatrixWorld(true);
   const U = mesh.material.userData.look || {};
   dressClothes(mesh.material, L);
+  if (ST.mat === 'poly') mesh.material.flatShading = true;   // B：身体也平面着色
 
   // 原来的头盔：沾一点头骨权重的顶点都塌到「脖口」中心（和它们相连的躯干顶点的中心），权重全给脖子骨 → 脖口封成一个平盖，
   //   藏在围脖里。塌到头中心的话，肩膀到头中心会拉出一个锥（v2 第一版就是这样）。面罩 + 亮缝藏掉
@@ -211,73 +266,98 @@ export async function dressFengge(av, look = {}) {
     }
   GA.position.needsUpdate = GA.skinIndex.needsUpdate = GA.skinWeight.needsUpdate = true; mesh.geometry.computeBoundingSphere();
   for (const x of head.children) if (x.name === 'exo') x.visible = false;
+  for (const n of ['Skeleton_arm_joint_L__2_', 'Skeleton_arm_joint_R__3_']) for (const x of av.bones[n]?.children || []) if (x.name === 'exo') x.visible = false;   // 手腕上的深色小球（外骨骼没有手套）藏掉，露出手
 
   // 头组：像素单位 → 米（S），照片坐标（x 右、z 前）转到化身（+X 前、−Z 右）= 绕 Y 转 +90°；下巴底在头骨关节下方 1 cm（CesiumMan 脖子长，按原位置放像长颈鹿）
-  const S = L.headH / (Y1 - Y0), N = av.group.worldToLocal(head.getWorldPosition(new THREE.Vector3()));
+  const S = (look.headH || ST.headH) / (Y1 - Y0), N = av.group.worldToLocal(head.getWorldPosition(new THREE.Vector3()));
   const H = new THREE.Group(); H.name = 'fengge';
   H.scale.setScalar(S); H.rotation.y = Math.PI / 2; H.position.set(N.x - ZC * S, N.y - 0.01 - Y0 * S, N.z);
-  const add = (geo, mat, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.frustumCulled = false; H.add(m); return m; };
-
-  // ① 头：40 层 × 72 列；每个顶点带 照片权重（正面才贴）、胡茬权重
-  const skin = new THREE.Color(L.skin), beard = new THREE.Color(L.beard), hairC = new THREE.Color(L.hair).multiplyScalar(0.6), col = new THREE.Color(), p = new THREE.Vector3();
-  const { g: hg, X: hx } = grid(72, 40, (u, t) => {
-    const y = Y0 + (Y1 - Y0) * t, phi = (u - 0.5) * 2 * Math.PI; headAt(y, phi, p);
-    const b = ss(-140, -205, y) * ss(-0.35, 0.25, Math.cos(phi)), nape = ss(-0.1, -0.4, Math.cos(phi)) * ss(-60, -120, y);   // 后脑下半 = 头发色（发片底下露出来的地方）
-    return [p.x, p.y, p.z, (p.x + EYE[0] - CROP[0]) / CROP[2], 1 - (EYE[1] - p.y - CROP[1]) / CROP[3], b, ss(0.2, 0.5, Math.cos(phi)), nape];
-  }, true);                                                // 照片权重按「没加起伏的头」的朝向算：鼻子侧面照样贴照片
-  const nrm = hg.attributes.normal, cnt = nrm.count, aPhoto = new Float32Array(cnt), aBeard = new Float32Array(cnt), cols = new Float32Array(cnt * 3);
-  for (let i = 0; i < cnt; i++) {
-    aPhoto[i] = hx[3 * i + 1]; aBeard[i] = hx[3 * i];
-    col.copy(skin).lerp(beard, 0.8 * hx[3 * i]).lerp(hairC, hx[3 * i + 2]); cols.set([col.r, col.g, col.b], i * 3);
-  }
-  hg.setAttribute('aPhoto', new THREE.BufferAttribute(aPhoto, 1)); hg.setAttribute('aBeard', new THREE.BufferAttribute(aBeard, 1));
-  hg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  add(hg, tune(new THREE.MeshStandardMaterial({ map: photo, vertexColors: true, roughness: 0.72, metalness: 0 }), U, 'head', L.rimK * 0.3, L.faceGlow, sh => {
+  // 材质两档共用；几何按分辨率各造一份（LOD：近 = 全精度，远 = 约 1/6 面数）
+  const SMILE = { value: 0 };                                // 登顶时嘴角上扬（0..1），见 ⑤
+  const mk = (o, rough = 1) => ST.mat === 'std' ? new THREE.MeshStandardMaterial({ ...o, roughness: rough, metalness: 0 })
+    : new THREE.MeshLambertMaterial({ ...o, flatShading: ST.mat === 'poly' });
+  const key = k => k + '-' + (ST.tex + ST.mat + (ST.poster ? 'P' : ''));
+  const headMat = tune(mk(photo ? { map: photo, vertexColors: true } : { vertexColors: true }, 0.72), U, key('head'), L.rimK * 0.3, ST.tex === 'paint' ? L.faceGlow * 0.5 : L.faceGlow, photo && (sh => {
+    sh.uniforms.uSmile = SMILE;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aPhoto, aBeard;\nvarying float vPhoto, vBeard;\nvarying vec3 vHP;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPhoto = aPhoto; vBeard = aBeard; vHP = position;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPhoto, vBeard;\nvarying vec3 vHP;')
-      .replace('#include <map_fragment>', `vec4 ph = texture2D(map, vMapUv);
-        diffuseColor.rgb = mix(diffuseColor.rgb, ph.rgb, ph.a * vPhoto);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uSmile;\nvarying float vPhoto, vBeard;\nvarying vec3 vHP;')
+      .replace('#include <map_fragment>', `vec2 suv = vMapUv;                     // 嘴角（照片里 (±64, −190) px）附近往下取样 = 嘴角往上挪约 7 px
+        vec2 dl = (suv - vec2(0.34, 0.269)) / vec2(0.06, 0.045), dr = (suv - vec2(0.66, 0.269)) / vec2(0.06, 0.045);
+        suv.y -= uSmile * 0.013 * (exp(-dot(dl, dl)) + exp(-dot(dr, dr)));
+        vec4 ph = texture2D(map, suv);${ST.poster ? `
+        ph.rgb = mix(ph.rgb, vec3(dot(ph.rgb, vec3(0.3, 0.59, 0.11))), 0.3);   // C：照片去饱和 30%、压成色阶
+        ph.rgb = mix(ph.rgb, floor(ph.rgb * 6.0 + 0.5) / 6.0, 0.4);` : ''}
+        diffuseColor.rgb = mix(diffuseColor.rgb, ph.rgb, ph.a * vPhoto);${ST.tex === 'photo' ? `
         float gn = fract(sin(dot(floor(vHP * 0.5), vec3(12.9898, 78.233, 37.719))) * 43758.5453);   // 胡茬颗粒（约 1 mm）
-        diffuseColor.rgb *= 1.0 - vBeard * (1.0 - ph.a * vPhoto) * 0.45 * gn;`);
-  }), 'fenggeHead');
-
-  // ② 针织帽：帽檐线 = 前额 +120（照片里的帽檐）、两侧压到耳朵上方 −35、后脑 −20；翻边 64 px + 帽身，顶上略鼓、往后塌一点
+        diffuseColor.rgb *= 1.0 - vBeard * (1.0 - ph.a * vPhoto) * 0.45 * gn;` : ''}`);
+  }));
+  const knit = knitTexture();
+  const poly = ST.mat === 'poly';
+  const beanieMat = tune(mk(poly ? { color: L.beanie } : { color: L.beanie, map: knit, bumpMap: knit, bumpScale: 2.2 }), U, key('beanie'), L.rimK, 0.12);
+  const hairMat = tune(mk(poly ? { color: L.hair, side: THREE.DoubleSide } : { color: L.hair, map: hairTexture(), alphaTest: 0.5, side: THREE.DoubleSide }, 0.6), U, key('hair'), L.rimK * 0.3, 0.06);
+  const skin = new THREE.Color(L.skin), beard = new THREE.Color(L.beard), hairC = new THREE.Color(L.hair).multiplyScalar(0.6), col = new THREE.Color(), p = new THREE.Vector3();
   const edge = phi => { const c = Math.cos(phi); return -35 + 155 * Math.pow(Math.max(0, c), 1.6) + 15 * Math.max(0, -c); };
-  const knit = knitTexture();                               // 翻边和帽身合成一个网格（针脚密度写进 uv）：少一次绘制
-  const cuffP = [[-6, 1.0], [-3, 1.1], [8, 1.135], [56, 1.13], [64, 1.1], [66, 1.075]];   // 翻边截面：[帽檐线上方多少 px, 往外放多少]
-  const { g: cg } = grid(72, cuffP.length - 1, (u, t) => {
-    const phi = (u - 0.5) * 2 * Math.PI, [dy, k] = cuffP[Math.round(t * (cuffP.length - 1))];
-    headAt(Math.min(Y1 - 30, edge(phi) + dy), phi, p, k, false);
-    return [p.x, p.y, p.z, u * 15, dy / 64];
-  }, true);
-  const { g: bg } = grid(72, 16, (u, t) => {
-    const phi = (u - 0.5) * 2 * Math.PI, y0 = edge(phi) + 60, y = y0 + (Y1 - y0) * t, back = Math.max(0, -Math.cos(phi));
-    headAt(Math.min(y, Y1), phi, p, 1.075 + 0.03 * Math.sin(Math.PI * t), false);
-    p.y += 26 * t * t; p.z -= 22 * t * t * back;
-    return [p.x, p.y, p.z, u * 13, t * 1.8];
-  }, true);
-  add(mergeGeometries([cg, bg]), tune(new THREE.MeshStandardMaterial({ color: L.beanie, map: knit, bumpMap: knit, bumpScale: 2.2, roughness: 1, metalness: 0 }), U, 'beanie', L.rimK, 0.12), 'fenggeBeanie');
-
-  // ③ 头发：帽子底下两侧 + 后脑，从脸侧（φ = ±62°）绕到后面；越往下越往外蓬（照片里两边头发撑出脸外约 70 px），发尾长短不齐
-  const hairMat = tune(new THREE.MeshStandardMaterial({ color: L.hair, map: hairTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6, metalness: 0 }), U, 'hair', L.rimK * 0.3, 0.06);
   const P0 = 62 * Math.PI / 180;
-  const hairLayer = (len, k0, flare, du) => grid(48, 10, (u, t) => {  // 两层：里层长、外层短一点更蓬，发尾错开才有厚度
-    const phi = P0 + (2 * Math.PI - 2 * P0) * u, side = Math.abs(Math.sin(phi)), front = ss(P0 + 0.5, P0, Math.min(phi, 2 * Math.PI - phi));
-    const y = 45 - (300 - 12 * side) * len * t, k = k0 + (0.34 * side + 0.16) * flare * t * t * (1 - 0.5 * front);
-    headAt(Math.max(y, Y0 + 60), phi, p, k, false); if (y < Y0 + 60) p.y = y;
-    return [p.x, p.y, p.z, u * 7 + du, t];
-  }).g;
-  add(mergeGeometries([hairLayer(1, 1.035, 1, 0), hairLayer(0.82, 1.06, 1.25, 0.37)]), hairMat, 'fenggeHair');
+  const build = ([hc, hr, bc, br, xc, xr]) => {              // [头 列/层, 帽 列/层, 头发 列/层]
+    const G = new THREE.Group();
+    const add = (geo, mat, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.frustumCulled = false; G.add(m); };
+    // ① 头：每个顶点带 照片权重（正面才贴）、胡茬权重、后脑发色
+    const { g: hg, X: hx } = grid(hc, hr, (u, t) => {
+      const y = Y0 + (Y1 - Y0) * t, phi = (u - 0.5) * 2 * Math.PI; headAt(y, phi, p);
+      const b = ss(-140, -205, y) * ss(-0.35, 0.25, Math.cos(phi)), nape = ss(-0.1, -0.4, Math.cos(phi)) * ss(-60, -120, y);   // 后脑下半 = 头发色（发片底下露出来的地方）
+      return [p.x, p.y, p.z, (p.x + EYE[0] - CROP[0]) / CROP[2], 1 - (EYE[1] - p.y - CROP[1]) / CROP[3], b, ss(0.2, 0.5, Math.cos(phi)), nape];
+    }, true);                                                // 照片权重按「没加起伏的头」的朝向算：鼻子侧面照样贴照片
+    const cnt = hg.attributes.position.count, aPhoto = new Float32Array(cnt), aBeard = new Float32Array(cnt), cols = new Float32Array(cnt * 3);
+    for (let i = 0; i < cnt; i++) {
+      aPhoto[i] = hx[3 * i + 1]; aBeard[i] = hx[3 * i];
+      col.copy(skin).lerp(beard, 0.8 * hx[3 * i]).lerp(hairC, hx[3 * i + 2]); cols.set([col.r, col.g, col.b], i * 3);
+    }
+    hg.setAttribute('aPhoto', new THREE.BufferAttribute(aPhoto, 1)); hg.setAttribute('aBeard', new THREE.BufferAttribute(aBeard, 1));
+    hg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    add(poly ? polyFace(hg, p) : hg, headMat, 'fenggeHead');
+    // ② 针织帽：帽檐线 = 前额 +120（照片里的帽檐）、两侧压到耳朵上方 −35、后脑 −20；翻边 64 px + 帽身，顶上略鼓、往后塌一点。
+    //   翻边和帽身合成一个网格（针脚密度写进 uv）：少一次绘制
+    const cuffP = [[-6, 1.0], [-3, 1.1], [8, 1.135], [56, 1.13], [64, 1.1], [66, 1.075]];   // 翻边截面：[帽檐线上方多少 px, 往外放多少]
+    const { g: cg } = grid(bc, cuffP.length - 1, (u, t) => {
+      const phi = (u - 0.5) * 2 * Math.PI, [dy, k] = cuffP[Math.round(t * (cuffP.length - 1))];
+      headAt(Math.min(Y1 - 30, edge(phi) + dy), phi, p, k, false);
+      return [p.x, p.y, p.z, u * 15, dy / 64];
+    }, true);
+    const { g: bg } = grid(bc, br, (u, t) => {
+      const phi = (u - 0.5) * 2 * Math.PI, y0 = edge(phi) + 60, y = y0 + (Y1 - y0) * t, back = Math.max(0, -Math.cos(phi));
+      headAt(Math.min(y, Y1), phi, p, 1.075 + 0.03 * Math.sin(Math.PI * t), false);
+      p.y += 26 * t * t; p.z -= 22 * t * t * back;
+      return [p.x, p.y, p.z, u * 13, t * 1.8];
+    }, true);
+    add(mergeGeometries([cg, bg]), beanieMat, 'fenggeBeanie');
+    // ③ 头发：帽子底下两侧 + 后脑，从脸侧（φ = ±62°）绕到后面；越往下越往外蓬（照片里两边头发撑出脸外约 70 px），发尾长短不齐
+    const hairLayer = (len, k0, flare, du) => grid(xc, xr, (u, t) => {  // 两层：里层长、外层短一点更蓬，发尾错开才有厚度
+      const phi = P0 + (2 * Math.PI - 2 * P0) * u, side = Math.abs(Math.sin(phi)), front = ss(P0 + 0.5, P0, Math.min(phi, 2 * Math.PI - phi));
+      const y = 45 - (300 - 12 * side) * len * t, k = k0 + (0.34 * side + 0.16) * flare * t * t * (1 - 0.5 * front);
+      headAt(Math.max(y, Y0 + 60), phi, p, k, false); if (y < Y0 + 60) p.y = y;
+      if (poly && Math.round(u * xc) % 2 && t === 1) p.y += 40 * len;   // B：发梢锯齿（一绺长一绺短）
+      return [p.x, p.y, p.z, u * 7 + du, t];
+    }).g;
+    add(mergeGeometries([hairLayer(1, 1.035, 1, 0), hairLayer(0.82, 1.06, 1.25, 0.37)]), hairMat, 'fenggeHair');
+    return G;
+  };
+  // LOD：跟拍镜头（约 5 m）/ 登顶环绕用远档，正面镜头（约 2.4 m）用近档。?fglod=0 / 1 = 固定用近 / 远档（截图对比用）
+  const lod = new THREE.LOD(); lod.name = 'fenggeLOD';
+  if (poly) { lod.addLevel(build([36, 22, 16, 5, 14, 3]), 0); lod.addLevel(build([22, 13, 12, 4, 10, 2]), L.lodDist, 0.1); }   // B 本来就是少面数
+  else { lod.addLevel(build([72, 40, 72, 16, 48, 10]), 0); lod.addLevel(build([28, 16, 28, 6, 16, 4]), L.lodDist, 0.1); }
+  const force = new URLSearchParams(location.search).get('fglod');
+  if (force === '0' || force === '1') { lod.autoUpdate = false; lod.levels.forEach((l, i) => { l.object.visible = i === +force; }); }
+  H.add(lod);
 
   av.group.add(H); head.attach(H);                         // 世界变换不变地挂到头骨上
 
   // ④ 围脖（照片里的黑色抓绒围脖）：脖子一圈，下面埋进衣领，上沿到胡子下面；挂在脖子骨上，转头不带着它转
   const nk = av.group.worldToLocal(neck.getWorldPosition(new THREE.Vector3()));
-  const gaiter = tune(new THREE.MeshStandardMaterial({ color: L.gaiter, map: knit, roughness: 1, metalness: 0 }), U, 'gaiter', L.rimK, 0.1);
+  const gaiter = tune(mk(poly ? { color: L.gaiter } : { color: L.gaiter, map: knit }), U, key('gaiter'), L.rimK, 0.1);
   // [高度（相对脖子骨）, 半径, 前后中心]：底下堆在肩上、盖住 CesiumMan 的脖口（直径约 17 cm、中心偏后 4 cm），往上收到脖子粗细，上沿翻一圈
   const gP = [[-0.1, 0.108, -0.036], [-0.065, 0.1, -0.03], [-0.035, 0.08, -0.012], [0, 0.066, 0.004], [0.025, 0.064, 0.01], [0.044, 0.069, 0.012], [0.054, 0.065, 0.012], [0.06, 0.05, 0.01]];
-  const { g: gg } = grid(40, gP.length - 1, (u, t) => {
+  const { g: gg } = grid(poly ? 12 : 40, gP.length - 1, (u, t) => {
     const j = Math.round(t * (gP.length - 1)), [h, r0, cx] = gP[j], a = u * 2 * Math.PI, fr = Math.cos(a);
     const r = r0 * (1 + (j > 0 && j < gP.length - 1 ? 0.035 * Math.sin(7 * a + j * 1.9) : 0));   // 堆起来的褶
     return [nk.x + cx + fr * r, nk.y + h - (h > 0.04 ? 0.02 * Math.max(0, fr) : 0), nk.z + Math.sin(a) * r, u * 14, t * 3];
@@ -289,5 +369,76 @@ export async function dressFengge(av, look = {}) {
   const lamp = head.worldToLocal(H.localToWorld(headAt(edge(0) + 34, 0, new THREE.Vector3(), 1.16, false)));
   av.group.userData.fengge = { lamp };
   av.fengge = true;
+  summitGesture(av, head, SMILE, L, mesh.material.userData.fist);
   return true;
+}
+
+// B：低多边形脸——每个三角形取三个顶点色的平均（肤色 / 胡茬 / 后脑发色），整块平涂；五官不画，做成贴在脸上的几何片：
+//   把色块多边形挤出 depth 像素，再按脸面的起伏逐点贴上去（x, y 不变，z = 脸面 + 挤出量），平面着色下像雕出来的
+function polyFace(g0, p) {
+  const g = g0.toNonIndexed(), C = g.attributes.color, c = new THREE.Color();
+  for (let i = 0; i < g.attributes.position.count; i += 3) {
+    c.setRGB(0, 0, 0);
+    for (let k = 0; k < 3; k++) { c.r += C.getX(i + k) / 3; c.g += C.getY(i + k) / 3; c.b += C.getZ(i + k) / 3; }
+    for (let k = 0; k < 3; k++) C.setXYZ(i + k, c.r, c.g, c.b);
+  }
+  for (const n of ['uv', 'aPhoto', 'aBeard', 'normal']) g.deleteAttribute(n);
+  const parts = [g], piece = (pts, color, depth) => {
+    const e = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))), { depth, bevelEnabled: false }).toNonIndexed();
+    const P = e.attributes.position, col = new THREE.Color(color);
+    for (let i = 0; i < P.count; i++) {
+      const x = P.getX(i), y = P.getY(i);
+      headAt(y, Math.asin(Math.max(-0.97, Math.min(0.97, x / (prof(y)[0] * WK)))), p);
+      P.setXYZ(i, p.x, y, p.z - 3 + P.getZ(i));
+    }
+    e.deleteAttribute('uv'); e.deleteAttribute('normal');
+    e.setAttribute('color', new THREE.Float32BufferAttribute(new Array(P.count).fill(0).flatMap(() => [col.r, col.g, col.b]), 3));
+    parts.push(e);
+  };
+  for (const s of [-1, 1]) for (const [n, c, pts] of FEATURES(s)) piece(pts, n === 'eye' ? '#1d1512' : c, n === 'eye' ? 5 : 8);
+  for (const [n, c, pts] of BEARD) piece(pts, c, n.startsWith('lip') ? 5 : 11);
+  const m = mergeGeometries(parts); m.computeVertexNormals();
+  return m;
+}
+
+// ⑤ 登顶「这是个好事儿啊」：包一层 A2 的 animate（先原样跑，再按登顶程度 k 叠加），只管三样：
+//   头 = 先点两下头（1.6 s），再在 A2 的抬头上多仰 6°、往一侧歪 8°（得意）；右臂 = 竖大拇指举在头侧（上臂侧平举、小臂斜向上，拇指朝天）：
+//   登顶镜头多从背后开始拍（泰山是定机位），举在胸前从背后看不见；
+//   脸 = 照片嘴角往上挪（SMILE）。左臂和其余关节都是 A2 的（V 字挥手照旧）。k = A2 的登顶程度 av.body.P.cheer（和他的举臂、抬头
+//   同一时刻起落；A2 9/23 同意由 P 维护这层）。A2 每帧从 rest 重算这几根骨，所以这里改完不会逐帧累积；右臂按 k 在 A2 的姿态和目标之间 slerp。
+//   方向在化身自己的坐标里算（+X 前、+Y 上、+Z 右），每帧按骨骼当前朝向换算，躯干怎么前倾后仰都对。
+function summitGesture(av, head, SMILE, L, FIST) {
+  const B = av.bones, arm = B['Skeleton_arm_joint_R'], elb = B['Skeleton_arm_joint_R__2_'], wri = B['Skeleton_arm_joint_R__3_'], outer = av.group;
+  if (!av.animate || !arm || !elb || !wri) return;
+  const V = () => new THREE.Vector3(), a = V(), b = V(), c = V(), w = V(), qP = new THREE.Quaternion(), qR = new THREE.Quaternion(), q0 = new THREE.Quaternion(), eu = new THREE.Euler();
+  const d2r = Math.PI / 180, UPA = V().set(0.3, 0.25, 0.92).normalize(), FORE = V(), X = V().set(1, 0, 0);
+  const loc = (bone, out) => outer.worldToLocal(bone.getWorldPosition(out));
+  const parentQ = bone => { qP.identity(); for (let p = bone.parent; p && p !== outer; p = p.parent) qP.premultiply(p.quaternion); return qP; };
+  const inBody = (bone, q) => { parentQ(bone); bone.quaternion.premultiply(qR.copy(qP).invert().multiply(q).multiply(qP)); };   // q = 化身坐标里的转动
+  const aim = (bone, child, want, k) => {                  // 骨头（bone → child）转到 want 方向，按 k 和 A2 的姿态混合
+    q0.copy(bone.quaternion);
+    inBody(bone, qR.setFromUnitVectors(loc(child, b).sub(loc(bone, a)).normalize(), want).clone());
+    bone.quaternion.slerpQuaternions(q0, bone.quaternion.clone(), k); bone.updateMatrixWorld(true);
+  };
+  const skinM = new THREE.MeshLambertMaterial({ color: L.glove, emissive: L.glove, emissiveIntensity: 0.3 });
+  const fist = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8).scale(0.058, 0.048, 0.046), skinM);   // 拳头：长轴顺着小臂
+  const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.04, 4, 8), skinM);                 // 拇指：朝天
+  for (const m of [fist, thumb]) { m.name = 'fenggeThumb'; m.visible = false; m.frustumCulled = false; outer.add(m); }
+  const orig = av.animate;
+  let k = 0, tS = 0;
+  av.animate = function (dt, t, d) {
+    orig.call(this, dt, t, d);
+    k = this.body ? this.body.P.cheer : k + ((d.summit ? 1 : 0) - k) * (1 - Math.exp(-Math.min(dt, 0.1) / 0.35));
+    tS = d.summit ? tS + dt : 0;
+    SMILE.value = k; thumb.visible = fist.visible = k > 0.3; if (FIST) FIST.value = +(k > 0.3);
+    if (k < 0.002) return;
+    const nod = tS < 1.6 ? 16 * Math.sin(Math.PI * tS / 0.8) ** 2 : 0, smug = ss(1.2, 2.0, tS);
+    inBody(head, qR.setFromEuler(eu.set(8 * smug * k * d2r, 0, (6 * smug - nod) * k * d2r, 'YZX')).clone());
+    outer.updateMatrixWorld(true);
+    aim(arm, elb, UPA, k);
+    aim(elb, wri, FORE.set(0.75, 0.45 + 0.12 * Math.sin(tS * 7), 0.35).normalize(), k);   // 小臂往前上方伸，一下一下往上顶
+    loc(wri, w); c.copy(w).addScaledVector(FORE, 0.05);    // 拳头中心：手腕往前 5 cm
+    fist.position.copy(c); fist.quaternion.setFromUnitVectors(X, FORE);
+    thumb.position.copy(c).add(a.set(0, 0.06, 0)); thumb.quaternion.identity();
+  };
 }

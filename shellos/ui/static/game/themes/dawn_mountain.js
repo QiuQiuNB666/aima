@@ -18,7 +18,7 @@ const C = {
 const ZT = 3, NT = 34.5, SUN_AZ = 25 * Math.PI / 180;     // 中天门、南天门所在步；太阳在终点朝向右偏 25°
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
-let sky = null, rig = null, RT = null, GATE = null, AT = {};
+let sky = null, rig = null, RT = null, GATE = null, AT = {}, HAWK = null;
 
 // 石板路：每步一道缝（v 每 0.5 一块），错缝，两侧一条深色路缘石。灰度图，乘材质色
 function slabTexture(util, kit) {
@@ -60,7 +60,9 @@ export function pathMaterials({ THREE, util, kit }) {
   };
 }
 
+let SFX = null;                                      // 落阶反馈（kit.stepFx）
 export function build(scene, ctx) {
+  SFX = ctx.kit.stepFx(ctx, { dust: '#d9ccb6', flash: '#fff0c8' });   // 花岗岩石阶：浅灰尘
   const { route, kit, util, lights, meshes: M } = ctx, N = route.N, c = kit.routeCenter(route);
   const aN = route.at(N), rightN = aN.left.clone().negate();
   const sunXZ = aN.dir.clone().multiplyScalar(Math.cos(SUN_AZ)).addScaledVector(rightN, Math.sin(SUN_AZ)).normalize();
@@ -176,6 +178,12 @@ export function build(scene, ctx) {
     if (cv.slabPart) slabs.push(cv.slabPart); texts.push(cv.txt);
   };
   put('青云梯', 19.5, 3.8, 1.2, { w: 0.9, h: 1.75, charH: 1.5, slab: '#b6ab98' });
+  put('天门长啸', 27.6, 1.9, 2.6, { w: 1.0, h: 3.4, charH: 3.1, slab: '#a89f8e' }, 0.4);   // 紧十八两侧崖上的摩崖石刻（李白「天门一长啸，万里清风来」）：窄槽里仰拍，满屏的红字
+  put('万里清风', 29.4, -1.9, 2.6, { w: 1.0, h: 3.4, charH: 3.1, slab: '#a89f8e' }, -0.4);   // 右崖：k 取负 = 字面朝路（左）
+  { // 「岱宗」（杜甫《望岳》「岱宗夫如何」）：慢十八左崖上 2 字各 2.4 高的红字，字面朝山上 —— 正面镜头回看来路时在峰哥身后右侧
+    const a = route.at(9.5, 3.9), f = a.dir.clone().multiplyScalar(0.8).addScaledVector(a.left, -0.6).normalize(), at = a.pos.clone().setY(route.heightAt(9.5) + 3.4);
+    const cv = carving(ctx, '岱宗', at, f, { w: 2.2, h: 5.2, d: 1.2, charH: 4.8, slab: '#a39a88' }); slabs.push(cv.slabPart); texts.push(cv.txt);
+  }
   put('慢十八', 8.7, 3.7, 0.9, { w: 0.8, h: 1.55, charH: 1.3, slab: '#b6ab98' });          // 十八盘三段名刻在左侧石上：一眼知道走到哪段了
   put('不紧不慢又十八', 14.3, 3.6, 1.2, { w: 0.75, h: 2.6, charH: 2.4, slab: '#b6ab98' });
   { const y = Math.min(route.heightAt(DS[0]) - 0.05, hAt(dsA.x, dsA.z) + 0.35), ds = duiSongTing(ctx, DS[0], DS[1], y, gateMat, Math.max(0.6, y - hAt(dsA.x, dsA.z) + 0.5));   // 亭子坐在路下方的小平台上
@@ -222,6 +230,7 @@ export function build(scene, ctx) {
     { s: 41.5, lat: -7.2, sc: 0.95, y: hy(41.5) - 1.4, ry: -0.2 },
   ], kit.LOW ? 45 : 95);
   for (const m of F.meshes) scene.add(m);
+  HAWK = kit.flock(ctx, { count: kit.LOW ? 4 : 6, center: route.at(36, -7).pos.setY(route.heightAt(34)), radius: 6, spread: 3, height: 8, size: 1.7, color: '#2e2a26', speed: 0.18, flap: 1.1, name: 'hawks' });   // 山谷云海上空盘旋的鹰
 
   // ---------- 栏杆外 1–4 单位：灌丛 / 草簇 / 碎石 ----------
   {
@@ -336,5 +345,7 @@ export function rigFor(s, r, summit) {
 }
 
 export function update(dt, st) {
+  if (SFX) SFX.update(dt, st);
+  if (HAWK) HAWK.update(dt);
   if (sky) sky.update(st.t, st.progress, st.summit);
 }

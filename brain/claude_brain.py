@@ -77,9 +77,13 @@ def ask(prompt: str, schema: dict, effort: str, max_tokens: int, role: str = "co
 
 def ask_minimax(prompt: str, schema: dict, max_tokens: int, role: str) -> dict:
     """强制工具调用拿结构化结果。M2.x 的思考关不掉，M3 默认不思考。schema 不严格执行，ShellOS 那边照样校验裁剪。"""
+    # 教练 / 峰哥要快：MiniMax 偶尔整条请求卡住（131 个 token 等了 18 s），5 s 没回就让 SDK 自己重发一次，最坏 ~10 s < ShellOS 的 12 s
+    # 造山正常 4–13 s，偶尔卡到 30 s+：20 s 没回重发一次，最坏 ~40 s < ShellOS 的 90 s
+    c = client.with_options(timeout=20.0 if role == "world" else 5.0, max_retries=1)
     for _ in range(2):                         # M3 偶尔无视 tool_choice 直接回文字（30 次里 1~2 次）：文字是 JSON 就用，不是再问一次
-        r = client.messages.create(
+        r = c.messages.create(
             model=MM_MODELS[role],
+            extra_body={"temperature": 0.1 if role == "coach" else 1.0},   # 教练要稳；SDK 1.x 已没有 temperature 形参
             max_tokens=max_tokens,
             tools=[{"name": "answer", "description": "提交结果", "input_schema": schema}],
             tool_choice={"type": "tool", "name": "answer"},
@@ -103,23 +107,43 @@ def ask_minimax(prompt: str, schema: dict, max_tokens: int, role: str) -> dict:
     return out
 
 
+# 地形控制律各参数管哪段路（和 shellos/control/terrain.py 的 pulse() 对齐）
+TERRAIN = (
+    "terrain 控制律各参数管什么：\n"
+    "- strength：所有路段共用的力度（Nm）。上坡在后面推，下坡拖住，上台阶是阻力（越大越沉越费劲），下台阶是助力。\n"
+    "- impact：只管下台阶脚落地那一下「往下一沉」（strength 的倍数）。\n"
+    "- t_push 上坡推的时机；t_step 上台阶阻力的时机；t_brake 下坡 / 下台阶的时机。\n"
+    "- width：每一下的长短，越大越长越柔。\n"
+    "没提路段 = 对所有路段说的：力度调 strength，时机把 t_push / t_step / t_brake 三个一起挪同样的量。"
+    "提了上坡 / 上楼 / 下楼 / 落地，就只调那一段对应的参数。"
+    "下楼时嫌「冲 / 砸 / 震 / 顿」是落地那一下 → 调 impact，不是时机；上楼嫌费劲、腿沉是阻力太大 → strength 减，不是时机。\n"
+)
+# 例句故意不用 scripts/eval_coach.py 里的测评句，免得对着考题调
+RULES = (
+    "怎么翻：\n"
+    "1. 时机先分抱怨还是要求。抱怨现状：「太早了」→ 往晚（t 加），「太晚了」「慢半拍」→ 往早（t 减）；"
+    "提要求：「早一点」→ t 减，「晚一点」→ t 加。\n"
+    "2. 力度：「没感觉 / 不明显 / 不够劲 / 再来 / 更强」→ 加；「太猛 / 太冲 / 太累 / 太陡 / 太重 / 轻一点」→ 减"
+    "（这是登山游戏，「太陡」「太累」说的是腿上的力太大）。\n"
+    "3. 长短：「太短 / 一闪就过去」→ width 加；「太长 / 拖泥带水」→ width 减。\n"
+    "4. 只改说到的那一件事，一句话说了两件事才改两件。幅度：力度 ±0.5，时机 ±5，width ±3，impact ±0.3，增益 ±0.03，延迟 ±0.03 s。\n"
+    "5. 很短的一句（两三个字）也要照常翻；只有明显跟腿上的力无关（聊天、夸舒服）才返回空 changes。\n"
+    "例：「推得跟没推一样」→ strength +0.5；「节奏慢半拍」→ t_push、t_step、t_brake 各 −5；"
+    "「下坡那段拽得太早」→ t_brake +5；「下台阶一落地像踩空」→ impact +0.3。\n"
+)
+
+
 def coach(b: dict) -> dict:
     params = b["params"]
     ptab = "\n".join(f"- {k}: 当前 {v[0]:g}，范围 {v[1]:g}~{v[2]:g}" for k, v in params.items())
     prompt = (
-        f"你是一台髋关节外骨骼的调参教练。穿戴者边走边说了一句：「{b['quote']}」\n"
+        "你是一台髋关节外骨骼的调参教练，把穿戴者边走边说的一句话翻成参数差值（不是绝对值）。\n"
         f"当前控制律 {b['controller']}，参数：\n{ptab}\n"
-        f"穿戴者画像：{json.dumps(b.get('profile', {}), ensure_ascii=False)}\n\n"
-        "参数含义：strength / peak_* 是力矩峰值 Nm；t_* 是脉冲在步态周期里的位置（%，脚跟着地=0，越大越晚）；"
+        f"穿戴者画像：{json.dumps(b.get('profile', {}), ensure_ascii=False)}\n"
+        "通用含义：strength / peak_* 是力矩峰值 Nm；t_* 是脉冲在步态周期里的位置（%，脚跟着地=0，加 = 更晚）；"
         "width 是脉冲宽度 %；gain / delay_s 是 DOFC 增益和延迟；bias_* / tl / tr 是左右偏置。\n"
-        "符号：t_* 加 = 更晚，减 = 更早；strength 加 = 更有力。\n"
-        "注意区分抱怨和要求：「太早了」「早了」是现在来得早 → 往晚调（加）；「太晚了」「晚了」是现在来得晚 → 往早调（减）；"
-        "「早一点」「晚一点」是要求 → 照字面调。\n"
-        "这是登山游戏，「太陡了」「太累了」「太猛」说的是腿上的推力太大，要减力；「没感觉」「不明显」「再来」要加力。\n"
-        "terrain 控制律的 t_push / t_step / t_brake 是同一个时机的三个脉冲（上坡 / 台阶 / 下坡），说时机就三个一起挪同样的量。\n"
-        "把这句话翻成参数差值（不是绝对值）。只改一件事（力度，或时机那一组），一句话里说了两件事才改两件；"
-        "幅度：峰值 ±0.5 Nm、时机 ±5%、增益 ±0.03、延迟 ±0.03 s。"
-        "听不懂或跟调参无关就返回空 changes。why 用一句中文，说给评委听。"
+        + (TERRAIN if b["controller"] == "terrain" else "") + RULES +
+        f"why 一句中文，不超过 25 个字，说给评委听。\n\n穿戴者说：「{b['quote']}」"
     )
     schema = {
         "type": "object",
@@ -159,13 +183,19 @@ def fengge(b: dict) -> dict:
     return ask(FENGGE + "\n\n" + ev, schema, effort="low", max_tokens=2000, role="fengge")
 
 
+# 风格 → 画面长什么样（给模型选风格用；ShellOS 没有的风格不会出现在 b["styles"] 里）
+STYLE_HINT = {"cyber_night": "霓虹雨夜的城市、天桥、楼梯", "dawn_mountain": "晨光里的石阶名山，泰山华山这类，没有更贴的就选它",
+              "night_to_dawn": "夜爬星空到日出，富士山这类", "subtropical": "亚热带绿山、雾、城市天际线",
+              "grid": "训练场网格，抽象", "snow_summit": "雪山冰川、高海拔，珠峰这类", "cliff_path": "悬崖栈道、绝壁，华山长空栈道这类"}
+
+
 def world(b: dict) -> dict:
     prompt = (
         f"评委说：「{b['text']}」\n"
         "请据此设计一条登山/行走路线，给穿外骨骼、原地踏步的人玩。每走一步前进一格，路段决定腿上的力：\n"
         "flat 平地无力；up 上坡（后面有人推）；down 下坡（腿被拖住）；stairs_up 上台阶（蹬+抬腿）；"
         "stairs_down 下台阶；wait 红灯（要站定 2 秒才放行）。\n"
-        f"画面风格只能从这些里选一个最贴切的：{json.dumps(b['styles'], ensure_ascii=False)}\n"
+        "画面风格只能从这些里选一个最贴切的：" + "；".join(f"{k}（{STYLE_HINT.get(k, '')}）" for k in b["styles"]) + "\n"
         "name 是这条路线 / 这座山自己的名字（≤10 字，如「泰山十八盘」「乐高冰淇淋山」），不要用游戏名；"
         "alt_start / alt_end 是起点和终点的海拔（米），真实的山按真实海拔，虚构的给个合理的数。\n"
         "约束：总步数 30~70；4~9 段；起点是 flat；台阶段合计不超过总步数一半；wait 最多 2 段、每段 1 步；"

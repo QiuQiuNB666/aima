@@ -67,9 +67,13 @@ function floorAt(s, lateral, lift, text) {
   return { p: a.pos.clone().setY(y).addScaledVector(_n, lift), q, kind: inside ? st.kind : 'flat', a };
 }
 
+let SFX = null;                                      // 落阶反馈（kit.stepFx）
+let CHEV = null, WAVE = null;                        // 第 2 批：地上往前跑的引导箭头、进新路段时地面一圈扩散光环
 export function build(scene, ctx) {
+  SFX = ctx.kit.stepFx(ctx, { dust: '#5fd3ff', flash: '#5fd3ff', add: true, dustA: 0.9 });   // 训练场：青色数据粒子
   const { world, kit, util, lights, meshes: M } = ctx;
   route = ctx.route; arches = [];
+  CHEV = makeChevrons(scene, ctx); WAVE = makeWave(scene);
   const { N, steps, segs } = route, c = kit.routeCenter(route);
   const kindAt = s => (s >= 0 && s < N) ? steps[Math.floor(s)].kind : 'flat';
   const yAt = s => { const k = kindAt(s); return stairs(k) ? steps[Math.floor(s)].top : route.heightAt(s); };   // 路面（踏面）高度
@@ -293,6 +297,9 @@ export function build(scene, ctx) {
     signs.push({ text: String(i + 1), p: f.p, q: f.q, h: 0.22, color: TXT[f.kind], bg: 'rgba(10,14,20,0.82)', weight: 800, pad: 0.22 });
   }
   { const f = floorAt(-1.6, 0, 0.016, true); signs.push({ text: '起点', p: f.p, q: f.q, h: 0.42, color: '#e8eef5', weight: 900, pad: 0.15 }); }
+  for (const sg of segs) if (sg.kind !== 'flat' && sg.start >= 2) {          // 路段前 1.3 步地上喷一行大字（路段色）：跟拍镜头里先看到地上的字，再看到拱门
+    const f = floorAt(sg.start - 1.3, 0, 0.016, true); signs.push({ text: NAME[sg.kind], p: f.p, q: f.q, h: 0.5, color: KC[sg.kind], weight: 900, pad: 0.12 });
+  }
   const text = util.textSigns(signs, { size: 72 });
   text.renderOrder = 1; text.name = 'floorText'; scene.add(text);
 
@@ -348,6 +355,40 @@ export function build(scene, ctx) {
 
 // 化身 + 影子在屏幕上的框（NDC）：远处的细杆 / 细线投影正好落在人身上时（像被扎穿）先藏起来
 const box2 = [0, 0, 0, 0];
+// 引导箭头：5 个 V 形地标从化身脚前往下一段路的起点一直往前跑（路段色，加色），到了那段就换色；终点前是白色
+function makeChevrons(scene, ctx) {
+  const sh = new THREE.Shape(); sh.moveTo(-0.16, -0.45); sh.lineTo(0.14, 0); sh.lineTo(-0.16, 0.45); sh.lineTo(-0.02, 0.45); sh.lineTo(0.28, 0); sh.lineTo(-0.02, -0.45); sh.closePath();
+  const g = new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2);   // 本地 +x = 箭头朝前
+  const n = 5, m = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), n);
+  m.name = 'chevrons'; m.frustumCulled = false; m.renderOrder = 2; scene.add(m);
+  for (let i = 0; i < n; i++) m.setColorAt(i, new THREE.Color(0, 0, 0));
+  const segs = ctx.route.segs, N = ctx.route.N, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), c = new THREE.Color(), Y = new THREE.Vector3(0, 1, 0), at = {};
+  let t = 0;
+  return st => {
+    t += st.dt || 0;
+    const nx = segs.find(g => g.kind !== 'flat' && g.start > st.s + 0.3), goal = nx ? nx.start : N, col = nx ? KC[nx.kind] : '#eef3f8';
+    for (let i = 0; i < n; i++) {
+      const u = ((t * 0.55 + i / n) % 1), s = st.s + 0.9 + u * 4.5;
+      const k = st.summit || s > goal - 0.2 ? 0 : Math.sin(Math.PI * u) * 0.9;
+      route.at(s, 0, at); p.copy(at.pos); p.y = route.heightAt(s) + 0.025; q.setFromAxisAngle(Y, -at.heading);
+      m.setMatrixAt(i, m4.compose(p, q, sc)); m.setColorAt(i, c.set(col).multiplyScalar(k));
+    }
+    m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
+  };
+}
+// 进新路段：化身脚下一圈路段色光环扩到半径 4（0.9 s），3 米外也知道「换路况了」
+function makeWave(scene) {
+  const mat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 64).rotateX(-Math.PI / 2), mat); ring.visible = false; ring.name = 'segWave'; ring.renderOrder = 2; scene.add(ring);
+  let last = null, T = 0;
+  return st => {
+    const i = Math.max(0, Math.min(route.N - 1, Math.floor(st.s))), seg = route.steps[i].seg;
+    if (last !== null && seg !== last && !st.summit && Math.abs(st.s - i) < 2) { T = 0.9; ring.position.copy(st.avatar); ring.position.y += 0.03; mat.color.set(KC[route.steps[i].kind] || '#eef3f8'); ring.visible = true; }
+    last = seg;
+    if (T > 0) { T = Math.max(0, T - (st.dt || 0)); const u = 1 - T / 0.9; ring.scale.setScalar(0.4 + 3.6 * Math.sqrt(u)); mat.opacity = 0.9 * (1 - u); ring.visible = T > 0; }
+  };
+}
+
 function bodyBox(st, cam) {
   box2[0] = box2[2] = Infinity; box2[1] = box2[3] = -Infinity;
   for (const p of [st.avatar, st.ghost]) if (p) for (const h of [0, 1.85]) {
@@ -364,6 +405,9 @@ function hits(a, b, cam) {                                     // 线段 a-b（�
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 export function update(dt, st) {
+  if (SFX) SFX.update(dt, st);
+  if (CHEV) CHEV(st);
+  if (WAVE) WAVE(st);
   if (!route) return;
   const N = route.N, cam = st.camera;
   cam.updateMatrixWorld();

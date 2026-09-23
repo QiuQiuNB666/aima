@@ -8,13 +8,16 @@
 // 调试：window.__npc = { gap, state, say(line) }。
 import * as THREE from 'three';
 import { makeJifeng, 角色名 } from './npc_jifeng.js';
+import { WHO } from './style.js';
 
 const Q = new URLSearchParams(location.search);
 export const NPC = {
   START: 2.5, CAUGHT: 0.7, LOST: 4.5, END_GAP: 3,   // 步。跟拍镜头在身后 4.6（台阶 3.7）单位 = 7~9 步，再远她就贴到镜头上了
   CAD0: 100, CAD_K: 40,                        // 步频 100 = 不远不近；80 → 每秒近 0.5 步（约 4 s 追上），130 → 每秒远 0.75 步（约 3 s 甩开）；模拟 1/2/3 键 = 80/105/130
   IDLE_CLOSE: 0.4,                             // 站着不走（非红灯）每秒贴近多少步
-  LAT: 0.85,                                   // 横向（左 = 正）：化身 +0.35，影子在右边 −0.5 附近；她走左侧路沿，不和影子叠（路宽 2.2）
+  LAT: -0.9,                                   // 横向（左 = 正）：化身 +0.35、影子 −0.5、跟拍镜头在左后方 1.4——她走右路沿（离镜头远的那侧），
+                                               //   不进「镜头 → 峰哥」的视锥（美术范式 §6 构图铁律；以前走左侧 0.85 正好挡住峰哥一半以上）
+  ARC_IN: 0.6,                                 // 追上那一下往峰哥肩膀那边切多少（−0.9 → −0.3，贴一下再回路沿）
   ARC_S: 1.0,                                   // 追上时绕小弧用几秒
   SAY_GAP: 2.5,                                // 两句之间至少几秒（= 气泡停留时间，不叠）
 };
@@ -32,10 +35,11 @@ const LINES = {
   endShaken: ['啧，算你走运。'],
 };
 
+const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner', 'fg', 'force', 'aicard', 'uready', 'uidle', 'uqr', 'ghostTag'];   // hud.js 的 AVOID + 待机 / 二维码 / 影子标签
 const CSS = `
 #npcTag{transform:translate(-50%,-100%);display:none;text-align:center;white-space:nowrap}
-#npcTag .nm{display:inline-block;font-size:.85rem;font-weight:800;letter-spacing:.15em;padding:.05rem .55rem;border-radius:.4rem;background:#2f7fe0;color:#fff;border:1px solid #9ff3ff}
-#npcTag .bub{display:block;margin:0 auto .35rem;padding:.4rem .8rem;font-size:1.25rem;font-weight:800;color:#dffaff;border-color:#9ff3ff;
+#npcTag .nm{display:inline-block;font-size:.85rem;font-weight:800;letter-spacing:.15em;padding:.05rem .55rem;border-radius:.4rem;background:${WHO.jett.tag};color:#fff;border:1px solid ${WHO.jett.rim}}
+#npcTag .bub{display:block;margin:0 auto .35rem;padding:.4rem .8rem;font-size:1.25rem;font-weight:800;color:#fff;border-color:${WHO.jett.tag};
   opacity:0;transform:translateY(.4rem);transition:opacity .25s,transform .25s}
 #npcTag.talk .bub{opacity:1;transform:none}
 #npcTag.edge .nm::after{content:" ↓ " attr(data-rel)}`;
@@ -88,7 +92,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     if (ending && !summit && !preview) { ending = null; gap = NPC.START; sPrev = null; dashSaid = false; npc.resetTrail(); state = 'chase'; }
 
     let s;
-    if (ending === 'caught') {                                           // 冲上山顶，站到玩家左后侧
+    if (ending === 'caught') {                                           // 冲上山顶，站到峰哥右后侧
       const goal = route.N + 0.6;
       endS = preview ? goal : Math.min(goal, Math.max(endS, me.s - gap) + dtR * 4);
       s = endS; dash = endS < goal - 0.05 ? 1 : 0;
@@ -108,12 +112,12 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       s = me.s - gap;
     } else s = me.s - gap;
 
-    // 追上那一下：绕一个小弧——先往前、往玩家那边切 0.3，再回到自己的位置站定
+    // 追上那一下：绕一个小弧——先往前、往峰哥肩膀那边切，再回到右路沿站定
     arcT += dtR; const arc = arcT < NPC.ARC_S ? Math.sin(Math.PI * arcT / NPC.ARC_S) : 0;
     if (!ending) s += 0.35 * arc;
-    route.at(s, ending === 'caught' ? 0.95 : NPC.LAT - 0.3 * arc, A);
+    route.at(s, NPC.LAT + NPC.ARC_IN * arc, A);
     npc.group.position.copy(A.pos);
-    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading - 0.5 * arc, 1 - Math.exp(-dt * 6));
+    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading + 0.5 * arc, 1 - Math.exp(-dt * 6));
     // 步态：按她自己的速度摆腿；冲刺前倾；被甩掉的结局弯腰喘气
     const v = sPrev === null ? 0 : (s - sPrev) / Math.max(dt, 1e-3); sPrev = s;
     spd += (Math.max(0, Math.min(6, v)) - spd) * (1 - Math.exp(-dt * 5));
@@ -140,13 +144,25 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
 
     // 头顶名字牌 + 气泡（投影到屏幕；出画 / 被甩开时钉在下缘，写落后几步）
     if (t > sayUntil) tag.classList.remove('talk');
-    npc.headWorld(head); head.y += 0.45; head.project(camera);
+    npc.headWorld(head); head.y += 0.28; head.project(camera);          // 标签贴着她自己的头顶（以前 +0.45，离镜头近时飘到很高）
     const on = !hidden && head.z < 1 && Math.abs(head.x) < 1 && Math.abs(head.y) < 1;
-    const x = on ? (head.x + 1) / 2 * innerWidth : innerWidth * 0.36;      // 出画：钉在左下（影子的标签钉在正中下方），底部提示条上面
+    const x = on ? (head.x + 1) / 2 * innerWidth : innerWidth * 0.66;      // 出画：钉在右下（她走右路沿；影子的标签钉在正中下方），底部提示条上面
     const y = on ? (1 - head.y) / 2 * innerHeight : innerHeight - 120;
-    tag.style.left = `${Math.max(80, Math.min(innerWidth - 80, x))}px`; tag.style.top = `${Math.max(120, Math.min(innerHeight - 70, y))}px`;
     tag.classList.toggle('edge', !on); nm.dataset.rel = `落后 ${Math.round(gap)} 步`;
     tag.style.display = T || preview ? 'block' : 'none';
+    // 和 HUD 面板（「按住 R2 开始」#uready、待机、红灯、路段、登顶卡、影子标签…）重叠就挪到面板下面，放不下就挪到上面——同 hud.js 的影子标签
+    const w = tag.offsetWidth, h = tag.offsetHeight, m = 8;
+    let X = Math.max(w / 2 + m, Math.min(innerWidth - w / 2 - m, x)), Y = Math.max(h + m, Math.min(innerHeight - 70, y));
+    for (let pass = 0; pass < 3; pass++) {
+      let moved = false;
+      for (const id of AVOID) {
+        const e = document.getElementById(id); if (!e || (id === 'summit' && !e.classList.contains('show'))) continue;
+        const r = e.getBoundingClientRect(); if (!r.width) continue;   // display:none
+        if (X + w / 2 > r.left - m && X - w / 2 < r.right + m && Y > r.top - m && Y - h < r.bottom + m) { Y = r.bottom + m + h > innerHeight - m ? r.top - m : r.bottom + m + h; moved = true; }
+      }
+      if (!moved) break;
+    }
+    tag.style.left = `${X}px`; tag.style.top = `${Y}px`;
   }
   frame();
   return npc;

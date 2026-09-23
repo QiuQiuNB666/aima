@@ -24,7 +24,8 @@ def styles() -> dict:
 
 def by_rule(text: str) -> dict:
     t = text or ""
-    style = ("snow_summit" if re.search(r"珠峰|珠穆朗玛|喜马拉雅|雪山|8848|冰川|高原|登顶世界", t) and "snow_summit" in styles() else
+    style = ("cliff_path" if re.search(r"华山|栈道|悬崖|绝壁|峭壁|长空|天险", t) and "cliff_path" in styles() else   # E 线主题没到就往下落，默认 dawn_mountain
+             "snow_summit" if re.search(r"珠峰|珠穆朗玛|喜马拉雅|雪山|8848|冰川|高原|登顶世界", t) and "snow_summit" in styles() else
              "cyber_night" if re.search(r"夜|霓虹|东京|城|街|赛博", t) else
              "night_to_dawn" if re.search(r"日出|星|富士|夜爬|雪", t) else
              "subtropical" if re.search(r"深圳|梧桐|榕|热带|海|南方", t) else
@@ -132,4 +133,5 @@ if __name__ == "__main__":                        # 自检：离线模板 + 恶�
         raise AssertionError("应该抛错")
     except ValueError:
         pass
+    assert by_rule("华山长空栈道")["style"] == ("cliff_path" if "cliff_path" in styles() else "dawn_mountain")
     print("ok", tot, notes)
