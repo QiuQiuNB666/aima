@@ -81,21 +81,21 @@ export function buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW }) 
   const pad = (() => {
     const s0 = bc.start + bc.steps + 11;
     let a = null;
-    for (const [ds, dl] of [[0, 0], [1, -0.8], [-1, -0.8], [2, -1.6], [-2, -1.6], [0, -2.6], [3, -2.6]]) { a = route.at(s0 + ds, -6.2 + dl); if (util.offRoad(route, a.pos.x, a.pos.z, 3.0)) break; }
+    for (const [ds, dl] of [[0, 0], [1, -0.8], [-1, -0.8], [2, -1.6], [-2, -1.6], [0, -2.6], [3, -2.6]]) { a = route.at(s0 + ds, -8.2 + dl); if (util.offRoad(route, a.pos.x, a.pos.z, 4.2)) break; }   // 旋翼半径 3.3：桨尖离路沿 ≥ 1
     const c = a.pos, ry = -a.heading;
     let gmax = -1e9, gmin = 1e9;
-    for (let k = 0; k < 9; k++) { const ang = k / 8 * 6.283, r = k ? 2.4 : 0, h = hAt(c.x + Math.cos(ang) * r, c.z + Math.sin(ang) * r); gmax = Math.max(gmax, h); gmin = Math.min(gmin, h); }
+    for (let k = 0; k < 9; k++) { const ang = k / 8 * 6.283, r = k ? 3.4 : 0, h = hAt(c.x + Math.cos(ang) * r, c.z + Math.sin(ang) * r); gmax = Math.max(gmax, h); gmin = Math.min(gmin, h); }
     const top = gmax + 0.14, h = top - gmin + 0.3;
-    P.push({ geo: new THREE.CylinderGeometry(2.45, 2.7, h, 20), p: [c.x, top - h / 2, c.z], color: '#8a8782' });
-    P.push({ geo: new THREE.RingGeometry(1.75, 1.96, 32).rotateX(-Math.PI / 2), p: [c.x, top + 0.012, c.z], color: '#f2f2ee' });
+    P.push({ geo: new THREE.CylinderGeometry(3.5, 3.8, h, 24), p: [c.x, top - h / 2, c.z], color: '#8a8782' });
+    P.push({ geo: new THREE.RingGeometry(2.5, 2.78, 40).rotateX(-Math.PI / 2), p: [c.x, top + 0.012, c.z], color: '#f2f2ee' });
     const hq = (x, z, w, d) => P.push({ geo: new THREE.BoxGeometry(w, 0.02, d), p: new THREE.Vector3(x, 0, z).applyAxisAngle(Y, ry).add(c).setY(top + 0.015), ry, color: '#f2f2ee' });
-    hq(0, -0.42, 1.25, 0.24); hq(0, 0.42, 1.25, 0.24); hq(0, 0, 0.24, 0.62);
-    for (let k = 0; k < 14; k++) { const ang = k / 14 * 6.283; P.push({ geo: new THREE.BoxGeometry(0.28, 0.14, 0.2), p: [c.x + Math.cos(ang) * 2.3, top + 0.07, c.z + Math.sin(ang) * 2.3], ry: -ang, color: k % 2 ? '#e8781c' : '#f2f2ee' }); }
-    const wp = new THREE.Vector3(2.9, 0, -1.2).applyAxisAngle(Y, ry).add(c), wy = hAt(wp.x, wp.z);
+    hq(0, -0.6, 1.8, 0.34); hq(0, 0.6, 1.8, 0.34); hq(0, 0, 0.34, 0.9);
+    for (let k = 0; k < 20; k++) { const ang = k / 20 * 6.283; P.push({ geo: new THREE.BoxGeometry(0.3, 0.15, 0.22), p: [c.x + Math.cos(ang) * 3.3, top + 0.075, c.z + Math.sin(ang) * 3.3], ry: -ang, color: k % 2 ? '#e8781c' : '#f2f2ee' }); }
+    const wp = new THREE.Vector3(4.2, 0, -1.8).applyAxisAngle(Y, ry).add(c), wy = hAt(wp.x, wp.z);
     P.push({ geo: new THREE.CylinderGeometry(0.035, 0.045, 2.4, 6), p: [wp.x, wy + 1.2, wp.z], color: '#9a9a9a' });
     const wd = windDir.clone().setY(-0.15).normalize();
     P.push({ geo: new THREE.CylinderGeometry(0.17, 0.06, 0.85, 8, 1, true).translate(0, -0.42, 0), p: [wp.x, wy + 2.35, wp.z], q: new THREE.Quaternion().setFromUnitVectors(Y.clone().negate(), wd), color: '#f06a1a' });
-    block(c, 3.4);
+    block(c, 4.6);
     return new THREE.Vector3(c.x, top, c.z);
   })();
 
