@@ -31,17 +31,21 @@ export function makeForce(accent) {
   const cvs = [...el.querySelectorAll('canvas')], vals = [...el.querySelectorAll('.lv')];
   const hist = [[], []];                       // [{t, v, c}]，t = 收到的时刻（performance.now / 1000）
   const glow = [{ lv: 0, c: new THREE.Color() }, { lv: 0, c: new THREE.Color() }];
-  let cap = 3, shells = null, flat = false;
+  let cap = 3, shells = null, flat = false, size = null;   // size：画布尺寸 + 刻度字号，只在窗口变了时量（每帧 getComputedStyle 太贵）
+  addEventListener('resize', () => { size = null; flat = false; });
   const col = k => SEG[k] || accent;
 
   function draw(now) {
+    if (!size || (!size.w && now - size.t > 0.5)) {           // 面板藏着（待机）时 w = 0：半秒再量一次
+      const r = devicePixelRatio || 1;
+      size = { t: now, w: cvs[0].clientWidth, h: cvs[0].clientHeight, r, fs: Math.max(11, Math.round(parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.85)) };
+      for (const cv of cvs) { cv.width = Math.round(size.w * r); cv.height = Math.round(size.h * r); }
+    }
+    const { w, h, r, fs } = size;
+    if (!w) return;
     for (let k = 0; k < 2; k++) {
-      const cv = cvs[k], w = cv.clientWidth, h = cv.clientHeight, r = devicePixelRatio || 1;
-      if (!w) continue;
-      if (cv.width !== Math.round(w * r)) { cv.width = Math.round(w * r); cv.height = Math.round(h * r); }
-      const g = cv.getContext('2d'); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, w, h);
+      const g = cvs[k].getContext('2d'); g.setTransform(r, 0, 0, r, 0, 0); g.clearRect(0, 0, w, h);
       const y0 = h / 2, sy = (h / 2 - 4) / cap, X = t => w - (now - t) / WIN * w, Y = v => y0 - Math.max(-cap, Math.min(cap, v)) * sy;
-      const fs = Math.max(11, Math.round(parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.85));
       g.font = `700 ${fs}px -apple-system,"PingFang SC",sans-serif`; g.textBaseline = 'middle';
       for (let n = -Math.floor(cap); n <= cap; n++) {           // 刻度：每 1 Nm 一条，0 线最亮
         g.fillStyle = n ? 'rgba(255,255,255,.1)' : 'rgba(255,255,255,.35)'; g.fillRect(0, Math.round(Y(n)), w, 1);

@@ -177,7 +177,7 @@ export function makeAi(world) {
       }
       if (!forge) showCard(fresh);
     },
-    busy: () => !!forge || card.classList.contains('show'),
+    show: rows => { if (!forge) showCard(rows); },
     debug: { forgeOn, showCard },   // 截图 / 调布局：window.__hudAi.forgeOn('一句话', Date.now())
 
   };

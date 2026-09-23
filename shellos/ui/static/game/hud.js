@@ -2,11 +2,11 @@
 import { KIND_NAME, RISE } from './path.js';
 import { makeForce } from './hud_force.js';   // U 线：力矩波形 + 大腿闪光
 import { makeAi } from './hud_ai.js';         // U 线：AI 决策卡 + 造山过场
+import { makeFlow } from './hud_flow.js';     // U 线：待机 / 准备 / 游戏中 / 登顶 状态流 + 二维码
 
 export const KC = { flat: '#8a95a3', up: '#3ddc84', down: '#4fc3f7', stairs_up: '#ffd54f', stairs_down: '#ff8a65', wait: '#ff2e88' };
 const $ = id => document.getElementById(id);
-const fmt = s => s == null ? '—' : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
-const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner', 'fg', 'force', 'aicard'];   // 影子标签要让开的 HUD 面板
+const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner', 'fg', 'force', 'aicard', 'uready'];   // 影子标签要让开的 HUD 面板
 // 右上角安全灯：灰 = 没按 R2（没力），绿 = 按住 R2（出力中），红 = 急停 / 看门狗断开
 const WHY = { 'low confidence': '没认准步子，力归零', 'stream stale': '数据断流，力归零', 'deadman released': '扳机松开' };
 export function lampOf(sf) {
@@ -16,27 +16,18 @@ export function lampOf(sf) {
   return ['grey', st === 'PREVIEW' ? '离线预览' : 'R2 松开', st === 'PREVIEW' ? '' : '没力'];
 }
 
-export function makeHud(world) {
+export function makeHud(world, preview = false) {
   $('wname').textContent = world.name; $('wsub').textContent = world.subtitle || '';
   const acc = (world.theme && world.theme.accent) || [];
   if (acc[1]) document.documentElement.style.setProperty('--acc', acc[1]);
-  let lastCard = null, lastApplied = '';
+  let lastApplied = null;
   // 海拔：落差 < 20 m 的世界（训练场 0–5 m）按每步起点高度显示一位小数（和场景里的刻度游标对得上）；大山照旧用 /state 的整数
   const [a0, a1] = world.alt || [0, 0], hs = [];
   if (a1 !== a0 && Math.abs(a1 - a0) < 20) { let h = 0; for (const sg of world.route || []) for (let k = 0; k < sg.steps; k++) { hs.push(h); h += RISE[sg.kind] || 0; } }
   const hmax = Math.max(...hs, 0) || 1;
   const altText = T => hs.length ? (a0 + (a1 - a0) * hs[Math.min(hs.length - 1, T.pos)] / hmax).toFixed(1) : (T.altitude ?? '—');
-  const force = makeForce(acc[1] || '#29e7ff'), ai = makeAi(world);
+  const force = makeForce(acc[1] || '#29e7ff'), ai = makeAi(world), flow = makeFlow(world, preview);
   window.__hudAi = ai.debug;
-  const cards = $('cards');
-  function card(kind, quote, detail) {
-    const d = document.createElement('div'); d.className = 'card panel';
-    d.innerHTML = `<div class="k"></div><div class="q"></div><div class="d"></div>`;
-    d.querySelector('.k').textContent = kind; d.querySelector('.q').textContent = quote; d.querySelector('.d').textContent = detail;
-    cards.prepend(d); requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add('in')));
-    setTimeout(() => d.classList.add('out'), 7000); setTimeout(() => d.remove(), 7800);
-    while (cards.children.length > 3) cards.lastChild.remove();
-  }
   return {
     update(S, flashL, flashR, summit) {
       const T = S.terrain;
@@ -55,7 +46,6 @@ export function makeHud(world) {
         $('alt').innerHTML = `${altText(T)}<small>${world.unit || 'm'}</small>`;
         $('step').textContent = `第 ${Math.min(T.pos + 1, T.total)} / ${T.total} 步`;
         $('prog').firstElementChild.style.width = `${(T.pos / Math.max(1, T.total)) * 100}%`;
-        $('time').textContent = fmt(T.elapsed); $('best').textContent = fmt(T.best); $('laps').textContent = `${T.laps} 次`;
         const w = $('wait');
         if (T.segment === 'wait' && !T.force) {        // 红灯永远优先（登顶卡期间也要显示）
           w.style.display = 'block';
@@ -69,32 +59,30 @@ export function makeHud(world) {
       $('fStr').textContent = P.strength ? `强度 ${(+P.strength[0]).toFixed(1)} Nm` : P.scale ? `摇杆推满 ${(+P.scale[0]).toFixed(1)} Nm` : '';
       const [lc, lt, ls] = lampOf(S.safety), lamp = $('lamp');
       lamp.className = `hud ${lc}`; $('lampT').textContent = lt; $('lampS').textContent = ls;
-      $('wearer').textContent = S.wearer || '—';
       const sim = S.sim && S.sim.on;
       $('hint').style.display = sim ? 'block' : 'none';
       if (sim) $('hintS').innerHTML = S.sim.walk ? `<span class="on">● 走 ${Math.round(S.sim.cadence)} 步/分</span>` : `○ 站 · ${Math.round(S.sim.cadence)} 步/分`;
-      // 经验卡：新卡 / 命中
+      // 自动检索命中经验（走满 6 步后，不经过蜂群时间线）→ 也上 AI 卡；新卡在蜂群那一轮里已经有了
       const m = S.memory;
       if (m && m.cards) {
-        const last = m.cards[m.cards.length - 1];
-        if (lastCard === null) lastCard = last ? last.id : 0;
-        else if (last && last.id !== lastCard) { lastCard = last.id; if (!ai.busy()) card(`新经验卡 #${last.id}`, `「${last.quote}」`, deltaText(last.delta)); }
-        const ap = (m.applied || []).join(',');
-        if (ap !== lastApplied) {
-          const added = (m.applied || []).filter(x => !lastApplied.split(',').includes(String(x)) && x !== lastCard);
-          lastApplied = ap;
-          for (const id of added) { const c = m.cards.find(k => k.id === id); if (c) card(`命中经验 #${id}`, `「${c.quote}」`, `${c.wearer || ''} · ${deltaText(c.delta)}`); }
+        const ap = m.applied || [];
+        if (lastApplied !== null) {
+          const hits = ap.filter(x => !lastApplied.includes(x)).map(id => m.cards.find(k => k.id === id))
+            .filter(c => c && c.wearer !== S.wearer);   // 自己刚说的那张不算「命中」
+          if (hits.length) ai.show(hits.map(c => ({ who: '记忆员', verdict: '生效', msg: `命中 ${c.wearer || '上一位'} 的经验卡 #${c.id}「${c.quote}」→ 自动套用 ${deltaText(c.delta)}` })));
         }
+        lastApplied = ap.slice();
       }
+      flow.update(S);
     },
-    // off = 影子不在画面里（或贴着镜头）：标签钉在画面下缘，带 ↓；右下统计面板里的「影子」一行常驻（没影子 = —），面板宽度不跳
+    // off = 影子不在画面里（或贴着镜头）：标签钉在画面下缘，带 ↓
     ghostTag(x, y, show, who, rel, off) {
       const g = $('ghostTag');
       g.style.display = show ? 'block' : 'none';
-      if (!show) { if (g.dataset.t) { g.dataset.t = ''; $('ghostV').textContent = '—'; } return; }
+      if (!show) { g.dataset.t = ''; return; }
       const key = `${who}|${rel}|${off ? 1 : 0}`;
-      if (g.dataset.t !== key) { g.dataset.t = key; g.innerHTML = `${off ? '↓ ' : ''}上一位：${esc(who)}<small>${esc(rel)}</small>`; $('ghostV').textContent = `${rel || '—'} · ${who}`; }
-      if (off) { x = innerWidth / 2; y = innerHeight * 0.84; } else y = Math.min(y, innerHeight * 0.76);   // 别压到右下统计面板
+      if (g.dataset.t !== key) { g.dataset.t = key; g.innerHTML = `${off ? '↓ ' : ''}上一位：${esc(who)}<small>${esc(rel)}</small>`; }
+      if (off) { x = innerWidth / 2; y = innerHeight * 0.84; } else y = Math.min(y, innerHeight * 0.76);   // 别压到底部的力 / AI 卡
       // 标签（锚点在底边中点）和上方面板（红灯 / 路段 / 海拔 / 登顶卡…）重叠就挪到面板下面；左右不出屏
       const w = g.offsetWidth, h = g.offsetHeight, m = 8;
       x = Math.max(w / 2 + m, Math.min(innerWidth - w / 2 - m, x));
@@ -112,20 +100,11 @@ export function makeHud(world) {
     attach(av) { force.attach(av); },
     cut() { const c = $('cut'); if (!c) return; c.style.transition = 'none'; c.style.opacity = '1'; void c.offsetWidth; c.style.transition = 'opacity .5s'; c.style.opacity = '0'; },
     puppet(on) { document.body.classList.toggle('puppet', !!on); },
-    summit(show, T, prevBest) {
-      const s = $('summit');
-      if (show && T) {
-        $('sName').textContent = world.summit ? world.summit.name : '终点';
-        $('sText').textContent = world.summit ? world.summit.text : '';
-        const best = T.last_lap != null && (prevBest == null || T.last_lap < prevBest - 1e-6);
-        $('sTime').textContent = T.last_lap != null ? `用时 ${fmt(T.last_lap)}${best ? ' · 新纪录' : `（最佳 ${fmt(T.best)}）`} · 第 ${T.laps} 次登顶` : '';
-      }
-      s.classList.toggle('show', !!show); document.body.classList.toggle('summit', !!show);
-    },
+    summit(show, T, prevBest) { flow.summit(show, T, prevBest); document.body.classList.toggle('summit', !!show); },   // 成绩卡归 hud_flow（引擎收起后还留一会儿）
     banner(html) { const b = $('banner'); b.style.display = html ? 'block' : 'none'; if (html) b.innerHTML = html; },
     fps(v, extra) { $('fps').textContent = `${v.toFixed(0)} fps${extra || ''}`; },
     ready() { $('tag').remove(); },
   };
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-function deltaText(d) { return Object.entries(d || {}).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${Number(v).toFixed(2)}`).join('  ') || '—'; }
+function deltaText(d) { return Object.entries(d || {}).map(([k, v]) => `${k === 'strength' ? '强度' : k} ${v >= 0 ? '+' : ''}${Number(v).toFixed(1)}`).join('，'); }
