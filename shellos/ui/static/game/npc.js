@@ -7,11 +7,15 @@
 // 声音：/voice/npc.wav?t=<台词>（ShellOS 只念 voice.py NPC_LINES 白名单，MiniMax 预设音色）；?voice=0 静音，预览不出声。
 // 调试：window.__npc = { gap, state, say(line) }。
 import * as THREE from 'three';
-import { makeJifeng, 角色名 } from './npc_jifeng.js';
+import { makeJifeng, 角色名 } from './npc_jifeng.js';   // 旧版追兵「捷风」：?npc=jifeng
+import { makeAssistant } from './npc_assistant.js';   // 缺省：峰哥的助理（9/23 夜起）
+import { makeAssist } from './assistant/behavior.js';
+import { LINES as A_LINES } from './assistant/lines.js';
 import { WHO } from './style.js';
 import { synthHip } from './anim.js';
 
 const Q = new URLSearchParams(location.search);
+const RUN = +(Q.get('npcrun') || 0);
 export const NPC = {
   START: 2.5, CAUGHT: 0.7, LOST: 4.5, END_GAP: 3,   // 步。跟拍镜头在身后 4.6（台阶 3.7）单位 = 7~9 步，再远她就贴到镜头上了
   CAD0: 100, CAD_K: 40,                        // 步频 100 = 不远不近；80 → 每秒近 0.5 步（约 4 s 追上），130 → 每秒远 0.75 步（约 3 s 甩开）；模拟 1/2/3 键 = 80/105/130
@@ -46,25 +50,28 @@ const CSS = `
 #npcTag.edge .nm::after{content:" ↓ " attr(data-rel)}`;
 
 export async function initNpc({ scene, route, me, camera, getS, preview }) {
-  const npc = await makeJifeng(scene);
+  const LEGACY = Q.get('npc') === 'jifeng';
+  const npc = LEGACY ? await makeJifeng(scene) : await makeAssistant(scene, camera);
+  const assist = LEGACY ? null : makeAssist(route);
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const tag = document.createElement('div'); tag.className = 'hud'; tag.id = 'npcTag';
   tag.innerHTML = '<span class="bub panel"></span><span class="nm"></span>'; document.body.append(tag);
-  const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = 角色名;
+  const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = LEGACY ? 角色名 : npc.name;
 
   let gap = preview && Q.has('npcgap') ? +Q.get('npcgap') : NPC.START;
-  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9, gph = 0;
+  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9, gph = 0, latS = null;
   const mute = preview || Q.get('voice') === '0';
   let audio = null;
-  const quiet = Q.get('npctalk') !== '1';   // 9/23 球球：主角是峰哥，捷风先闭嘴（不出气泡不出声）；?npctalk=1 恢复
-  const say = (key, t) => {
+  const quiet = LEGACY ? Q.get('npctalk') !== '1' : Q.get('npctalk') === '0';   // 9/23 球球：主角是峰哥，捷风先闭嘴（?npctalk=1 恢复）；助理按新需求说话（地标 / 互动 / 台词），?npctalk=0 静音
+  const say = (key, t, text) => {
     if (quiet) return false;
-    const L = LINES[key], line = L ? L[Math.floor(Math.random() * L.length)] : key;
+    const L = LINES[key], line = LEGACY ? text || (L ? L[Math.floor(Math.random() * L.length)] : key) : text || A_LINES[key] || key;
+    const spoken = LEGACY ? line : A_LINES[key] || line;                   // 助理：气泡可以带地名，声音念 lines.js 里固定的那句（预生成、只读缓存）
     if (t - lastSay < NPC.SAY_GAP && !key.startsWith('end')) return false;
     lastSay = t; sayUntil = t + 2.5; bub.textContent = line; tag.classList.add('talk');
     if (mute) return true;
     if (audio) audio.pause();
-    audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(line));   // 204（没 TTS / 不在白名单）= 播放失败，安静跳过
+    audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(spoken));   // 204（没缓存 / 不在白名单）= 播放失败，安静跳过
     audio.play().catch(() => {});                                          // 还没点过页面：浏览器不让出声，只出气泡
     return true;
   };
@@ -86,7 +93,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     let dash = preview && Q.get('npcdash') === '1' ? 1 : 0;
 
     if (T && laps === null) laps = T.laps;
-    if (!preview && T && T.laps > laps && !ending) {                    // 登顶结局
+    if (LEGACY && !preview && T && T.laps > laps && !ending) {                    // 登顶结局
       ending = gap < NPC.END_GAP ? 'caught' : 'shaken'; endS = me.s - gap;
       say(ending === 'caught' ? 'endCaught' : 'endShaken', t);
       if (ending === 'caught') npc.burst();
@@ -94,8 +101,16 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     if (T) laps = T.laps;
     if (ending && !summit && !preview) { ending = null; gap = NPC.START; sPrev = null; dashSaid = false; npc.resetTrail(); state = 'chase'; }
 
-    let s;
-    if (ending === 'caught') {                                           // 冲上山顶，站到峰哥右后侧
+    let s, latA = null, pointW = 0, faceA = 0, actA = null;
+    if (!LEGACY) {                                                       // 助理：跟在峰哥身边 / 前面半步、到地标停下指路、北坳递氧 / 排队挡前 / 登顶击掌（assistant/behavior.js）
+      const b = assist.step(t, dtR, { T, me, preview });
+      latS = latS === null ? b.lat : latS + (b.lat - latS) * (1 - Math.exp(-dt * 4));   // 横向慢慢挪过去，不瞬移
+      s = b.s; latA = latS; pointW = b.point; dash = b.dash; faceA = b.face; actA = b.act;
+      window.__npc.last = b;                                             // 调试 / 实跑截图脚本读
+      if (preview && Q.get('npcact')) { actA = { oxygen: 0, guard: 0, five: 0, [Q.get('npcact')]: 1 }; faceA = Q.get('npcact') === 'guard' ? 0 : 0.9; }   // 预览 &npcact=oxygen|guard|five
+      if (preview && Q.get('npcpoint') === '1') pointW = 1;              // 预览 &npcpoint=1：截指路姿势
+      if (b.say) say(b.say.key, t, b.say.text);
+    } else if (ending === 'caught') {                                           // 冲上山顶，站到峰哥右后侧
       const goal = route.N + 0.6;
       endS = preview ? goal : Math.min(goal, Math.max(endS, me.s - gap) + dtR * 4);
       s = endS; dash = endS < goal - 0.05 ? 1 : 0;
@@ -114,17 +129,18 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       if (dash < 0.2) dashSaid = false;
       s = me.s - gap;
     } else s = me.s - gap;
+    if (preview && RUN) s += (t * RUN) % 8 - 4;                         // 预览 &npcrun=<步/秒>：原地来回跑一段（截步态 / 甩动用）
 
     // 追上那一下：绕一个小弧——先往前、往峰哥肩膀那边切，再回到右路沿站定
     arcT += dtR; const arc = arcT < NPC.ARC_S ? Math.sin(Math.PI * arcT / NPC.ARC_S) : 0;
     if (!ending) s += 0.35 * arc;
-    route.at(s, NPC.LAT + NPC.ARC_IN * arc, A);
+    route.at(s, latA ?? NPC.LAT + NPC.ARC_IN * arc, A);
     npc.group.position.copy(A.pos);
-    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading + 0.5 * arc, 1 - Math.exp(-dt * 6));
+    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading + 0.5 * arc + faceA, 1 - Math.exp(-dt * 6));
     // 步态：按她自己的速度摆腿；冲刺前倾；被甩掉的结局弯腰喘气
     const v = sPrev === null ? 0 : (s - sPrev) / Math.max(dt, 1e-3); sPrev = s;
     spd += (Math.max(0, Math.min(6, v)) - spd) * (1 - Math.exp(-dt * 5));
-    const walkV = ending === 'shaken' ? 0 : preview ? (dash ? 3 : 1.6) : spd;
+    const walkV = ending === 'shaken' ? 0 : preview && !RUN ? (dash ? 3 : 1.6) : spd;
     phase += dt * Math.PI * walkV;
     const amp = Math.min(38, walkV * 14 + dash * 12);
     const wantLean = npc.statue ? (ending === 'shaken' ? 0.3 : 0.03 + dash * 0.32 + (walkV > 0.05 ? 0.1 : 0))
@@ -141,7 +157,10 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       const rate = walkV / 2, a = ending === 'shaken' ? 0 : Math.min(1.4, walkV / 1.8);
       gph = (gph + dt * rate) % 1;
       const [l, wl] = synthHip(gph, a, 8 * a), [r, wr] = synthHip((gph + 0.5) % 1, a, 8 * a);
-      npc.animate(dt, t, { fl: l, fr: r, wl: wl * rate, wr: wr * rate, kind: A.kind, summit: ending === 'caught' });
+      npc.animate(dt, t, { fl: l, fr: r, wl: wl * rate, wr: wr * rate, kind: A.kind, summit: ending === 'caught', speed: walkV * 0.5 });   // speed m/s（VRM 版按它切 idle / walk / run）
+      if (npc.point) npc.point(pointW);                                  // 助理指路：动作之后再抬右臂
+      if (npc.act && actA) npc.act(actA);                                // 助理互动：递氧气 / 挡前 / 击掌
+      if (npc.idle && !npc.far) npc.idle(t, dt, walkV < 0.05 && pointW < 0.01 && !(actA && (actA.oxygen || actA.guard || actA.five)));   // 助理待机小动作
     }
     else if (ending === 'shaken') npc.pose(30 + 4 * Math.sin(t * 5), 30 + 4 * Math.sin(t * 5 + 1));   // 撑膝喘气
     else if (walkV < 0.05) npc.pose(-4, 6);
@@ -157,7 +176,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     const on = !hidden && head.z < 1 && Math.abs(head.x) < 1 && Math.abs(head.y) < 1;
     const x = on ? (head.x + 1) / 2 * innerWidth : innerWidth * 0.66;      // 出画：钉在右下（她走右路沿；影子的标签钉在正中下方），底部提示条上面
     const y = on ? (1 - head.y) / 2 * innerHeight : innerHeight - 120;
-    tag.classList.toggle('edge', !on); nm.dataset.rel = `落后 ${Math.round(gap)} 步`;
+    tag.classList.toggle('edge', !on); nm.dataset.rel = LEGACY ? `落后 ${Math.round(gap)} 步` : '';
     tag.style.display = T || preview ? 'block' : 'none';
     // 和 HUD 面板（「按住 R2 开始」#uready、待机、红灯、路段、登顶卡、影子标签…）重叠就挪到面板下面，放不下就挪到上面——同 hud.js 的影子标签
     const w = tag.offsetWidth, h = tag.offsetHeight, m = 8;

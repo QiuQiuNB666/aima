@@ -250,3 +250,23 @@ def test_npc_intake_split_pick_last_and_normalize(monkeypatch, tmp_path):
     import wave
     with wave.open(voice.real_path(voice.NPC_LINES[8])) as w:
         assert (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (24000, 1, 2)
+
+
+def test_assistant_lines_sync_and_read_only_cache(tts):
+    """助理：lines.js 和 voice.py 的 15 句一致；/voice/npc.wav 对助理台词只读缓存（没缓存就 204，不去合成、不花钱）。"""
+    import re
+    import urllib.parse
+    js = open(os.path.join(os.path.dirname(__file__), "..", "shellos", "ui", "static", "game", "assistant", "lines.js"), encoding="utf-8").read()
+    assert tuple(re.findall(r"^\s*\w+: '([^']+)',", js, re.M)) == voice.ASST_LINES and len(voice.ASST_LINES) == 15
+    dash = Dashboard(SimpleNamespace(fengge=SimpleNamespace(last={})), port=0)
+    base = f"http://127.0.0.1:{dash.httpd.server_address[1]}/voice/npc.wav?t="
+    line = voice.ASST_LINES[8]
+    try:
+        with urlopen(base + urllib.parse.quote(line)) as r:
+            assert r.status == 204                                           # 没缓存：不出声
+        assert tts == []                                                     # 也没去合成
+        voice.save(line, WAV, voice.ASST_VOICE)
+        with urlopen(base + urllib.parse.quote(line)) as r:
+            assert r.status == 200 and r.read() == WAV
+    finally:
+        dash.httpd.shutdown()

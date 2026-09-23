@@ -7,7 +7,7 @@ import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP, R
 import { loadAvatar, flexFromFrame, preloadAvatar } from './avatar.js';
 import { dressFengge } from './fengge.js';   // H 线：峰哥头（只给玩家化身，影子不换）；?fengge=0 关
 import { initFenggeHud } from './fengge_hud.js';   // H 线：峰哥画中画头像 + 解说气泡；?fengge=0 关
-import { initNpc } from './npc.js';   // J 线：追兵 NPC「捷风」（只读 /state）；?npc=0 关
+import { initNpc } from './npc.js';   // J 线：峰哥的助理 NPC（只读 /state；?npc=jifeng 旧版追兵捷风）；?npc=0 关
 import './voice_bus.js';   // G 线：峰哥声道仲裁（导游 > 地标 > 事件，同一时刻只放一段）+ 自动播放解锁；越早装越好
 import { makeStepper, makeGhost } from './ghost.js';
 import { makeCamera, defaultRig } from './camera.js';

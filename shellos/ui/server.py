@@ -97,7 +97,8 @@ class Dashboard:
                         from urllib.parse import parse_qs, urlparse
                         from ..agent import voice
                         t = (parse_qs(urlparse(self.path).query).get("t") or [""])[0]
-                        data = (voice.real(t) or voice.get(t, voice=voice.NPC_VOICE)) if t in voice.NPC_LINES else None
+                        data = (voice.cached(t, voice.ASST_VOICE) if t in voice.ASST_LINES      # 助理（缺省）：只读缓存
+                                else (voice.real(t) or voice.get(t, voice=voice.NPC_VOICE)) if t in voice.NPC_LINES else None)   # 捷风旧版
                         if not data:
                             self.send_response(204); self.end_headers(); return
                         self.send_response(200)
@@ -141,7 +142,7 @@ class Dashboard:
                     self.send_response(404); self.end_headers(); return
                 ctype = {".js": "application/javascript", ".glb": "model/gltf-binary", ".gltf": "model/gltf+json",
                          ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
-                         ".json": "application/json", ".wav": "audio/wav"}.get(os.path.splitext(full)[1].lower(), "application/octet-stream")
+                         ".json": "application/json", ".wav": "audio/wav", ".html": "text/html; charset=utf-8"}.get(os.path.splitext(full)[1].lower(), "application/octet-stream")
                 data = open(full, "rb").read()
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
