@@ -23,7 +23,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
   if (Q.get('guide') === '0') return null;
   const lines = ((await fetch(`/guide/${world.id}.json`).then(r => r.json()).catch(() => null)) || {}).lines || [];
   if (!lines.length) return null;             // 现场造的山（gen_*）没有导游词
-  const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
+  const css = document.createElement('style'); css.textContent = CSS; document.head.append(css);
   const body = document.body, mute = Q.get('voice') === '0';
   const clips = mute ? [] : lines.map((_, i) => Object.assign(new Audio(`/guide/${world.id}/${i}.wav`), { preload: 'auto' }));   // 先下好，句与句之间不卡
   bus.bless(clips);                          // Safari / 严格自动播放策略：第一次按键时把这几段预热一遍，之后不靠手势也能播

@@ -40,7 +40,10 @@ function start(el, k, args = []) {
   watch(el); cur = { el, k }; note('play', k, el);
   const p = inner.apply(el, args);
   if (!p || !p.then) return p;
-  return p.then(() => { if (!unlocked) setUnlocked('play'); }, e => {   // 真放出来了 = 浏览器放行了，不用等静音那段
+  return p.then(() => {
+    if (el.paused) return release(el);           // 设置里「峰哥解说：少」跳过的那几种：没真放，别占着声道
+    if (!unlocked) setUnlocked('play');         // 真放出来了 = 浏览器放行了，不用等静音那段
+  }, e => {
     note('fail:' + e.name, k, el); release(el);
     if (e.name === 'NotAllowedError') { ask(); if (k === 'event') return; }   // 被拦：出「按任意键」；事件那句丢掉，不让 voice.js 再弹一个按钮
     throw e;
