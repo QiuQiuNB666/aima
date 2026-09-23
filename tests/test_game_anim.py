@@ -1,5 +1,6 @@
 """游戏 anim.js 的回归检查（node 跑；没装 node 就跳过）：
-髋角跟踪比旧的「落后 130 ms 线性插值」延迟低；膝按步态相位弯（摆动期屈、支撑期直）；站住放松、登顶举手、上台阶屈膝更多；零点能学出来。"""
+髋角跟踪比旧的「落后 130 ms 线性插值」延迟低；膝按步态相位弯（摆动期屈、支撑期直）；站住放松、登顶举手、上台阶屈膝更多；零点能学出来；
+步频上去切成跑；下台阶落脚膝有缓冲；外骨骼给屈曲方向的力时撑地膝被压弯；站着也能学零点。"""
 from __future__ import annotations
 
 import json
@@ -34,12 +35,13 @@ function run(kind) {
   return { lag: best[1], rms: Math.sqrt(best[0] / ys.length) };
 }
 out.old = run('old'); out.new = run('new');
-// 2) 姿态：直接喂髋角 + 角速度
+// 2) 姿态：直接喂髋角 + 角速度（per = 一个周期秒数，1 s = 120 步/分）
 function walk(kind, secs, f = hip, v = vel, opts = {}) {
-  const b = makeBody(opts); const rec = [];
+  const b = makeBody(opts); const rec = [], per = opts.per || 1, F = t => f(t / per), Vv = t => v(t / per) / per;
   for (let t = 0; t < secs; t += 1 / 60) {
-    const P = b.update(1 / 60, t, { fl: f(t), fr: f(t + 0.5), wl: v(t), wr: v(t + 0.5), kind, summit: opts.summit });
-    if (t > secs - 3) rec.push({ w: v(t), knee: P.kneeL, lean: P.spine[2] + P.chest[2], arm: P.armL[1], act: b.act, bob: P.bob });
+    const tq = opts.tq ? [opts.tq(t / per), opts.tq(t / per + 0.5)] : null;
+    const P = b.update(1 / 60, t, { fl: F(t), fr: F(t + per / 2), wl: Vv(t), wr: Vv(t + per / 2), kind, summit: opts.summit, tq });
+    if (t > secs - 3) rec.push({ w: Vv(t), knee: P.kneeL, lean: P.spine[2] + P.chest[2], arm: P.armL[1], elbow: P.armL[2], act: b.act, bob: P.bob, run: b.run, cad: b.cad });
   }
   return { b, rec };
 }
@@ -58,6 +60,22 @@ out.idle_arm = still.at(-1).arm;
 // 3) 零点：整体偏屈 8° 的真机信号，学完后均值应接近 +5（零点 = 均值 − 5）
 const w2 = walk('flat', 30, t => hip(t) + 8);
 out.off = w2.b.off; out.mean = Array.from({ length: 1000 }, (_, i) => hip(i / 1000) + 8).reduce((a, b) => a + b) / 1000;
+// 5) 跑：0.7 s 一个周期 = 171 步/分；走 1.2 s = 100 步/分
+const runR = walk('flat', 10, hip, vel, { per: 0.7 }).rec, slow = walk('flat', 10, hip, vel, { per: 1.2 }).rec;
+out.run = runR.at(-1).run; out.run_cad = runR.at(-1).cad; out.walk_run = slow.at(-1).run; out.walk_cad = slow.at(-1).cad;
+out.run_elbow = Math.max(...runR.map(x => x.elbow)); out.walk_elbow = Math.max(...slow.map(x => x.elbow));
+out.run_lean = runR.at(-1).lean; out.walk_lean = slow.at(-1).lean;
+out.run_knee = swingKnee(runR); out.walk_knee = swingKnee(slow);
+const rng_ = r => Math.max(...r.map(x => x.bob)) - Math.min(...r.map(x => x.bob));
+out.run_bob = rng_(runR); out.walk_bob = rng_(slow);
+// 6) 落脚：髋角速度由正转负（脚跟着地）后撑地膝的峰值——下台阶 > 平地
+const landKnee = r => Math.max(...r.filter(x => x.w <= 0.5).map(x => x.knee));   // 支撑期（含平台）
+out.land_down = landKnee(walk('stairs_down', 8).rec); out.land_flat = landKnee(walk('flat', 8).rec);
+// 7) 外骨骼屈曲方向的力（支撑期 −2 Nm）→ 撑地膝更弯
+out.yield_knee = landKnee(walk('flat', 8, hip, vel, { tq: g => (((g % 1) + 1) % 1) < 0.5 ? -2 : 0 }).rec);
+// 8) 站着（两髋都 15° 不动）也学零点 → 零点 ≈ 15
+out.stand_off = walk('flat', 15, () => 15, () => 0).b.off;
+out.sit_off = walk('flat', 15, () => 70, () => 0).b.off;   // 坐着不学
 // 4) 影子合成步态：+28° 附近最屈、约 −6° 最伸
 const s = Array.from({ length: 100 }, (_, i) => synthHip(i / 100)[0]);
 out.synth = [Math.max(...s), Math.min(...s)];
@@ -82,3 +100,10 @@ def test_anim(tmp_path):
     assert o["summit_arm"] < -40 < 50 < o["idle_arm"], o       # 登顶举手、站着手垂下
     assert abs(o["off"] - (o["mean"] - 5)) < 1.5, o
     assert 25 < o["synth"][0] < 31 and -10 < o["synth"][1] < -2, o
+    assert o["run"] > 0.8 and 160 < o["run_cad"] < 185, o      # 171 步/分 → 跑
+    assert o["walk_run"] < 0.05 and 90 < o["walk_cad"] < 110, o
+    assert o["run_elbow"] > o["walk_elbow"] + 40 and o["run_lean"] > o["walk_lean"] + 5, o
+    assert o["run_knee"] > o["walk_knee"] + 20 and o["run_bob"] > o["walk_bob"] + 0.02, o   # 抬膝更高、有腾空
+    assert o["land_down"] > o["land_flat"] + 10, o             # 下台阶落脚膝缓冲
+    assert o["yield_knee"] > o["land_flat"] + 8, o
+    assert 13 < o["stand_off"] < 16 and abs(o["sit_off"]) < 1, o
