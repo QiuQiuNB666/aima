@@ -3,36 +3,11 @@
 //   整架一个 mesh = 1 次绘制：主桨 / 尾桨的顶点带 aSpin（1 / 2），在顶点着色器里绕桨毂 / 尾桨轴转（setSpin），阴影也跟着转。约 1k 三角形。
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
+import { loft, colored, tube, at } from './geo.js';
 
 export const S = 0.62;                                              // 米 → 场景单位（化身 1.7 高；真机高 3.1 m → 1.9，比人高一点）
 const RED = '#d8261f', WHITE = '#f1f1ee', DARK = '#2a2c30', GLASS = '#2e4257', SKYGLASS = '#6f8fae', COWL = '#dcdcd6', TIP = '#f0c23a';
 const HUB = new THREE.Vector3(0, 3.12, 0), TAIL = new THREE.Vector3(-7.35, 2.2, 0.27);
-const Yv = new THREE.Vector3(0, 1, 0);
-
-// 放样：st = [[x, 半宽, 半高, 中心 y], …]（机头 → 机尾），超椭圆截面（p 越大越方），colorOf(i, j) 给每一块面的颜色（按格子分色，边界是直的）
-function loft(st, M, p, colorOf, cap = true) {
-  const pos = [], col = [], c = new THREE.Color();
-  const pt = (i, j) => { const [x, hw, hh, cy] = st[i], th = j / M * Math.PI * 2, cs = Math.cos(th), sn = Math.sin(th);
-    return [x, cy + hh * Math.sign(sn) * Math.abs(sn) ** (2 / p), hw * Math.sign(cs) * Math.abs(cs) ** (2 / p)]; };
-  const tri = (a, b, d, color) => { pos.push(...a, ...b, ...d); c.set(color); for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b); };
-  for (let i = 0; i < st.length - 1; i++) for (let j = 0; j < M; j++) {
-    const a = pt(i, j), b = pt(i, j + 1), d = pt(i + 1, j), e = pt(i + 1, j + 1), k = colorOf(i, j);
-    tri(a, b, d, k); tri(b, e, d, k);
-  }
-  if (cap) { const [x, , , cy] = st[0], tip = [x + 0.06, cy, 0]; for (let j = 0; j < M; j++) tri(tip, pt(0, j + 1), pt(0, j), colorOf(0, j)); }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
-  g.computeVertexNormals();
-  return g;
-}
-const colored = (geo, color) => { geo = geo.index ? geo.toNonIndexed() : geo; const n = geo.attributes.position.count, c = new THREE.Color(color), a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
-function tube(a, b, r, color, seg = 6) {
-  const d = new THREE.Vector3().subVectors(b, a), g = new THREE.CylinderGeometry(r, r, d.length(), seg);
-  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Yv, d.clone().normalize())).translate(...a.clone().lerp(b, 0.5).toArray());
-  return colored(g, color);
-}
-const at = (g, x, y, z, color) => colored(g.translate(x, y, z), color);
 
 // 「救援」贴字：白底红字（机身下半是白的，贴上去接得上）；整架的其它顶点 uv 都指到左下角的白像素
 function decalTexture() {
