@@ -1,6 +1,10 @@
 // G 线 · 峰哥导游：进地图后、按住 R2 之前（U 线的「准备」= body.u-ready），峰哥头像放大，逐句出气泡 + 放预生成的峰哥语音，
 //   镜头从峰哥正面慢慢拉远、绕着他转，把景区带进画面。一按 R2 / 开始走 / 离开「准备」→ 立刻打断，镜头交还引擎。
-// 每次进地图（切世界 = 页面重载）讲一遍；待机（u-idle）之后又回到「准备」= 来了新的人，再讲一遍。急停中不讲。
+// 状态机（window.__guide.state()）：off（没词 / 关了）→ armed（等一位新玩家听）→ playing → done（讲完 / 被打断 / 没听就走了）。
+//   变回 armed = 来了新的一位：页面刚载入（进图 / 切世界）、出过标题屏或待机、换了穿戴者、登顶或复位后回到山脚（步数变小）。
+//   armed → playing：「准备」界面稳定 0.6 s、没开菜单、在山脚、没在走 / 没按 R2、语音预加载完、声音已解锁（没解锁就提示按任意键，先不讲）。
+//   armed → done：没听就走出了山脚（步数 ≥ 1）——这一位跳过，别等他半山腰歇脚时突然开讲。在山脚走动 / 按着 R2 只是先不讲。
+//   playing → done：讲完；或走动 / 按 R2 / 急停 / 开菜单 / 离开「准备」→ 立刻停（body 的 class 一变就停，不等下一次轮询）。之后不会自己重讲。
 // 话术固定：GET /guide/<world>.json（shellos/agent/guide.py）；语音：/guide/<world>/<i>.wav（只读缓存，没有就只出气泡）。
 // 用到别人的接口：window.__fenggeHud.say（H 线气泡）、#fg .av（H 线头像，放大用本文件的 CSS）、window.__camHold（引擎：跳过它的镜头）。
 // 开关：?guide=0 关；?voice=0 只出气泡不出声。调试：window.__guide.play() / stop()。
@@ -9,7 +13,7 @@ import { STEP } from './path.js';
 import { bus } from './voice_bus.js';     // 峰哥声道仲裁：导游讲解期间占住声道，事件 / 地标台词不插嘴
 
 const Q = new URLSearchParams(location.search);
-const GAP_MS = 350, CPS = 4.5, PRELOAD_MS = 6000;   // 句间停顿；没声音时按每秒 4.5 字估时长；预加载最多等 6 s（等不到的播的时候再说）
+const GAP_MS = 350, CPS = 4.5, PRELOAD_MS = 6000, READY_MS = 600;   // 句间停顿；没声音时按每秒 4.5 字估时长；预加载最多等 6 s（等不到的播的时候再说）
 // 镜头三段（秒）：0–t1 正面对着峰哥慢慢推近（像导游对着你说话）；t1–t2 从头顶摇臂翻到身后（只走路线上方，不擦两边的楼）；
 //   t2 以后在身后高处，看前方的山路 / 景点，慢慢升高后退。看点压在脸下面：脸在画面上三分之一，不被正中偏下的「按住 R2」挡住。
 const CAM = { t1: 9, t2: 17, front: [3.0, 2.4], fh: 1.5, look: 1.0, back: 3.8, bh: 3.4, peak: 4.8, ahead: 14, side: 0.5, clear: 0.9, drift: [0.06, 0.05] };
@@ -33,7 +37,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
     if (a.readyState >= 4) done('ok');
     setTimeout(() => done('slow'), PRELOAD_MS);
   }))).then(() => { preloaded = true; note('preload', have.join(',')); });
-  let run = 0, armed = true, audio = null, cur = '', t0 = 0, tl = 0, raf = 0, cancel = null;
+  let run = 0, audio = null, cur = '', t0 = 0, tl = 0, raf = 0, cancel = null;
   const log = [], note = (...a) => { log.push([Math.round(performance.now()), ...a]); if (log.length > 60) log.shift(); };   // 调试：window.__guide.log
   const pos = new THREE.Vector3(), look = new THREE.Vector3(), want = new THREE.Vector3(), wantLook = new THREE.Vector3(), rel = new THREE.Vector3();
 
@@ -71,36 +75,51 @@ export async function initGuide({ world, route, camera, me, getS }) {
     camera.position.copy(pos); camera.lookAt(look);
   }
 
+  let st = 'armed', readySince = 0, lastWearer, lastPos = null;
+  const setSt = (v, why) => { if (st !== v) { note('st', v, why); st = v; } };
   async function play() {
-    stop(); armed = false;
+    stop(); setSt('playing', 'start');
     const my = ++run;
     body.classList.add('g-guide'); bus.hold('guide');
     pos.copy(camera.position); camera.getWorldDirection(look).multiplyScalar(5).add(camera.position);
-    t0 = tl = performance.now(); window.__camHold = true; cam();
+    t0 = tl = performance.now(); window.__camHold = 'guide'; cam();
     for (let i = 0; i < lines.length && my === run; i++) {
       await speak(i);
       if (my === run) await new Promise(r => setTimeout(r, GAP_MS));
     }
-    if (my === run) stop();
+    if (my === run) { stop(); setSt('done', 'finished'); }
   }
   function stop() {
     if (!body.classList.contains('g-guide')) return;
-    note('stop'); run++; cancelAnimationFrame(raf); if (cancel) { cancel(); cancel = null; } window.__camHold = false;
+    note('stop'); run++; cancelAnimationFrame(raf); if (cancel) { cancel(); cancel = null; }
+    if (window.__camHold === 'guide') window.__camHold = false;   // 只交还自己拿的镜头：标题屏 / 待机的航拍（hud_menu）已经接手的不动
     if (audio) { audio.pause(); audio.onended = audio.onerror = null; audio = null; }
     window.__fenggeHud?.say('guide', cur, 1);   // 同一句、1 ms 后收起（淡出）
     body.classList.remove('g-guide'); bus.release('guide');
   }
 
-  setInterval(() => {                          // 5 Hz：该不该开讲 / 该不该打断
-    const S = getS() || {}, T = S.terrain || {};
-    const ready = body.classList.contains('u-ready') && (S.safety || {}).state !== 'DISARMED';
-    const go = (S.gait && S.gait.moving) || (S.pad && S.pad.r2 > 0.05) || (S.sim && S.sim.walk);
-    if (body.classList.contains('u-idle')) armed = true;
-    const atStart = T.pos != null && T.pos < 1;   // 只在山脚开讲：半路停下来（u-play 回到 u-ready）不能突然开始导游
-    if (body.classList.contains('g-guide')) { if (!ready || go) stop(); }
-    else if (armed && ready && go) armed = false;  // 没听就走了（按住 R2 关掉标题屏）：这一位跳过，别等他半山腰歇脚时再讲
-    else if (armed && ready && !go && atStart && preloaded) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲（讲了也是哑的），提示按任意键
-  }, 200);
-  window.__guide = { play, stop, lines, log };
+  function tick() {
+    const S = getS() || {}, T = S.terrain || {}, cls = body.classList, now = performance.now();
+    const menu = !!document.querySelector('#umenu.on');            // 标题屏 / 暂停 / 设置开着
+    const ready = cls.contains('u-ready') && !menu && (S.safety || {}).state !== 'DISARMED';
+    if (!ready) readySince = 0; else if (!readySince) readySince = now;
+    const go = (S.gait && S.gait.moving) || (S.pad && S.pad.r2 > 0.05) || (S.sim && S.sim.walk) || (S.safety || {}).state === 'ACTIVE';
+    // 新的一位：标题屏 / 待机、换穿戴者、步数变小（登顶后回山脚、复位）
+    const fresh = cls.contains('u-title') || cls.contains('u-idle') ? 'title' : lastWearer !== undefined && S.wearer !== lastWearer ? 'wearer'
+      : lastPos != null && T.pos != null && T.pos < lastPos ? 'back' : '';
+    lastWearer = S.wearer; if (T.pos != null) lastPos = T.pos;
+    if (st === 'playing') {
+      if (!ready || go) { stop(); setSt(fresh === 'title' ? 'armed' : 'done', !ready ? 'left-ready' : 'go'); }
+      return;
+    }
+    if (fresh && st !== 'armed') setSt('armed', fresh);
+    if (st !== 'armed') return;
+    if (T.pos != null && T.pos >= 1) { if (!cls.contains('u-title') && !cls.contains('u-idle')) setSt('done', 'skipped'); return; }   // 没听就走出山脚了：这一位跳过
+    if (go) return;                              // 在走 / 按着 R2：先不讲（登顶那一步走完回到山脚时人还在迈步，停下来再讲）
+    if (ready && now - readySince > READY_MS && preloaded) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲，提示按任意键
+  }
+  setInterval(tick, 200);                      // 5 Hz 看 /state；body 的 class 一变（进 / 出「准备」、开菜单）马上再看一次，打断不等轮询
+  new MutationObserver(tick).observe(body, { attributes: true, attributeFilter: ['class'] });
+  window.__guide = { play, stop, lines, log, state: () => st };
   return window.__guide;
 }
