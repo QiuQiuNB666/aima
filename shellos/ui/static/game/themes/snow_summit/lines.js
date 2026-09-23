@@ -14,6 +14,7 @@ const KEY = 'everest_north_fx';
 const Q = new URLSearchParams(location.search);
 const MUTE = Q.get('voice') === '0' || Q.has('preview');
 const clips = MUTE ? [] : LINES.map((_, k) => Object.assign(new Audio(`/guide/${KEY}/${k}.wav`), { preload: 'auto' }));   // 先下好：动作出来那一帧就能响
+window.__voiceBus?.bless(clips);   // G 线 voice_bus：第一次按键时预热，严格自动播放策略下之后也能出声（播放本身不用改，voice_bus 按网址排队）
 export function fgSay(key) {
   const i = LINES.findIndex(l => l[0] === key); if (i < 0) return;
   window.__fenggeHud?.say('map', LINES[i][1]);

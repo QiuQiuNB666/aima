@@ -39,3 +39,15 @@ def test_route_reads_cache_only(monkeypatch, tmp_path):
         assert os.listdir(str(tmp_path)) == [os.path.basename(voice.path(line))]
     finally:
         dash.httpd.shutdown()
+
+
+def test_missing_and_check(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(voice, "DIR", str(tmp_path))
+    monkeypatch.setattr(voice, "get", lambda *a, **k: pytest.fail("fill=False 不该去要语音"))
+    n = sum(map(len, guide.GUIDE.values()))
+    assert len(guide.missing()) == n
+    line = guide.lines("tokyo_night")[0]
+    open(voice.path(line), "wb").write(b"RIFF")
+    miss = guide.check()
+    assert len(miss) == n - sum(s == line for ls in guide.GUIDE.values() for s in ls)
+    assert "tokyo_night/1" in capsys.readouterr().out
