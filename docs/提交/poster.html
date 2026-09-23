@@ -40,7 +40,7 @@ h1.alt{font-size:51mm;letter-spacing:1mm}
 .sub2{font-size:12mm;color:var(--dim);margin-top:5mm;line-height:1.35}
 
 /* 主图 */
-.hero{position:relative;margin-top:14mm;height:312mm}
+.hero{position:relative;margin-top:12mm;height:298mm}
 .hero img.shot{width:100%;height:100%;object-fit:cover;object-position:50% 45%;display:block}
 .cap{font-size:7mm;color:var(--dim);padding:3mm 40mm 0}
 .hero .fade{position:absolute;inset:auto 0 0 0;height:22mm;background:linear-gradient(transparent,var(--bg))}
@@ -112,7 +112,7 @@ h1.alt{font-size:51mm;letter-spacing:1mm}
     <h1 class="fg">峰哥亡命天涯</h1>
     <h1 class="alt">原地迈步，腿上爬山</h1>
     <div class="sub"><span class="fg">原地迈步，腿上爬山；</span><b>说一句话，山就变。</b></div>
-    <div class="sub2">消费级髋外骨骼，按步态相位把坡和台阶「放」到你腿上。</div>
+    <div class="sub2">消费级髋外骨骼，按步态相位把坡和台阶「放」到你腿上。<br>7 座山（新加珠峰北坡）· 屋顶跑酷：步频就是跑速</div>
   </div>
 
   <div class="hero">
@@ -123,22 +123,22 @@ h1.alt{font-size:51mm;letter-spacing:1mm}
       <div class="head"><img src="截图/fengge_v2_front.png" alt="峰哥化身 v2 头部"></div>
       <div class="bubble"><div class="q">这是个好事儿啊，<br>腿酸说明你真爬了。</div><div class="who">峰哥解说 · 内置语录（口吻模仿）</div></div>
     </div>
-    <div class="pulse"><img src="截图/脉冲-上台阶.png" alt="上台阶一周期的髋力矩：伸展 + 摆动期屈曲，梯形"><p>上台阶一步里的髋力矩：落脚推一下，抬腿帮一下（梯形脉冲，≤3 Nm）</p></div>
+    <div class="pulse"><img src="截图/脉冲-上台阶-阻力.png" alt="上台阶一周期的髋力矩：支撑期阻力，摆动期为 0，梯形"><p>上台阶一步里的髋力矩：踩下去往回拉，抬腿时一点不压（梯形脉冲，强度 3.0 峰值 3.6 Nm，软限 4）</p></div>
   </div>
   <div class="cap fg">游戏画面：赛博东京·夜行 · 天桥，正面镜头看峰哥化身（v2 模型），身后半透明的是上一位登山者（模拟外骨骼离线预览，9/23）</div>
   <div class="cap alt">游戏画面：赛博东京·夜行 · 天桥台阶，半透明的是上一位登山者（模拟外骨骼离线预览，9/23）</div>
 
   <div class="points">
     <div class="pt" style="--c:var(--cyan)"><h3>穿着就能走</h3><p>不靠平台、不靠地板，一台量产髋外骨骼</p></div>
-    <div class="pt" style="--c:var(--yellow)"><h3>腿上有力</h3><p>上坡推一下、台阶抬一下、红灯拉住你</p></div>
+    <div class="pt" style="--c:var(--yellow)"><h3>腿上有力</h3><p>上坡推一下、上台阶腿发沉、下台阶往下一沉、红灯拉住你</p></div>
     <div class="pt" style="--c:var(--green)"><h3>说一句，它就记住</h3><p>「太陡了」→ 当场变轻、存成经验卡，下一个人自动继承；删卡就回到原样</p></div>
-    <div class="pt" style="--c:var(--pink)"><h3>说一句，造一座山</h3><p>Claude 出路线，安全员（写死的代码）裁剪，马上能爬；登顶时<span class="fg">峰哥</span><span class="alt">解说员</span>来一句</p></div>
+    <div class="pt" style="--c:var(--pink)"><h3>说一句，造一座山</h3><p>大模型出路线，安全员（写死的代码）裁剪，马上能爬；登顶时<span class="fg">峰哥</span><span class="alt">解说员</span>来一句</p></div>
   </div>
 
   <div class="swarm">
     <div class="row">
-      <div class="role ai"><b>教练</b><span>Claude</span></div><div class="arr">→</div>
-      <div class="role ai"><b>地形导演</b><span>Claude</span></div><div class="arr">→</div>
+      <div class="role ai"><b>教练</b><span>大模型</span></div><div class="arr">→</div>
+      <div class="role ai"><b>地形导演</b><span>大模型</span></div><div class="arr">→</div>
       <div class="role code"><b>记忆员</b><span>代码</span></div><div class="arr">→</div>
       <div class="role hard"><b>安全员</b><span>硬代码 · 不交给大模型</span></div>
     </div>
@@ -148,7 +148,7 @@ h1.alt{font-size:51mm;letter-spacing:1mm}
 
   <div class="foot">
     <div class="txt">
-      <b>ShellOS</b> · Hypershell X MaxS（黑客松固件）· 软限 3 Nm · 松手即停<br>
+      <b>ShellOS</b> · Hypershell X MaxS（黑客松固件）· 软限 4 Nm · 松手即停<br>
       EvoTavern 深圳站 · 具身与穿戴硬件赛道<br>
       <span class="fg">峰哥的肖像、口吻和 AI 复刻声音经本人同意用于本次展示 · 素材来自开源仓库 talk-to-fengge-live、feng-ge-skill（MIT）、talk-to-fengge（Apache-2.0）</span>
     </div>
