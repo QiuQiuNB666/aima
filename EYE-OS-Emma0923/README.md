@@ -1,6 +1,6 @@
 # EYE OS - Emma0923 · 眼镜控制台
 
-**提交标识：`Emma0923` · 目标仓库：`QiuQiuNB666/aima` · 目标目录：`EYE-OS-Emma0923/` · 版本：`0.3.0`**
+**提交标识：`Emma0923` · 目标仓库：`QiuQiuNB666/aima` · 目标目录：`EYE-OS-Emma0923/` · 版本：`0.4.0`**
 
 供技术伙伴独立评估的待合并模块。请先阅读 [合并指南](MERGE-GUIDE-Emma0923.md) 和 [验证记录](VALIDATION.md)。2026-09-24 已核对 `aima` 的 ShellOS / Three.js 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`；本模块独立运行，已实现固定本机 `/state` 的只读状态桥接，游戏事件与声音联动仍待接入。
 
@@ -11,6 +11,10 @@ v0.2 增加**通用外接屏自动适配**：经浏览器授权识别和选择�
 v0.3 增加**外骨骼实时状态**：分开显示 CP210x USB 枚举、ShellOS 服务、有效且新鲜的遥测三层证据，区分真机、模拟和回放。仅读取固定本机 `GET /state`，不打开串口、不发送运动指令。本机最近一次枚举成功但未发现 CP210x，不能声称硬件已连接。运行方式与完整契约见 [外骨骼接入指南](EXOSKELETON-Emma0923.md)。
 
 **这是独立开发的网页控制台，不是眼镜内部操作系统，也不是 EYEVUE 官方 App。不会替换或刷写眼镜固件。** 首页眼镜图为 UI 示意图，不代表该型号的精确工业设计。设备名称、S30301、硬件 V2、蓝牙固件字段 V1.4.9 和 ISP V1.3.6 来自用户提供的截图，不是实时查询结果。
+
+## v0.4 双手模式预览
+
+在设备页点击“双手模式预览”，体验模拟解绑、校准、抬起就位、双杆靶场与挖掘机交互。**本页仅驱动画面，不发送硬件命令**；真实自动抬杆与阻尼等待手持结构、行程及握持检测验证。详见 [双手模式说明](HANDS-MODE-Emma0923.md)。
 
 ## 直接运行
 
@@ -57,7 +61,7 @@ node server.mjs
 
 手机版本的目标连接方式是：**手机运行页面，手机通过系统蓝牙连接眼镜，眼镜播放声音；麦克风路由须在目标手机上实测。** 当前交付包尚未部署公网。
 
-1. 将以下静态文件部署到支持 HTTPS 的站点：`index.html`、`app.js`、`styles.css`、`app.css`、`icon.svg`、`manifest.webmanifest`、`sw.js`、`exoskeleton-controller.js`，以及 `display.html`、`display.css`、`display-core.js`、`display-controller.js`、`display-receiver.js`。此操作不需要部署 Windows 桥接脚本。
+1. 将以下静态文件部署到支持 HTTPS 的站点：`index.html`、`app.js`、`styles.css`、`app.css`、`icon.svg`、`manifest.webmanifest`、`sw.js`、`exoskeleton-controller.js`，以及 `display.html`、`display.css`、`display-core.js`、`display-controller.js`、`display-receiver.js`。v0.4 还需部署 `hands.html`、`hands.css`、`hands-core.js`、`hands-controller.js`。此操作不需要部署 Windows 桥接脚本。
 2. 用手机浏览器打开 HTTPS 地址，并在手机系统中将 E06 设为蓝牙音频设备。
 3. 按需授权麦克风。选择、确认输入音源，再开始录音；手机浏览器可能把音源选择交给系统。
 4. 浏览器支持时可添加到主屏幕。录音等接口需要安全上下文，直接打开本地 HTML 文件不能替代 HTTPS 部署。

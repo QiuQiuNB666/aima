@@ -1,9 +1,9 @@
 /* Bump this version whenever shipping an updated app shell. */
-const VERSION = 'emma0923-v3';
+const VERSION = 'emma0923-v4';
 const SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = `eyevue-console:${encodeURIComponent(SCOPE.href)}:`;
 const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;
-const SHELL_FILES = ['index.html', 'app.js', 'styles.css', 'app.css', 'icon.svg', 'manifest.webmanifest', 'display.html', 'display.css', 'display-core.js', 'display-controller.js', 'display-receiver.js', 'exoskeleton-controller.js'];
+const SHELL_FILES = ['index.html', 'app.js', 'styles.css', 'app.css', 'icon.svg', 'manifest.webmanifest', 'display.html', 'display.css', 'display-core.js', 'display-controller.js', 'display-receiver.js', 'exoskeleton-controller.js', 'hands.html', 'hands.css', 'hands-core.js', 'hands-controller.js'];
 const SHELL_URLS = new Set(SHELL_FILES.map(file => new URL(file, SCOPE).href));
 const INDEX_URL = new URL('index.html', SCOPE).href;
 
@@ -43,7 +43,7 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     // Keep controller and output HTML separate, including their offline fallback.
     const navigationKey = relativePath === '' || relativePath === 'index.html' ? INDEX_URL
-      : relativePath === 'display.html' ? new URL('display.html', SCOPE).href : null;
+      : ['display.html', 'hands.html'].includes(relativePath) ? new URL(relativePath, SCOPE).href : null;
     if (!navigationKey) return;
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);

@@ -6,7 +6,11 @@
 
 **v0.3 已实现**：在 v0.2 的通用外接屏适配与游戏窗口共享基础上，新增 ShellOS `/state` 只读桥接和 USB / 服务 / 遥测三层界面。见 [外骨骼指南](EXOSKELETON-Emma0923.md) 与 [自动适配说明](DISPLAY-ADAPTER-Emma0923.md)。游戏事件总线、声音联动和显示眼镜真机链路仍待接入或验收。
 
-**已于 2026-09-24 核对 `QiuQiuNB666/aima` 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`。** 本模块共 33 个文件，供团队独立审阅。仓库中另有 Windows `find_port` 窄改动及 8 项 mock 测试；只调整串口发现，不改变 Guard、控制循环或运动指令行为。
+**已于 2026-09-24 核对 `QiuQiuNB666/aima` 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`。** 本模块共 39 个文件，供团队独立审阅。仓库中另有 Windows `find_port` 窄改动及 8 项 mock 测试；只调整串口发现，不改变 Guard、控制循环或运动指令行为。
+
+## v0.4 增量
+
+新增独立浏览器双手模式模拟器，详见 [HANDS-MODE-Emma0923.md](HANDS-MODE-Emma0923.md)。没有真机动作端点，没有修改 ShellOS/Guard；与 v0.3 只读设备面板并存。新增文件均带入本目录，Service Worker 升级 v4。
 
 ## 已核对的 ShellOS 对接位置
 

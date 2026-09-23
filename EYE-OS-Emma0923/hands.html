@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f1">
+  <title>双手模式 · Emma0923</title>
+  <link rel="icon" href="icon.svg"><link rel="stylesheet" href="hands.css">
+  <script type="module" src="hands-controller.js"></script>
+</head>
+<body>
+  <header class="top"><a class="brand" href="index.html#device"><span>e</span>EYE OS <small>Emma0923</small></a><a class="back" href="index.html#device">← 设备与能力</a></header>
+  <main>
+    <div class="heading"><div><p class="eyebrow">TWO HANDS. NEW POSSIBILITIES.</p><h1>双手，接管世界<span>。</span></h1><p class="intro">从腿部支撑，到双手操纵。先在这里试试另一种玩法。</p></div><span class="sim-badge">仅模拟 · 不驱动电机</span></div>
+    <div class="workspace">
+      <section class="setup card" aria-labelledby="setup-title">
+        <div class="section-top"><h2 id="setup-title">准备双手模式</h2><span class="small-label">01 / SET UP</span></div>
+        <ol class="steps" aria-label="模式切换流程"><li id="step-release">解绑</li><li id="step-calibrate">校准</li><li id="step-raise">就位</li><li id="step-play">体验</li></ol>
+        <label class="check"><input id="release" type="checkbox"><span>模拟已松开腿绑带<small>这不是硬件检测结果</small></span></label>
+        <button class="button secondary full" id="calibrate">校准模拟中位</button>
+        <label class="check"><input id="grip" type="checkbox"><span>模拟双手已握住<small>取消勾选，立即停止模拟动作</small></span></label>
+        <button class="button primary full" id="raise">抬起到握持位置</button>
+        <div class="progress" aria-label="模拟抬起进度"><div id="raise-progress"></div></div>
+        <p class="status" id="status" role="status" aria-live="polite">先勾选模拟解绑，再校准中位。</p>
+        <div class="divider"></div>
+        <div class="section-top"><label for="damping">视觉阻尼</label><output id="damping-value" for="damping">50%</output></div>
+        <input id="damping" type="range" min="0" max="100" value="50">
+        <p class="hint">观察推拉时的虚拟阻力。数值没有真实力矩单位。</p>
+        <div class="button-row"><button class="button secondary" id="pause">暂停模拟</button><button class="button plain" id="reset">回到腿部模式</button></div>
+      </section>
+      <section class="play card" aria-labelledby="play-title">
+        <div class="section-top"><h2 id="play-title">一套支撑，两种玩法</h2><span class="small-label">02 / PLAY</span></div>
+        <div class="scene-picker" role="group" aria-label="体验场景"><button id="scene-range" class="selected" aria-pressed="true">脉冲靶场</button><button id="scene-excavator" aria-pressed="false">挖掘机</button></div>
+        <div class="viewport"><canvas id="scene" width="1000" height="520" aria-label="模拟支撑抬起与双手游戏反馈动画"></canvas><span id="stage-badge" class="stage-badge">腿部模式</span><span class="viewport-note">VIRTUAL PLAYGROUND</span></div>
+        <div class="scene-copy"><div><h3 id="scene-title">让每一次触发，都有回应。</h3><p id="scene-hint">两手输入控制虚拟准星；触发后显示短促反馈。这里不会让真实支撑震动。</p></div><button class="button primary" id="fire">触发脉冲 <kbd>F</kbd></button></div>
+        <div class="axes">
+          <label for="left"><span id="left-label">左手 · 横向瞄准</span><output id="left-value" for="left">0%</output><input id="left" type="range" min="-100" max="100" value="0"><small><kbd>A</kbd> / <kbd>D</kbd> 或拖动</small></label>
+          <label for="right"><span id="right-label">右手 · 纵向瞄准</span><output id="right-value" for="right">0%</output><input id="right" type="range" min="-100" max="100" value="0"><small><kbd>J</kbd> / <kbd>L</kbd> 或拖动</small></label>
+        </div>
+        <div class="metrics"><div><span>左路反馈预览</span><strong id="feedback-left">0.00</strong></div><div><span>右路反馈预览</span><strong id="feedback-right">0.00</strong></div><div><span id="metric-label">脉冲次数</span><strong id="metric-value">0</strong></div></div>
+        <p class="hint footer-note">反馈值为无量纲动画信号。松开握持、离开页面或切换窗口会停止模拟，恢复后需主动重新就位。</p>
+      </section>
+    </div>
+    <details class="boundary card"><summary>这版能体验什么，真机还需要什么</summary><p>已实现虚拟解绑、校准、一次抬起就位、双杆操作、阻尼预览和脉冲效果。当前支撑运动只发生在画面内。</p><p>照片中的手持方式需要重新确认固定结构、活动范围、左右方向、握持检测和独立限位。现有两路髋关节接口不能直接提供双手空间定位；手部参数也不能沿用腿部设置。完成台架验证后，再经原有 Guard 接入真实控制。</p><p><a href="index.html#device">查看本机设备状态</a> · 本页不读取或发送硬件命令。</p></details>
+  </main>
+</body>
+</html>
