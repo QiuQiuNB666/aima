@@ -6,16 +6,18 @@
 // 峰哥那一条不上卡（左上头像气泡管）。只读，不调任何接口。
 import { RISE } from './path.js';
 import { SEG, kindName } from './hud_force.js';
+import { UI } from './style.js';
 
 const STAGGER = 650, HOLD = 4500, FORGE_MAX = 100e3, FLAG = 'u_forge';
-const WHO = { '教练': '#7fd1ff', '记忆员': '#ffd54f', '安全员': '#9ff0b8', '地形导演': '#d9b8ff' };
-const VC = { '提议': '#7fd1ff', '同意': '#b6c2cf', '裁剪': '#ff9f1a', '否决': '#ff4d4f', '生效': '#3ddc84' };
+// ART 美术范式 §7：角色名一律白（蓝 / 黄 / 绿会撞路段色），靠位置和结论标签认；结论标签用 UI 状态色
+const WHO = {};
+const VC = { '提议': UI.acc, '同意': '#b6c2cf', '裁剪': UI.warn, '否决': UI.danger, '生效': UI.ok };
 const PN = { strength: '强度' };
 const CSS = `
-#aicard{right:1.4rem;bottom:1.4rem;width:min(40rem,46vw);opacity:0;transform:translateY(1.5rem);transition:opacity .4s,transform .4s;border-color:rgba(217,184,255,.45)}
+#aicard{right:1.4rem;bottom:1.4rem;width:min(40rem,46vw);opacity:0;transform:translateY(1.5rem);transition:opacity .4s,transform .4s;border-color:rgba(180,140,255,.45)}
 #aicard.show{opacity:1;transform:none}
 body.summit #aicard{opacity:0}
-#aicard .ah{display:flex;align-items:baseline;gap:.6rem;font-size:1rem;font-weight:800;letter-spacing:.15em;color:#d9b8ff}
+#aicard .ah{display:flex;align-items:baseline;gap:.6rem;font-size:1rem;font-weight:800;letter-spacing:.15em;color:var(--acc)}
 #aicard .ah small{margin-left:auto;letter-spacing:0;font-weight:600;color:var(--dim);font-size:.85rem}
 #aicard .aq{font-size:2rem;font-weight:900;margin:.15rem 0 .4rem;line-height:1.2}
 .airow{display:grid;grid-template-columns:5.2rem 3.4rem 1fr;align-items:center;gap:.5rem;padding:.35rem .5rem;border-radius:.5rem;font-size:1.3rem;line-height:1.3;

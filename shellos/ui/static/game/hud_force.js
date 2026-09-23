@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { KIND_NAME } from './path.js';
 
-export const SEG = { up: '#3ddc84', stairs_up: '#ffd54f', stairs_down: '#ffd54f', down: '#4fc3f7', wait: '#ff4d4f' };   // flat / 共驾 = 主题主色
+import { SEG } from './style.js';             // 路段色全作品一份（ART 美术范式 §3）；平地 = 灰
+export { SEG };
 // 路段类型名。wait 只有城市图（路段名里带「红灯」，东京）才叫「红灯」；珠峰「北坳营地·吸氧」、「第二台阶·排队上梯」这种叫「站定」
 export const kindName = (kind, label) => kind === 'wait' ? (/红灯/.test(label || '') ? '红灯' : '站定') : KIND_NAME[kind] || kind;
 const WIN = 6, PEAK_S = 1.5, ON = 0.05;      // 波形窗口 s、峰值保持 s、算「在出力」的门槛 Nm
@@ -23,7 +24,7 @@ const CSS = `
 #force .lg{margin-top:.4rem;font-size:.85rem;color:var(--dim)}
 #force .lg i{display:inline-block;width:.7rem;height:.7rem;border-radius:.15rem;margin:0 .25rem 0 .6rem;vertical-align:-.05rem}`;
 
-export function makeForce(accent, world) {
+export function makeForce(world) {
   const waits = (world.route || []).filter(s => s.kind === 'wait'), waitLg = waits.length ? kindName('wait', waits.map(s => s.label).join()) : '';
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const el = document.createElement('div'); el.className = 'hud panel'; el.id = 'force';
@@ -36,7 +37,7 @@ export function makeForce(accent, world) {
   const glow = [{ lv: 0, c: new THREE.Color() }, { lv: 0, c: new THREE.Color() }];
   let cap = 3, shells = null, flat = false, size = null;   // size：画布尺寸 + 刻度字号，只在窗口变了时量（每帧 getComputedStyle 太贵）
   addEventListener('resize', () => { size = null; flat = false; });
-  const col = k => SEG[k] || accent;
+  const col = k => SEG[k] || SEG.flat;
 
   function draw(now) {
     if (!size || (!size.w && now - size.t > 0.5)) {           // 面板藏着（待机）时 w = 0：半秒再量一次

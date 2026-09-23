@@ -2,9 +2,9 @@
 import { RISE } from './path.js';
 import { makeForce, kindName } from './hud_force.js';   // U 线：力矩波形 + 大腿闪光
 import { makeAi } from './hud_ai.js';         // U 线：AI 决策卡 + 造山过场
-import { makeFlow } from './hud_flow.js';     // U 线：待机 / 准备 / 游戏中 / 登顶 状态流 + 二维码
-
-export const KC = { flat: '#8a95a3', up: '#3ddc84', down: '#4fc3f7', stairs_up: '#ffd54f', stairs_down: '#ff8a65', wait: '#ff2e88' };
+import { makeFlow } from './hud_flow.js';     // U 线：标题 / 待机 / 准备 / 游戏中 / 登顶 状态流 + 二维码
+import { makeMenu } from './hud_menu.js';     // U 线：开始界面 / 暂停 / 设置 / 玩法说明 / 制作团队
+import { SEG, applyCssVars } from './style.js';   // ART 美术范式：路段色、HUD 强调色全作品一份
 const $ = id => document.getElementById(id);
 const W = new Map();         // 每 100 ms 的 /state 只在值变了时才写 DOM（以前段名 / 安全灯每次都重建，白白重排）
 const put = (id, k, v) => { const key = id + '.' + k; if (W.get(key) !== v) { W.set(key, v); $(id)[k] = v; } };
@@ -23,15 +23,17 @@ const LAMP_HOLD = 1.5;       // 安全灯小字（「没认准步子，力归零
 export function makeHud(world, preview = false) {
   document.body.classList.toggle('debug', new URLSearchParams(location.search).get('debug') === '1');
   $('wname').textContent = world.name; $('wsub').textContent = world.subtitle || '';
-  const acc = (world.theme && world.theme.accent) || [];
-  if (acc[1]) document.documentElement.style.setProperty('--acc', acc[1]);
+  applyCssVars();                              // --acc = 霓虹紫（全世界一样，不再跟主题 accent 走：泰山黄撞台阶、训练场蓝撞下坡）、--seg-*、--who-*
   let lastApplied = null, lampSub = '', lampSubT = 0;
   // 海拔：落差 < 20 m 的世界（训练场 0–5 m）按每步起点高度显示一位小数（和场景里的刻度游标对得上）；大山照旧用 /state 的整数
   const [a0, a1] = world.alt || [0, 0], hs = [];
   if (a1 !== a0 && Math.abs(a1 - a0) < 20) { let h = 0; for (const sg of world.route || []) for (let k = 0; k < sg.steps; k++) { hs.push(h); h += RISE[sg.kind] || 0; } }
   const hmax = Math.max(...hs, 0) || 1;
   const altText = T => hs.length ? (a0 + (a1 - a0) * hs[Math.min(hs.length - 1, T.pos)] / hmax).toFixed(1) : (T.altitude ?? '—');
-  const force = makeForce(acc[1] || '#29e7ff', world), ai = makeAi(world), flow = makeFlow(world, preview);
+  const force = makeForce(world), ai = makeAi(world), flow = makeFlow(world, preview);
+  const cut = () => { const c = $('cut'); if (!c) return; c.style.transition = 'none'; c.style.opacity = '1'; void c.offsetWidth; c.style.transition = 'opacity .35s'; c.style.opacity = '0'; };
+  const menu = makeMenu(world, { preview, cut, poke: flow.poke });
+  flow.attachMenu(menu);
   window.__hudAi = ai.debug;
   return {
     update(S, flashL, flashR, summit) {
@@ -39,7 +41,7 @@ export function makeHud(world, preview = false) {
       if (T && summit) { put('seg', 'innerHTML', esc(world.summit ? world.summit.name : '终点')); put('next', 'innerHTML', '登顶！'); }
       if (T && !summit) {
         const kind = T.segment, kn = kindName(kind, T.label);
-        const chip = (T.label && T.label !== kn) || T.force ? `<span class="chip" style="background:${KC[kind] || '#888'}">${esc(kn)}${T.force ? '（强制）' : ''}</span>` : '';   // 段名就是类型名（训练场）：别写两遍
+        const chip = (T.label && T.label !== kn) || T.force ? `<span class="chip" style="background:${SEG[kind] || SEG.flat}">${esc(kn)}${T.force ? '（强制）' : ''}</span>` : '';   // 段名就是类型名（训练场）：别写两遍
         put('seg', 'innerHTML', esc(T.label || kn) + chip);
         const n = T.next;
         const nk = n ? kindName(n.kind, n.label) : '';
@@ -82,7 +84,8 @@ export function makeHud(world, preview = false) {
         }
         lastApplied = ap.slice();
       }
-      flow.update(S);
+      window.__uFg = S.fengge;                  // settings.js：「峰哥解说：少」按事件名跳过声音
+      menu.update(S); flow.update(S);
     },
     // off = 影子不在画面里（或贴着镜头）：标签钉在画面下缘，带 ↓
     ghostTag(x, y, show, who, rel, off) {
@@ -107,7 +110,7 @@ export function makeHud(world, preview = false) {
       g.style.left = x + 'px'; g.style.top = y + 'px';
     },
     attach(av) { force.attach(av); },
-    cut() { const c = $('cut'); if (!c) return; c.style.transition = 'none'; c.style.opacity = '1'; void c.offsetWidth; c.style.transition = 'opacity .5s'; c.style.opacity = '0'; },
+    cut,
     puppet(on) { document.body.classList.toggle('puppet', !!on); },
     summit(show, T, prevBest) { flow.summit(show, T, prevBest); document.body.classList.toggle('summit', !!show); },   // 成绩卡归 hud_flow（引擎收起后还留一会儿）
     banner(html) { const b = $('banner'); b.style.display = html ? 'block' : 'none'; if (html) b.innerHTML = html; },
