@@ -16,6 +16,7 @@ from shellos.ui.server import Dashboard
 
 WAV = b"RIFF\x24\x00\x00\x00WAVEfake"
 SAY = b"RIFF\x24\x00\x00\x00WAVEsay"
+urlopen = urllib.request.build_opener(urllib.request.ProxyHandler({})).open     # 本机端口不走系统代理
 
 
 @pytest.fixture(autouse=True)
@@ -85,7 +86,7 @@ def test_cache_hit_needs_no_network():
 def test_tts_down_is_silent_and_backs_off(monkeypatch):
     assert voice.get("兄弟，站住。") is None
     tried = []
-    monkeypatch.setattr(voice.urllib.request, "urlopen", lambda *a, **k: tried.append(1))
+    monkeypatch.setattr(voice, "_open", lambda *a, **k: tried.append(1))
     assert voice.get("兄弟，站住。") is None and tried == []      # 20 s 内不再试
 
 
@@ -100,7 +101,7 @@ def test_brain_tts_rejects_empty_and_long(tts):
     for text in ("", "长" * 201):
         req = urllib.request.Request(voice.URL + "/tts", data=json.dumps({"text": text}).encode())
         with pytest.raises(urllib.error.HTTPError) as e:
-            urllib.request.urlopen(req, timeout=5)
+            urlopen(req, timeout=5)
         assert e.value.code == 400
     assert tts == []
 
@@ -110,13 +111,13 @@ def test_dashboard_voice_route_only_speaks_current_line(tts):
     dash = Dashboard(app, port=0)
     base = f"http://127.0.0.1:{dash.httpd.server_address[1]}"
     try:
-        with urllib.request.urlopen(base + "/voice/last.wav") as r:
+        with urlopen(base + "/voice/last.wav") as r:
             assert r.status == 204                                   # 还没有解说：不出声
         app.fengge.last = {"t": "12:00:00", "event": "red", "text": "急什么，站定了再走。", "source": "canned"}
-        with urllib.request.urlopen(base + "/voice/last.wav?text=%E5%88%AB%E7%9A%84") as r:
+        with urlopen(base + "/voice/last.wav?text=%E5%88%AB%E7%9A%84") as r:
             assert r.status == 200 and r.headers["Content-Type"] == "audio/wav" and r.read() == WAV
         assert tts == ["急什么，站定了再走。"]                        # query 里塞的文字不念
-        with urllib.request.urlopen(base + "/voice/voice.js") as r:
+        with urlopen(base + "/voice/voice.js") as r:
             assert b"/voice/last.wav" in r.read()
     finally:
         dash.httpd.shutdown()
