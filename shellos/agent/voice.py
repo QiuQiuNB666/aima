@@ -18,19 +18,30 @@ DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data
 BACKOFF_S = 20.0
 _down_t = -1e9
 _open = urllib.request.build_opener(urllib.request.ProxyHandler({})).open    # 不走系统代理（MacBook 的 Shadowrocket 会截走 127.0.0.1）
-# J 线追兵 NPC「疾风」：MiniMax 系统预设音色（不是复刻，不额外花钱），台词原创、白名单——/voice/npc.wav 只念这几句。
-# 和 static/game/npc.js 的 LINES 保持一致（tests/test_voice.py 会对一遍）。换音色：SHELLOS_NPC_VOICE=<音色 ID>，再清 data/voice/npc/。
-NPC_VOICE = os.environ.get("SHELLOS_NPC_VOICE", "Chinese (Mandarin)_Crisp_Girl")
-NPC_LINES = ("风起了", "别停", "追上你了", "等等我", "抓到你了", "被你甩掉了")
+# J 线追兵 NPC「疾风」：MiniMax 系统预设音色（官方系统音色列表里的，不复刻任何真人、不用游戏音频），台词原创、白名单——/voice/npc.wav 只念这几句。
+# NPC_LINES 和 static/game/npc.js 的 LINES 保持一致（tests/test_voice.py 会对一遍）。
+# 音色 = 一份 voice_setting（voice_id + 语速 / 音高 / 情绪），候选见下；换音色：SHELLOS_NPC_VOICE=<候选名>，再跑 brain/tts.py --npc。
+NPC_LINES = ("가자！你先跑三秒。", "就这？빨리빨리！", "逮到了，慢死了。", "哟，跑挺快嘛。", "又是我先到，拜。", "啧，算你走运。")
+NPC_AUDITION = (NPC_LINES[0], NPC_LINES[1], NPC_LINES[2], NPC_LINES[5])   # 试听用的 4 句（brain/tts.py --npc-candidates）
+NPC_CANDIDATES = {   # 年轻、清亮、偏冷酷 / 痞帅；speed 1.1–1.3、pitch、emotion（speech-2.8-hd 支持 happy/sad/angry/fearful/disgusted/surprised/calm/fluent）
+    "A_嚣张小姐": {"voice_id": "Arrogant_Miss", "speed": 1.2, "pitch": 1, "emotion": "happy"},                 # 官方描述：嚣张自信，展现优越感
+    "B_韩语冷漠女孩": {"voice_id": "Korean_ColdGirl", "speed": 1.25, "pitch": 1, "emotion": "disgusted"},      # 冷漠的青年女孩，韩语；嫌弃 = 嘲讽
+    "C_韩语女冒险家": {"voice_id": "Korean_BraveAdventurer", "speed": 1.25, "pitch": 2, "emotion": "angry"},   # 活泼勇敢的青年女冒险家，韩语
+    "D_俏皮萌妹": {"voice_id": "qiaopi_mengmei", "speed": 1.3, "pitch": -1, "emotion": "surprised"},           # 俏皮，音高压低一点去掉奶气
+    "清脆少女": {"voice_id": "Chinese (Mandarin)_Crisp_Girl"},                                                 # 第一版，球球试听说一点都不像
+}
+NPC_VOICE = NPC_CANDIDATES[os.environ.get("SHELLOS_NPC_VOICE", "清脆少女")]
 _lock = threading.Lock()   # ponytail: 全局锁，同一句两个页面同时要只合成一次；多句并发合成再换按文字加锁
 
 
 def key(text, voice=""):
+    if isinstance(voice, dict):    # voice_setting：语速 / 音高 / 情绪不同就是不同的音
+        voice = json.dumps(voice, sort_keys=True, ensure_ascii=False)
     return hashlib.sha1((voice + "|" + text if voice else text).encode()).hexdigest()[:16]
 
 
 def path(text, voice=""):
-    """voice 空 = 峰哥（data/voice/）；给了预设音色 ID = NPC（data/voice/npc/，不和峰哥的混）。"""
+    """voice 空 = 峰哥（data/voice/）；给了预设音色（ID 或 voice_setting）= NPC（data/voice/npc/，不和峰哥的混）。"""
     return os.path.join(DIR, "npc", key(text, voice) + ".wav") if voice else os.path.join(DIR, key(text) + ".wav")
 
 

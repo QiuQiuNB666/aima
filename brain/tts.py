@@ -3,12 +3,13 @@
   python3 brain/tts.py --clone      # 一次性：把 data/voice/ref/fengge_ref.wav 传给 MiniMax 快速复刻，voice_id 存 data/voice/minimax_voice_id
   python3 brain/tts.py --canned     # 把 shellos/agent/fengge.py 的兜底语录预生成进 data/voice/（断网也有声）
   python3 brain/tts.py --npc        # 把追兵 NPC 的台词（shellos/agent/voice.py NPC_LINES，预设音色）预生成进 data/voice/npc/
+  python3 brain/tts.py --npc-candidates   # NPC 候选音色各念 4 句试听，存 data/voice/npc_candidates/<候选名>/，最后打一行 afplay 试听命令
   python3 brain/tts.py              # 起服务，127.0.0.1:8791
 
 展位 MacBook 走同一条 SSH 反向隧道，多转一个口：
   ssh -N -R 8790:127.0.0.1:8790 -R 8791:127.0.0.1:8791 zhongrenfei@100.112.252.66
 
-POST /tts {text[, voice]} → audio/wav（voice 缺省 = 峰哥复刻音色；给了 = MiniMax 系统预设音色 ID，J 线追兵 NPC 用，缓存在 data/voice/npc/）（已缓存直接给；say 兜底出来的带 Cache-Control: no-store，ShellOS 不落缓存）
+POST /tts {text[, voice]} → audio/wav（voice 缺省 = 峰哥复刻音色；给了 = MiniMax 系统预设音色 ID 或 voice_setting 字典，J 线追兵 NPC 用，缓存在 data/voice/npc/）（已缓存直接给；say 兜底出来的带 Cache-Control: no-store，ShellOS 不落缓存）
 GET  /health
 只听 127.0.0.1。
 
@@ -79,10 +80,24 @@ def _mm(path, body, ctype="application/json", timeout=10.0):
 MM_TIMEOUT = 15.0                                # 9/23 实测一句 4–10 s；加上退到 say 的时间，要在 ShellOS 那边 25 s 之内
 
 
-def minimax(text: str, voice_id: str = "") -> bytes:
+VS_KEYS = ("voice_id", "speed", "pitch", "vol", "emotion")   # voice_setting 里允许从外面传进来的字段
+
+
+def _voice_setting(voice):
+    """"" = 峰哥复刻音色；str = 预设音色 ID；dict = voice_setting（只留 VS_KEYS）。"""
+    vs = {"voice_id": _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0}
+    if isinstance(voice, str) and voice:
+        vs["voice_id"] = voice
+    elif isinstance(voice, dict):
+        vs.update({k: voice[k] for k in VS_KEYS if k in voice})
+    return vs
+
+
+def minimax(text: str, voice="") -> bytes:
     j = _mm("/v1/t2a_v2", json.dumps({
-        "model": MM_MODEL, "text": text, "stream": False, "language_boost": "Chinese", "output_format": "hex",
-        "voice_setting": {"voice_id": voice_id or _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0},
+        "model": MM_MODEL, "text": text, "stream": False, "output_format": "hex",
+        "language_boost": "auto" if voice else "Chinese",   # NPC 台词夹韩语感叹词
+        "voice_setting": _voice_setting(voice),
         "audio_setting": {"sample_rate": 24000, "format": "wav", "channel": 1},
     }, ensure_ascii=False).encode(), timeout=MM_TIMEOUT)
     data = bytes.fromhex(j["data"]["audio"])
@@ -103,7 +118,7 @@ def say(text: str) -> bytes:
             return f.read()
 
 
-def synth(text: str, voice_id: str = ""):
+def synth(text: str, voice_id=""):
     """文字 → (wav 字节, 能不能缓存)。MiniMax 配好了但这次失败，say 出来的不缓存，免得恢复后还是女声。
     voice_id = 系统预设音色（NPC）：不需要复刻过，有 key 就行。"""
     global _mm_down_t
@@ -118,7 +133,7 @@ def synth(text: str, voice_id: str = ""):
     return say(text), False
 
 
-def get(text: str, voice_id: str = ""):
+def get(text: str, voice_id=""):
     path = voice.path(text, voice_id)
     if os.path.isfile(path):
         with open(path, "rb") as f:
@@ -173,7 +188,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(b"{}", "application/json", 404)
         n = int(self.headers.get("Content-Length") or 0)
         req = json.loads(self.rfile.read(n) or b"{}")
-        text, vid = str(req.get("text", "")).strip(), str(req.get("voice") or "")[:64]
+        text, vid = str(req.get("text", "")).strip(), req.get("voice") or ""
+        vid = {k: vid[k] for k in VS_KEYS if k in vid} if isinstance(vid, dict) else str(vid)[:64]
         if not text or len(text) > MAX_CHARS:
             return self._send(b'{"error":"text"}', "application/json", 400)
         try:
@@ -194,6 +210,20 @@ if __name__ == "__main__":
         for line in sorted({s for v in CANNED.values() for s in v}):
             _, keep = get(line)
             print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.key(line), line)
+        sys.exit(0)
+    if "--npc-candidates" in sys.argv:                  # 预设音色，按字数计费：4 候选 × 4 句约 220 计费字符，一两毛钱
+        MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0
+        out = os.path.join(voice.DIR, "npc_candidates")
+        for name, vs in voice.NPC_CANDIDATES.items():
+            if name == "清脆少女":
+                continue
+            os.makedirs(os.path.join(out, name), exist_ok=True)
+            for i, line in enumerate(voice.NPC_AUDITION, 1):
+                data, keep = get(line, vs)                  # 顺手进 npc/ 缓存：选中之后 --npc 不用再花这 4 句的钱
+                with open(os.path.join(out, name, f"{i}.wav"), "wb") as f:
+                    f.write(data)
+                print("ok" if keep else "say（MiniMax 失败）", name, i, line)
+        print(f'试听：cd "{out}" && for d in */; do echo "== $d"; for f in "$d"*.wav; do afplay "$f"; done; sleep 1; done')
         sys.exit(0)
     if "--npc" in sys.argv:                             # 预设音色，按字数计费（6 句几十个字，几分钱）
         MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0

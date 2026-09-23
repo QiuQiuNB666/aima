@@ -193,13 +193,14 @@ def test_npc_route_whitelist_and_separate_cache(tts):
     dash = Dashboard(SimpleNamespace(fengge=SimpleNamespace(last={})), port=0)
     base = f"http://127.0.0.1:{dash.httpd.server_address[1]}/voice/npc.wav?t="
     try:
-        with urlopen(base + urllib.parse.quote("追上你了")) as r:
+        line = voice.NPC_LINES[2]
+        with urlopen(base + urllib.parse.quote(line)) as r:
             assert r.status == 200 and r.read() == WAV
         with urlopen(base + urllib.parse.quote("随便念一句")) as r:
             assert r.status == 204                                          # 不在白名单：不出声、不花钱
-        assert tts == [(voice.NPC_VOICE, "追上你了")]
-        assert os.path.isfile(voice.path("追上你了", voice.NPC_VOICE)) and "npc" in voice.path("追上你了", voice.NPC_VOICE)
-        assert not os.path.isfile(voice.path("追上你了"))                   # 峰哥那份没被占
+        assert tts == [(voice.NPC_VOICE, line)]
+        assert os.path.isfile(voice.path(line, voice.NPC_VOICE)) and "npc" in voice.path(line, voice.NPC_VOICE)
+        assert not os.path.isfile(voice.path(line))                          # 峰哥那份没被占
     finally:
         dash.httpd.shutdown()
 
@@ -208,3 +209,16 @@ def test_minimax_preset_voice_needs_no_clone(brain_tts, minimax):
     minimax.replies["/v1/t2a_v2"] = {"data": {"audio": WAV.hex()}, "base_resp": {"status_code": 0}}
     assert brain_tts.synth("风起了", "female-shaonv") == (WAV, True)       # 没复刻过也能用预设音色
     assert json.loads(minimax.seen[0][3])["voice_setting"]["voice_id"] == "female-shaonv"
+
+
+def test_npc_voice_setting_passed_through(brain_tts, minimax, tts):
+    """候选音色：语速 / 音高 / 情绪原样传给 MiniMax（多余字段丢掉），夹韩语用 language_boost=auto；参数不同缓存也分开。"""
+    minimax.replies["/v1/t2a_v2"] = {"data": {"audio": WAV.hex()}, "base_resp": {"status_code": 0}}
+    vs = dict(voice.NPC_CANDIDATES["B_韩语冷漠女孩"], label="不该传")
+    brain_tts.minimax(voice.NPC_AUDITION[1], vs)
+    req = json.loads(minimax.seen[0][3])
+    assert req["voice_setting"] == {"voice_id": "Korean_ColdGirl", "speed": 1.25, "vol": 1, "pitch": 1, "emotion": "disgusted"}
+    assert req["language_boost"] == "auto"
+    a, b = voice.NPC_CANDIDATES["A_嚣张小姐"], dict(voice.NPC_CANDIDATES["A_嚣张小姐"], speed=1.1)
+    assert voice.path("逮到了", a) != voice.path("逮到了", b)
+    assert voice.get("逮到了", voice=a) == WAV and tts == [(a, "逮到了")]   # ShellOS → tts.py 走 HTTP 时字典也原样带过去

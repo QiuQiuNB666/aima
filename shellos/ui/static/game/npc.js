@@ -17,14 +17,15 @@ export const NPC = {
   LAT: 0.85,                                   // 横向（左 = 正）：化身 +0.35，影子在右边 −0.5 附近；她走左侧路沿，不和影子叠（路宽 2.2）
   SAY_GAP: 2.5,                                // 两句之间至少几秒（= 气泡停留时间，不叠）
 };
-// 台词：原创，每句 2~6 字。改台词要同步 shellos/agent/voice.py 的 NPC_LINES（白名单，不在里面的不出声）。
+// 台词：原创，短、快、带点嘲讽（风系刺客、嘴欠），夹通用韩语感叹词（가자 = 走、빨리 = 快）；不用任何游戏角色的原台词。
+// 改台词要同步 shellos/agent/voice.py 的 NPC_LINES（白名单，不在里面的不出声）。
 const LINES = {
-  start: '风起了',
-  dash: '别停',
-  caught: '追上你了',
-  lost: '等等我',
-  endCaught: '抓到你了',
-  endShaken: '被你甩掉了',
+  start: '가자！你先跑三秒。',
+  dash: '就这？빨리빨리！',
+  caught: '逮到了，慢死了。',
+  lost: '哟，跑挺快嘛。',
+  endCaught: '又是我先到，拜。',
+  endShaken: '啧，算你走运。',
 };
 
 const CSS = `
