@@ -1,6 +1,6 @@
 """跑酷 static/parkour/logic.js 的回归检查（node 跑；没装 node 就跳过）：
 走路不误触发跳 / 滑铲、高抬腿触发一次跳、下蹲触发滑铲；自动驾驶能过关卡、不操作会撞满 3 次结束；
-腿上的力只会是 up / down / stairs_up / null，结束后回到 null。"""
+腿上的力只会是 up / down / lift / null（stairs_up 现在是阻力，跑酷不用），结束后回到 null。"""
 from __future__ import annotations
 
 import json
@@ -67,7 +67,7 @@ def test_run(res):
     a = res["auto"]
     assert not a["over"] and a["lives"] == 3 and a["dist"] > 800, a          # 会玩的人 90 s 跑 800 m 不掉命
     assert {"jump", "slide", "land"} <= set(a["ev"])
-    assert set(a["kinds"]) <= {None, "up", "down", "stairs_up"} and "up" in a["kinds"] and "down" in a["kinds"]
+    assert set(a["kinds"]) <= {None, "up", "down", "lift"} and {"up", "down", "lift"} <= set(a["kinds"])
     i = res["idle"]
     assert i["over"] and i["lives"] == 0 and i["fin"] is None, i               # 光跑不躲：撞满 3 次结束，力回到 null
     s = res["stop"]
