@@ -13,6 +13,8 @@ export const TUNE = {                  // 现场调这里（也可以 URL 覆盖
   TURN_EVERY: 3,   // 第 6 轮：每 3 栋楼一个 90° 转弯（楼尾就是路口）
   TURN_ZONE: 10,   // 路口前多少米内按转弯才算（提前按也记着，到路口再转 = 输入缓冲）
   WALL_D: 3.6,     // 过了路口还能补按多远；再往前就撞上路口尽头的墙（扣一次，自动转过去接着跑）
+  HOLD_S: 0.3,     // 免手换道（?lane=knee）：一条腿抬到高抬腿阈值并保持这么久 = 往那边换一道
+  PEAK_DROP: 8,    // 免手模式里「膝盖开始往下落」= 从这次抬腿的最高点落下 8°（没保持够就落 = 跳）；不用角速度：抬到顶一停，滤波后的角速度会短暂过冲成负的
   LIFT_LIT: 0.68,  // lift 脉冲中心在文献相位 68%（摆动早期，terrain.py pulse('lift')）；估计器相位 = (hs_phase + 0.68) % 1，自动驾驶把起跳对到这一拍
   CAD_V: 0.075,    // 步频 → 跑速：100 步/分 = 7.5 m/s，200 = 15 m/s（夸张一点才有跑酷感）
   V_MIN: 4, V_MAX: 15,
@@ -154,6 +156,34 @@ export function makeLegs(T = TUNE) {
 // 一步走多远（米）：速度 × 60 / 步频；没有步频（键盘 / 刚起步）按 150 步/分算
 export const stepLen = (v, cad, T = TUNE) => v * 60 / (cad > 30 ? cad : 150);
 export const jumpLen = (v, cad, T = TUNE) => Math.max(T.JUMP_MIN, T.JUMP_STEPS * stepLen(v, cad, T));
+// 免手模式（?lane=knee）：同一路信号（A2 跟踪后的髋角）先判「保持」再判「跳」，互斥。
+//   一条腿抬过 JUMP_FLEX（另一条腿在 JUMP_OTHER 以下）→ 开始计时：0.3 s 内从最高点落下 PEAK_DROP = 跳；还抬着到 0.3 s = 往那条腿那边换一道。
+//   跳在最高点就触发（不等放下），比缺省模式晚大约抬腿到最高点那一段。两条腿都放回 REARM 以下才能再来。两条腿都高 = 下蹲滑铲，和缺省一样。
+//   push(往前看过的屈曲角 ×2, 角速度 ×2, dt) → {jump, slide, lane: −1 左 / +1 右 / 0}；过阈值用往前看的角（早），最高点 / 落下用没往前看的角；hold[k] = 0..1 保持进度、up[k] = 这条腿过没过阈值（HUD 膝盖图标用）
+export function makeKneeLegs(T = TUNE) {
+  let armed = true, cand = null;
+  const hold = [0, 0], up = [false, false];
+  return {
+    hold, up,
+    push(fl, fr, vl, vr, dt) {
+      const f = [fl, fr], v = [vl || 0, vr || 0], slide = fl > T.SLIDE_FLEX && fr > T.SLIDE_FLEX;
+      let jump = false, lane = 0;
+      up[0] = fl > T.JUMP_FLEX; up[1] = fr > T.JUMP_FLEX;
+      if (slide) cand = null;
+      const raw = [fl - v[0] * T.JUMP_LEAD, fr - v[1] * T.JUMP_LEAD];     // 去掉往前看的那部分：抬到顶一停，往前看的量会一下子缩回去，看起来像「落下来」
+      if (!cand && armed && !slide) for (let k = 0; k < 2; k++) if (f[k] > T.JUMP_FLEX && f[1 - k] < T.JUMP_OTHER) { cand = { k, t: 0, pk: raw[k] }; break; }
+      if (cand) {
+        const k = cand.k; cand.t += dt; cand.pk = Math.max(cand.pk, raw[k]);
+        if (raw[k] < cand.pk - T.PEAK_DROP) { jump = true; cand = null; armed = false; }   // 没保持够就从最高点往下落 = 跳
+        else if (cand.t >= T.HOLD_S) { lane = k === 0 ? -1 : 1; cand = null; armed = false; }                 // 保持够了 = 换道
+      }
+      hold[0] = cand && cand.k === 0 ? Math.min(1, cand.t / T.HOLD_S) : 0; hold[1] = cand && cand.k === 1 ? Math.min(1, cand.t / T.HOLD_S) : 0;
+      if (!armed && fl < T.REARM && fr < T.REARM) armed = true;
+      return { jump, slide, lane };
+    },
+  };
+}
+
 export const speedFor = (cadence, moving, T = TUNE) => moving && cadence > 0 ? Math.max(T.V_MIN, Math.min(T.V_MAX, cadence * T.CAD_V)) : 0;
 
 // ---------- 一局 ----------

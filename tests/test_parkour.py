@@ -13,7 +13,7 @@ import pytest
 STATIC = os.path.join(os.path.dirname(__file__), "..", "shellos", "ui", "static", "parkour")
 
 CHECK = r"""
-import { makeLegs, makeLevel, makeRun, forceKind, nextThreat, speedFor, TUNE, PATTERNS, TIERS, tierAt, boxHit } from './logic.js';
+import { makeLegs, makeKneeLegs, makeLevel, makeRun, forceKind, nextThreat, speedFor, TUNE, PATTERNS, TIERS, tierAt, boxHit } from './logic.js';
 import { makeHipTrack } from '../game/anim.js';
 let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const out = {};
@@ -73,6 +73,41 @@ out.box = {
 { const lv = makeLevel(5); lv.extend(3000); const pats = lv.obs.map(q => q.pat); let rep = 0; for (let i = 2; i < pats.length; i++) if (pats[i] === pats[i - 1] || pats[i] === pats[i - 2]) rep++;
   const firstAll = lv.obs.find(q => q.lanes.length === 3); const perKm = TIERS.map((t, i) => { const end = (TIERS[i + 1] || { from: 3000 }).from; return (lv.obs.filter(q => q.x >= t.from && q.x < end).length + lv.segs.filter(q => q.kind === 'gap' && q.x0 >= t.from && q.x0 < end).length) / (end - t.from) * 1000; });   // 每公里要应对几次（障碍 + 楼缝）
   out.pat = { n: pats.length, kinds: new Set(pats).size, rep, firstAllX: firstAll ? Math.round(firstAll.x) : null, freeLane: lv.obs.filter(q => q.type === 'block').every(q => q.lanes.length < 3), perKm: perKm.map(v => Math.round(v)) }; }
+// 5) 免手换道（?lane=knee）：60 s 合成髋角，1 Hz 走路，每 4 s 一个动作，轮流：左快抬 / 右快抬 / 左保持 / 右保持。
+//    快抬 = 在那条腿摆动开始时叠一个 0.5 s 的高抬腿（最高多抬 50°）；保持 = 那条腿 0.25 s 抬到 65° 停 0.6 s 再放，另一条腿站着（5°）。
+//    10 Hz + 抖动 → A2 跟踪 → 往前看 JUMP_LEAD → makeKneeLegs（和页面同一路）。另外用缺省识别跑同一段快抬，比起跳时刻晚多少
+const ss = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+const EV = []; for (let n = 4, i = 0; n < 58; n += 4, i++) { const kind = ['qL', 'qR', 'hL', 'hR'][i % 4]; EV.push({ te: n + (kind === 'qL' ? 0.75 : kind === 'qR' ? 0.25 : 0), kind }); }   // 快抬对在那条腿摆动开始（髋最伸）
+const base = (t, k) => 10 + 20 * Math.sin(2 * Math.PI * (t + (k ? 0.5 : 0)));
+function flexK(t, k) {
+  let f = base(t, k);
+  for (const e of EV) {
+    const d = t - e.te;
+    if (e.kind[0] === 'q' && (e.kind === 'qL') === (k === 0) && d > 0 && d < 0.5) f += 50 * Math.sin(Math.PI * d / 0.5) ** 2;
+    if (e.kind[0] === 'h' && d > 0 && d < 1.1) { const w = ss(d / 0.25) * (1 - ss((d - 0.85) / 0.25)); f = f * (1 - w) + ((e.kind === 'hL') === (k === 0) ? 65 : 5) * w; }
+  }
+  return f;
+}
+function knee(det) {
+  seed = 23; const pl = []; for (let ts = 0.2; ts < 60; ts += 0.1 + rnd() * 0.01) pl.push({ ts, arr: ts + 0.005 + rnd() * 0.035 });
+  const tr = makeHipTrack(), L = det === 'knee' ? makeKneeLegs() : makeLegs(), got = []; let pi = 0;
+  const dv = (t, k) => (flexK(t + 1e-3, k) - flexK(t - 1e-3, k)) / 2e-3;
+  for (let t = 0.3; t < 60; t += 1 / 60) {
+    while (pi < pl.length && pl[pi].arr <= t) { const p = pl[pi++]; tr.push(p.arr, p.ts, flexK(p.ts, 0), flexK(p.ts, 1), dv(p.ts, 0), dv(p.ts, 1)); }
+    const h = tr.sample(t, 1 / 60); if (h.fl === 0) continue;
+    const r = L.push(h.fl + h.wl * TUNE.JUMP_LEAD, h.fr + h.wr * TUNE.JUMP_LEAD, h.wl, h.wr, 1 / 60);
+    const e = EV.filter(q => t >= q.te && t < q.te + 2).pop();
+    if (r.jump) got.push({ t, what: 'jump', ev: e ? e.kind : '-' });
+    if (r.lane) got.push({ t, what: r.lane < 0 ? 'laneL' : 'laneR', ev: e ? e.kind : '-' });
+  }
+  return got;
+}
+{ const g = knee('knee'), d = knee('default'), cnt = (w, ev) => g.filter(x => x.what === w && x.ev === ev).length;
+  const jq = g.filter(x => x.what === 'jump' && x.ev[0] === 'q'), dq = d.filter(x => x.what === 'jump' && x.ev[0] === 'q');
+  out.knee = { n: EV.length, jumpFromQuick: jq.length, laneFromQuick: g.filter(x => x.what !== 'jump' && x.ev[0] === 'q').length,
+    jumpFromHold: g.filter(x => x.what === 'jump' && x.ev[0] === 'h').length, laneL: cnt('laneL', 'hL'), laneR: cnt('laneR', 'hR'), wrongLane: cnt('laneR', 'hL') + cnt('laneL', 'hR'),
+    stray: g.filter(x => x.ev === '-').length, nQuick: EV.filter(e => e.kind[0] === 'q').length, nHoldL: EV.filter(e => e.kind === 'hL').length, nHoldR: EV.filter(e => e.kind === 'hR').length,
+    delayMs: jq.length && dq.length === jq.length ? Math.round(jq.reduce((a, x, i) => a + (x.t - dq[i].t), 0) / jq.length * 1000) : null }; }
 out.auto = play(true, 90, 150);
 out.idle = play(false, 120, 110);
 out.stop = play(false, 30, 0);
@@ -112,6 +147,13 @@ def test_boxes_patterns_tiers(res):
     assert p["firstAllX"] is not None and p["firstAllX"] >= 250, p              # 整排的第 2 级（250 m）以后才有
     k = p["perKm"]
     assert all(k[i] < k[i + 1] for i in range(len(k) - 1)), k                    # 每公里要应对的次数（障碍 + 楼缝）逐级增加
+
+
+def test_knee_lane(res):
+    k = res["knee"]
+    assert k["jumpFromQuick"] == k["nQuick"] and k["laneFromQuick"] == 0, k      # 快抬 = 跳，一次都没被当成换道
+    assert k["jumpFromHold"] == 0 and k["laneL"] == k["nHoldL"] and k["laneR"] == k["nHoldR"] and k["wrongLane"] == 0, k   # 保持 = 往那边换道，0 次当成跳
+    assert k["stray"] == 0, k                                                   # 走路本身不触发
 
 
 def test_run(res):
