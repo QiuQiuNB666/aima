@@ -106,7 +106,7 @@ def main():
         rp, rd = score(rule, w)
         res[g].append(dict(q=q, dt=dt, cp=cp, cd=cd, rp=rp, rd=rd, err=err, model=j.get("_model", "")))
         mark = "✓" if cd else "✗"
-        print(f"{mark} {dt:5.1f}s [{g}] {q:<14} Claude {err or ch}  规则 {rule or '—'}  {j.get('why', '')[:40]}")
+        print(f"{mark} {dt:5.1f}s [{g}] {q:<14} 大模型 {err or ch}  规则 {rule or '—'}  {j.get('why', '')[:40]}")
 
     for g, rs in res.items():
         if not rs:
@@ -115,7 +115,7 @@ def main():
         lat = [r["dt"] for r in rs if not r["err"]]
         models = sorted({r["model"] for r in rs if r["model"]})
         print(f"\n== {g}（{n} 句）==")
-        print(f"Claude  参数 {sum(r['cp'] for r in rs)}/{n}  方向 {sum(r['cd'] for r in rs)}/{n}  失败 {sum(bool(r['err']) for r in rs)}"
+        print(f"大模型  参数 {sum(r['cp'] for r in rs)}/{n}  方向 {sum(r['cd'] for r in rs)}/{n}  失败 {sum(bool(r['err']) for r in rs)}"
               f"  延迟 p50 {pct(lat, 50):.1f}s p95 {pct(lat, 95):.1f}s max {max(lat, default=0):.1f}s"
               f"  >12s {sum(x > 12 for x in lat)}  模型 {models}")
         print(f"规则表  参数 {sum(r['rp'] for r in rs)}/{n}  方向 {sum(r['rd'] for r in rs)}/{n}")
