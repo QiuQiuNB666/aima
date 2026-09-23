@@ -15,6 +15,7 @@ export const NPC = {
   CAD0: 100, CAD_K: 40,                        // 步频 100 = 不远不近；80 → 每秒近 0.5 步（约 4 s 追上），130 → 每秒远 0.75 步（约 3 s 甩开）；模拟 1/2/3 键 = 80/105/130
   IDLE_CLOSE: 0.4,                             // 站着不走（非红灯）每秒贴近多少步
   LAT: 0.85,                                   // 横向（左 = 正）：化身 +0.35，影子在右边 −0.5 附近；她走左侧路沿，不和影子叠（路宽 2.2）
+  ARC_S: 1.0,                                   // 追上时绕小弧用几秒
   SAY_GAP: 2.5,                                // 两句之间至少几秒（= 气泡停留时间，不叠）
 };
 // 台词：原创，短、快、带点嘲讽（风系刺客、嘴欠），夹通用韩语感叹词（가자 = 走、빨리 = 快）；不用任何游戏角色的原台词。
@@ -47,7 +48,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
   const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = 角色名;
 
   let gap = preview && Q.has('npcgap') ? +Q.get('npcgap') : NPC.START;
-  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false;
+  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9;
   const mute = preview || Q.get('voice') === '0';
   let audio = null;
   const say = (key, t) => {
@@ -101,24 +102,32 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       gap = Math.max(NPC.CAUGHT, Math.min(NPC.LOST + 1, gap + rate * dtR));
       if (rate < -0.15 && gap > NPC.CAUGHT + 0.05) dash = Math.min(1, -rate * 2);
       const ns = gap <= NPC.CAUGHT + 0.01 ? 'caught' : gap >= NPC.LOST ? 'lost' : 'chase';
-      if (ns !== state) { if (ns === 'caught') say('caught', t); else if (ns === 'lost') say('lost', t); state = ns; }
+      if (ns !== state) { if (ns === 'caught') { say('caught', t); arcT = 0; } else if (ns === 'lost') say('lost', t); state = ns; }
       else if (dash > 0.5 && !dashSaid && state === 'chase') dashSaid = say('dash', t);   // 每段冲刺喊一次（刚喊过别的就等气泡收了再喊）
       if (dash < 0.2) dashSaid = false;
       s = me.s - gap;
     } else s = me.s - gap;
 
-    route.at(s, ending === 'caught' ? 0.95 : NPC.LAT, A);
+    // 追上那一下：绕一个小弧——先往前、往玩家那边切 0.3，再回到自己的位置站定
+    arcT += dtR; const arc = arcT < NPC.ARC_S ? Math.sin(Math.PI * arcT / NPC.ARC_S) : 0;
+    if (!ending) s += 0.35 * arc;
+    route.at(s, ending === 'caught' ? 0.95 : NPC.LAT - 0.3 * arc, A);
     npc.group.position.copy(A.pos);
-    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading, 1 - Math.exp(-dt * 6));
+    yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading - 0.5 * arc, 1 - Math.exp(-dt * 6));
     // 步态：按她自己的速度摆腿；冲刺前倾；被甩掉的结局弯腰喘气
     const v = sPrev === null ? 0 : (s - sPrev) / Math.max(dt, 1e-3); sPrev = s;
     spd += (Math.max(0, Math.min(6, v)) - spd) * (1 - Math.exp(-dt * 5));
     const walkV = ending === 'shaken' ? 0 : preview ? (dash ? 3 : 1.6) : spd;
     phase += dt * Math.PI * walkV;
     const amp = Math.min(38, walkV * 14 + dash * 12);
-    const wantLean = ending === 'shaken' ? 0.5 : dash * 0.28;
+    const wantLean = npc.statue ? (ending === 'shaken' ? 0.3 : 0.03 + dash * 0.32 + (walkV > 0.05 ? 0.1 : 0))
+      : ending === 'shaken' ? 0.5 : dash * 0.28;
     lean += (wantLean - lean) * (1 - Math.exp(-dt * 5));
     npc.group.rotation.set(0, yaw, -lean);
+    if (npc.statue) {                                                    // 雕像（STL）四肢不能动：风系飘行——离地浮着，走时上下起伏，停下来慢慢呼吸
+      npc.group.position.y += ending === 'shaken' ? 0.02 : walkV > 0.05 ? 0.1 + 0.05 * Math.sin(phase * 2) : 0.07 + 0.03 * Math.sin(t * 2.2);
+      npc.group.scale.y = 1 + 0.012 * Math.sin(t * 1.8);
+    }
     const stand = walkV < 0.05 && (ending === 'caught' || (!ending && state === 'caught'));   // 追上后站定 / 登顶抓到：播模型自带的格斗站姿（有的话）
     if (npc.stance(stand)) { /* 自带动画在摆 */ }
     else if (ending === 'shaken') npc.pose(30 + 4 * Math.sin(t * 5), 30 + 4 * Math.sin(t * 5 + 1));   // 撑膝喘气
