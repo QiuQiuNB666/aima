@@ -106,6 +106,7 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       const b = assist.step(t, dtR, { T, me, preview });
       latS = latS === null ? b.lat : latS + (b.lat - latS) * (1 - Math.exp(-dt * 4));   // 横向慢慢挪过去，不瞬移
       s = b.s; latA = latS; pointW = b.point; dash = b.dash; faceA = b.face; actA = b.act;
+      window.__npc.last = b;                                             // 调试 / 实跑截图脚本读
       if (preview && Q.get('npcact')) { actA = { oxygen: 0, guard: 0, five: 0, [Q.get('npcact')]: 1 }; faceA = Q.get('npcact') === 'guard' ? 0 : 0.9; }   // 预览 &npcact=oxygen|guard|five
       if (preview && Q.get('npcpoint') === '1') pointW = 1;              // 预览 &npcpoint=1：截指路姿势
       if (b.say) say(b.say.key, t, b.say.text);

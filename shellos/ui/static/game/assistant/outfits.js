@@ -4,6 +4,8 @@
 //   影子的冰青一眼分开），按 theme.style 换款式和辅色：珠峰连体羽绒服（横向绗缝、蓬、腰上攀登安全带、雪套）、东京机能风、泰山 / 华山轻徒步、
 //   富士夜登保暖、梧桐山速干、训练场基础款。?outfit=<style 或款名> 临时换（截图用）。
 import * as THREE from 'three';
+import { WHO } from '../style.js';   // 第三个人的识别色：钴蓝 + 白（ART 的 WHO.jett；捷风换成助理后沿用这一格，已留言 ART 改名）
+const CO = WHO.jett.coat, WH = WHO.jett.hair;
 
 const col = c => ({ value: new THREE.Color(c) });
 
@@ -49,14 +51,14 @@ function suit(name, c, inflate, { quilt = 0, one = 0 } = {}) {
 //                                              躯干   上臂   前臂   大腿   小腿   鞋     脖子
 const FIT = [0.008, 0.006, 0.005, 0.004, 0.004, 0, 0.006];
 export const OUTFITS = {
-  base: suit('asst-base', { main: '#2f7fe0', trim: '#eef3f8', pants: '#27344c', shoe: '#e4e8ee', sole: '#8d96a1' }, FIT),
-  down: suit('asst-down', { main: '#2f7fe0', trim: '#eef3f8', side: '#1d4f9a', belt: '#30343a', cuff: '#1c2230', shoe: '#e9edf2', sole: '#40454d', neck: '#eef3f8', pants: '#2f7fe0' },
+  base: suit('asst-base', { main: CO, trim: WH, pants: '#27344c', shoe: '#e4e8ee', sole: '#8d96a1' }, FIT),
+  down: suit('asst-down', { main: CO, trim: WH, side: '#1d4f9a', belt: '#30343a', cuff: '#1c2230', shoe: '#e9edf2', sole: '#40454d', neck: WH, pants: CO },
     [0.03, 0.022, 0.018, 0.022, 0.02, 0.012, 0.024], { quilt: 1, one: 1 }),                          // 珠峰：连体羽绒服
-  tech: suit('asst-tech', { main: '#1f2530', trim: '#2f7fe0', side: '#2f7fe0', pants: '#181c24', belt: '#2f7fe0', shoe: '#2a303a', sole: '#eef3f8', neck: '#2f7fe0' }, FIT),   // 东京：黑色机能风 + 钴蓝亮边
-  hike: suit('asst-hike', { main: '#2f7fe0', trim: '#eef3f8', pants: '#7a7466', cuff: '#5f5a50', shoe: '#6b5a4a', sole: '#3a342e' }, FIT),   // 泰山：轻徒步
-  cliff: suit('asst-cliff', { main: '#eef3f8', trim: '#2f7fe0', side: '#2f7fe0', pants: '#4a5058', shoe: '#3a3f46', sole: '#1e2126', neck: '#2f7fe0' }, FIT),   // 华山：白色风衣 + 钴蓝
-  warm: suit('asst-warm', { main: '#2f7fe0', trim: '#eef3f8', side: '#1d4f9a', pants: '#252b36', shoe: '#e4e8ee', sole: '#5a616b' }, [0.018, 0.014, 0.011, 0.008, 0.007, 0.006, 0.014], { quilt: 1 }),   // 富士夜登：短款羽绒服
-  quick: suit('asst-quick', { main: '#eef3f8', trim: '#2f7fe0', side: '#2f7fe0', pants: '#2f7fe0', cuff: '#1d4f9a', shoe: '#eef3f8', sole: '#2f7fe0', neck: '#eef3f8' }, [0.004, 0.003, 0.003, 0.003, 0.003, 0, 0.003]),   // 梧桐山：速干长袖
+  tech: suit('asst-tech', { main: '#1f2530', trim: CO, side: CO, pants: '#181c24', belt: CO, shoe: '#2a303a', sole: WH, neck: CO }, FIT),   // 东京：黑色机能风 + 钴蓝亮边
+  hike: suit('asst-hike', { main: CO, trim: WH, pants: '#7a7466', cuff: '#5f5a50', shoe: '#6b5a4a', sole: '#3a342e' }, FIT),   // 泰山：轻徒步
+  cliff: suit('asst-cliff', { main: WH, trim: CO, side: CO, pants: '#4a5058', shoe: '#3a3f46', sole: '#1e2126', neck: CO }, FIT),   // 华山：白色风衣 + 钴蓝
+  warm: suit('asst-warm', { main: CO, trim: WH, side: '#1d4f9a', pants: '#252b36', shoe: '#e4e8ee', sole: '#5a616b' }, [0.018, 0.014, 0.011, 0.008, 0.007, 0.006, 0.014], { quilt: 1 }),   // 富士夜登：短款羽绒服
+  quick: suit('asst-quick', { main: WH, trim: CO, side: CO, pants: CO, cuff: '#1d4f9a', shoe: WH, sole: CO, neck: WH }, [0.004, 0.003, 0.003, 0.003, 0.003, 0, 0.003]),   // 梧桐山：速干长袖
 };
 export const BY_STYLE = { snow_summit: 'down', cyber_night: 'tech', dawn_mountain: 'hike', cliff_path: 'cliff', night_to_dawn: 'warm', subtropical: 'quick', grid: 'base' };
 

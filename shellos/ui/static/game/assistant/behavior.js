@@ -83,6 +83,8 @@ export function makeAssist(route) {
         point = Math.min(1, el / 0.4) * (el < ASSIST.POINT_S ? 1 : Math.max(0, 1 - (el - ASSIST.POINT_S) / 0.4));
         if (ps > hold.s - 0.2 || el > ASSIST.POINT_S + 3) hold = null;
       }
+      // 影子（上一位）也走右路沿（珠峰在 −0.85）：离她 1.5 步以内时，她往路中间让到 −0.15（还是在峰哥右前方，不进镜头视锥）
+      if (lat === ASSIST.LAT && T && T.ghost_pos != null && s !== null && Math.abs(T.ghost_pos - s) < 1.5) lat = -0.15;
       if (s === null || target < s - 2 || target > s + 3) s = target;   // 开场 / 复位 / 落下太远：直接到位，不倒着跑、不长距离追
       else s += Math.sign(target - s) * Math.min(Math.abs(target - s), dt * ASSIST.VMAX);
       if (say) anySay = t;

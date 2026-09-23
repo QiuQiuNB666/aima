@@ -2,9 +2,10 @@
 //   脸按正前方正投影贴在前半球（后半球 uv 指到纹理角落 = 肤色）；头发是几片平面着色的壳和发片；马尾是一串枢轴（ponytail.pivots），
 //   第 4 轮用 Verlet 甩动。全部按绑定姿态摆好挂到头骨（Skeleton_neck_joint_2）上，A2 转头时跟着走。
 import * as THREE from 'three';
+import { WHO } from '../style.js';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 
-export const HEAD = { r: [0.094, 0.117, 0.087], skin: '#f2cdb4', hair: '#2b211d', band: '#2f7fe0' };   // 前后 / 上下 / 左右半径（米）
+export const HEAD = { r: [0.094, 0.117, 0.087], skin: '#f2cdb4', hair: '#2b211d', band: WHO.jett.coat };   // 前后 / 上下 / 左右半径（米）
 
 // 脸：干练的职业妆——杏仁眼（深棕虹膜 + 高光）、上眼线带一点小翘、双眼皮褶线、柔和的眉、小鼻、浅笑的唇、很淡的腮红。
 //   纹理 u 从观众左到右（= 她的右到左），v 从下到上。
