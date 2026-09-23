@@ -13,16 +13,16 @@ export function buildInteract(scene, ctx, E) {
   const vend = (E.vend || []).filter(v => v.s < route.N - 2);
   const flashMat = new THREE.MeshBasicMaterial({ color: '#dff4ff', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
   const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 1.18), flashMat); flash.visible = false; flash.name = 'vendFlash'; scene.add(flash);
-  const can = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.22, 12).rotateZ(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#e8283a', toneMapped: false }));
+  const can = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.46, 16).rotateZ(Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#e8283a', emissive: '#5a0a12' }));   // 比真罐大 2 倍多：3 米外看得清（吃光，不走泛光，免得颜色白成一团）
   can.visible = false; can.name = 'vendCan'; scene.add(can);
   const trig = vend.map(() => kit.edge()), cp = new THREE.Vector3(), cv = new THREE.Vector3();
   let fT = 0, cT = 0, cy0 = 0, cols = ['#e8283a', '#2a6cff', '#f2c230', '#2fbf6a'], ci = 0;
   const drop = v => {
     const n = new THREE.Vector3(Math.sin(v.ry), 0, Math.cos(v.ry));            // 机身正面朝路
     flash.position.set(v.a.pos.x + n.x * 0.27, v.y0 + 0.64, v.a.pos.z + n.z * 0.27); flash.rotation.y = v.ry; flash.visible = true; fT = 0.6;
-    cp.set(v.a.pos.x + n.x * 0.32, v.y0 + 0.22, v.a.pos.z + n.z * 0.32); cy0 = v.y0 + 0.07;
-    cv.copy(n).multiplyScalar(1.3).add(new THREE.Vector3((R() - 0.5) * 0.4, 1.1, (R() - 0.5) * 0.4)); cT = 2.5;
-    can.material.color.set(cols[ci++ % cols.length]); can.visible = true; can.rotation.set(0, v.ry + Math.PI / 2, 0);
+    cp.set(v.a.pos.x + n.x * 0.4, v.y0 + 0.3, v.a.pos.z + n.z * 0.4); cy0 = v.y0 + 0.15;
+    cv.copy(n).multiplyScalar(1.6).add(new THREE.Vector3((R() - 0.5) * 0.4, 1.6, (R() - 0.5) * 0.4)); cT = 3.0;   // 抛高一点、滚远一点，停在路边多留一会
+    const cc = cols[ci++ % cols.length]; can.material.color.set(cc); can.material.emissive.set(cc).multiplyScalar(0.35); can.visible = true; can.rotation.set(0, v.ry + Math.PI / 2, 0);
     kit.sfx('can');
   };
 
