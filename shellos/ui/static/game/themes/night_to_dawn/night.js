@@ -23,7 +23,7 @@ export function nightSky(ctx, back) {          // back = 来路方向（水平�
   const mm = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide });
   const met = new THREE.Mesh(new THREE.PlaneGeometry(34, 0.55), mm); met.visible = false; met.frustumCulled = false; met.renderOrder = -7; met.name = 'meteor'; scene.add(met);
   const P0 = new THREE.Vector3(), Q = new THREE.Vector3(), V = new THREE.Vector3(), X = new THREE.Vector3(), Y = new THREE.Vector3(), Z = new THREE.Vector3(), M = new THREE.Matrix4();
-  let wait = 0.2, life = 0, T = 0.7;
+  let wait = 0.2, life = 0, T = 0.7, look = false, lookCd = 0;   // look：这颗流星镜头要不要抬头看（最多 20 s 一次，不然镜头老在点头）
   const fw = new THREE.Vector3();
   const spawn = cam => {                       // 在镜头朝向 ±35° 以内、180 远的天上挑个起点，斜着往下划（划在画面里才有用）
     const camPos = cam.position; cam.getWorldDirection(fw);
@@ -31,10 +31,12 @@ export function nightSky(ctx, back) {          // back = 来路方向（水平�
     P0.set(camPos.x + Math.cos(a) * Math.cos(e) * r, camPos.y + Math.sin(e) * r, camPos.z + Math.sin(a) * Math.cos(e) * r);
     const b = a + (R() < 0.5 ? 1.2 : -1.2);
     V.set(Math.cos(b) * 90, -18, Math.sin(b) * 90);
-    life = T = 0.55 + R() * 0.35;
+    life = T = 0.55 + R() * 0.35; look = lookCd <= 0; if (look) { lookCd = 20; life = T = 1.1; }   // 要看的那颗划得慢一点
   };
-  return {
+  const out = {
+    glance: 0,                                 // 0..1：流星正在划（rigFor 按它抬镜头看点）
     update(dt, st, night) {                    // night = 1 夜 → 0 天亮
+      lookCd -= dt; out.glance += ((life > 0 && look && night > 0.3 ? 1 : 0) - out.glance) * Math.min(1, dt * 3);
       moonMat.opacity = night; moon.visible = night > 0.01;
       if (!st.camera || night < 0.05) { met.visible = false; return; }
       if (life > 0) {
@@ -47,4 +49,5 @@ export function nightSky(ctx, back) {          // back = 来路方向（水平�
       } else if ((wait -= dt) <= 0) { spawn(st.camera); wait = 2.5 + R() * 2.5; }
     },
   };
+  return out;
 }

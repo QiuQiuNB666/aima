@@ -282,7 +282,7 @@ export function buildCity(scene, ctx, E) {
   for (const [s, side] of [[2.4, -1], [3.8, -1], [5.0, 1], [5.9, 1], [22.9, -1], [27.2, 1], [26.7, -1]]) {
     // 街上的往外挪（左侧 = 镜头这一侧，贴着楼面放，不占前景）；坂道的贴着店面
     const lat = side > 0 ? (s < GAP[0] ? 5.3 : 3.2) : (s < GAP[0] ? -3.7 : -2.05), a = route.at(s, lat), y0 = gy(a.pos.x, a.pos.z), ry = side > 0 ? -a.heading : -a.heading + Math.PI;
-    vend.push({ a, y0, ry, col: ['#b9bfcc', '#8e1a2a', '#2c3c78'][vend.length % 3] });
+    vend.push({ s, side, a, y0, ry, col: ['#b9bfcc', '#8e1a2a', '#2c3c78'][vend.length % 3] });
   }
   // 机身 1.25 高（化身约 1.4）、0.62 宽；侧面压暗，不再是一大块纯色
   const vbody = util.instanced(new THREE.BoxGeometry(0.62, 1.25, 0.5), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#101014' }),
@@ -327,7 +327,7 @@ export function buildCity(scene, ctx, E) {
   const ag = new THREE.BufferGeometry(); ag.setAttribute('position', new THREE.Float32BufferAttribute(towers.flat(), 3));
   aviMat = new THREE.PointsMaterial({ size: 1.6, map: radial, color: '#ff2030', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const avi = new THREE.Points(ag, aviMat); avi.name = 'aviation'; scene.add(avi);
-  E.signs = signs.length;
+  E.signs = signs.length; E.vend = vend;   // 贩卖机位置给 interact.js（走近掉罐饮料）
 }
 
 export function updateCity(dt) {

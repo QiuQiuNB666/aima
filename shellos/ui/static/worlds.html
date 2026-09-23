@@ -108,6 +108,7 @@ $go.onclick=go;
 async function load(pick_){
   const ws=await fetch('/worlds.json').then(r=>r.json());
   let cur=null;try{cur=(await (await fetch('/state')).json()).terrain}catch(e){}
+  ws.forEach(w=>{if(w.best!=null)REC[w.id]={best:w.best,who:w.ghost_who}});   // ShellOS 内存为准；没有的（重启过）才用浏览器里的 fg_records
   if(cur&&cur.best!=null)REC[cur.preset]={...(REC[cur.preset]||{}),best:Math.min(cur.best,(REC[cur.preset]||{}).best??1e9),who:(REC[cur.preset]||{}).who||cur.ghost_who};
   let n=0;cards=[];
   document.getElementById('main').innerHTML='';document.getElementById('train').innerHTML='';

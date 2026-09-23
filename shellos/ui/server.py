@@ -62,7 +62,12 @@ class Dashboard:
                     return self._json(dash.state())
                 if self.path.split("?")[0] == "/worlds.json":
                     from .. import worlds
-                    return self._json(worlds.summary())
+                    t = dash.app.ctl if hasattr(dash.app.ctl, "memory") else getattr(dash.app, "_terrain", None)    # 每座山的最佳 / 影子（ShellOS 内存，重启清零）
+                    mem = dict(getattr(t, "memory", {}))
+                    if getattr(t, "preset", None):
+                        mem[t.preset] = (t.ghost, t.ghost_who, t.best)
+                    return self._json([w | {"best": mem.get(w["id"], ([], "", None))[2], "ghost_who": mem.get(w["id"], ([], "", None))[1]}
+                                       for w in worlds.summary()])
                 if self.path.split("?")[0] in ("/worlds", "/worlds.html"):
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "worlds.html"), "text/html; charset=utf-8")
                 if self.path.split("?")[0] in ("/fengge", "/fengge.html"):
