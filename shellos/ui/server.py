@@ -97,7 +97,8 @@ class Dashboard:
                         from urllib.parse import parse_qs, urlparse
                         from ..agent import voice
                         t = (parse_qs(urlparse(self.path).query).get("t") or [""])[0]
-                        data = (voice.real(t) or voice.get(t, voice=voice.NPC_VOICE)) if t in voice.NPC_LINES else None
+                        data = (voice.cached(t, voice.ASST_VOICE) if t in voice.ASST_LINES      # 助理（缺省）：只读缓存
+                                else (voice.real(t) or voice.get(t, voice=voice.NPC_VOICE)) if t in voice.NPC_LINES else None)   # 捷风旧版
                         if not data:
                             self.send_response(204); self.end_headers(); return
                         self.send_response(200)

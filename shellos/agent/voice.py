@@ -34,6 +34,23 @@ NPC_CANDIDATES = {   # 年轻、清亮、偏冷酷 / 痞帅；speed 1.1–1.3、
     "D_俏皮萌妹": {"voice_id": "qiaopi_mengmei", "speed": 1.3, "pitch": -1, "emotion": "surprised"},           # 俏皮，音高压低一点去掉奶气
     "清脆少女": {"voice_id": "Chinese (Mandarin)_Crisp_Girl"},                                                 # 第一版，球球试听说一点都不像
 }
+# 9/23 夜起缺省 NPC 换成「峰哥的助理」（捷风旧版 ?npc=jifeng，上面那套不动）。15 句干练的助理话术，和 static/game/assistant/lines.js 同顺序；
+#   MiniMax 系统预设女声（不用真人录音）；`python3 brain/tts.py --asst` 预生成，/voice/npc.wav 对这些句子只读缓存、不现场合成。
+ASST_LINES = ("出发！我在前面带路。", "看前面，到地标了。", "这段路我查过，跟着我。", "红灯，先停一下。", "绿灯了，走吧。",
+              "节奏很好，保持住。", "台阶来了，抬脚。", "下坡慢一点，膝盖放松。", "氧气给你，慢慢吸。", "排队呢，我在前面挡着。",
+              "到你了，上！", "登顶了！来，击个掌！", "喝口水，歇十秒。", "风大，拉好拉链。", "我在这儿，你慢慢来。")
+ASST_VOICE = {"voice_id": "Chinese (Mandarin)_Warm_Bestie", "speed": 1.05, "pitch": 0}   # 官方描述：温暖清脆的青年女性，标准普通话，友好而清晰
+
+
+def cached(text, voice=""):
+    """只读缓存：有就返回 wav，没有就 None（不联网、不合成）。"""
+    p = path(text, voice)
+    if os.path.isfile(p):
+        with open(p, "rb") as f:
+            return f.read()
+    return None
+
+
 NPC_CLONE_ID = os.path.join(DIR, "npc_voice_id")
 
 

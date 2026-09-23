@@ -3,6 +3,7 @@
   python3 brain/tts.py --clone      # 一次性：把 data/voice/ref/fengge_ref.wav 传给 MiniMax 快速复刻，voice_id 存 data/voice/minimax_voice_id
   python3 brain/tts.py --canned     # 把 shellos/agent/fengge.py 的兜底语录预生成进 data/voice/（断网也有声）
   python3 brain/tts.py --npc        # 把追兵 NPC 的台词（shellos/agent/voice.py NPC_LINES，预设音色）预生成进 data/voice/npc/
+  python3 brain/tts.py --asst       # 助理（缺省 NPC）的 15 句：预设女声，预生成进 data/voice/npc/，/voice/npc.wav 只读缓存
   python3 brain/tts.py --clone-npc  # 捷风：用配音演员本人现场新录的参考音频（data/voice/ref/jifeng_ref.m4a，npc_intake.py 生成）快速复刻，9.9 元，球球确认后才跑
   python3 brain/tts.py --npc-candidates   # NPC 候选音色各念 4 句试听，存 data/voice/npc_candidates/<候选名>/，最后打一行 afplay 试听命令
   python3 brain/tts.py              # 起服务，127.0.0.1:8791
@@ -217,6 +218,12 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--clone-npc" in sys.argv:                       # 配音演员本人当面同意、现场新录的参考音频；不是游戏素材
         clone(os.path.join(voice.DIR, "ref", "jifeng_ref.m4a"), voice.NPC_CLONE_ID, "Jifeng")
+        sys.exit(0)
+    if "--asst" in sys.argv:                            # 助理的 15 句（预设女声，按字数计费，约 250 计费字符，一两毛钱）
+        MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0
+        for line in voice.ASST_LINES:
+            _, keep = get(line, voice.ASST_VOICE)
+            print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.key(line, voice.ASST_VOICE), line)
         sys.exit(0)
     if "--npc-candidates" in sys.argv:                  # 预设音色，按字数计费：4 候选 × 4 句约 220 计费字符，一两毛钱
         MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0

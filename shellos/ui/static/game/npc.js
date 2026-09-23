@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { makeJifeng, 角色名 } from './npc_jifeng.js';   // 旧版追兵「捷风」：?npc=jifeng
 import { makeAssistant } from './npc_assistant.js';   // 缺省：峰哥的助理（9/23 夜起）
 import { makeAssist } from './assistant/behavior.js';
+import { LINES as A_LINES } from './assistant/lines.js';
 import { WHO } from './style.js';
 import { synthHip } from './anim.js';
 
@@ -64,12 +65,13 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
   const quiet = LEGACY ? Q.get('npctalk') !== '1' : Q.get('npctalk') === '0';   // 9/23 球球：主角是峰哥，捷风先闭嘴（?npctalk=1 恢复）；助理按新需求说话（地标 / 互动 / 台词），?npctalk=0 静音
   const say = (key, t, text) => {
     if (quiet) return false;
-    const L = LINES[key], line = text || (L ? L[Math.floor(Math.random() * L.length)] : key);
+    const L = LINES[key], line = LEGACY ? text || (L ? L[Math.floor(Math.random() * L.length)] : key) : text || A_LINES[key] || key;
+    const spoken = LEGACY ? line : A_LINES[key] || line;                   // 助理：气泡可以带地名，声音念 lines.js 里固定的那句（预生成、只读缓存）
     if (t - lastSay < NPC.SAY_GAP && !key.startsWith('end')) return false;
     lastSay = t; sayUntil = t + 2.5; bub.textContent = line; tag.classList.add('talk');
     if (mute) return true;
     if (audio) audio.pause();
-    audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(line));   // 204（没 TTS / 不在白名单）= 播放失败，安静跳过
+    audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(spoken));   // 204（没缓存 / 不在白名单）= 播放失败，安静跳过
     audio.play().catch(() => {});                                          // 还没点过页面：浏览器不让出声，只出气泡
     return true;
   };

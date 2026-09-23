@@ -6,6 +6,8 @@
 //     北坳吸氧 = 80% 之前第一个等待段，站定 0.3 s → 她站到峰哥右边、转身递氧气瓶（左手）；
 //     排队 = 80% 以后最后一个等待段，红灯时她站到峰哥正前方半步、两臂微张挡着；绿灯那一下让到右边「到你了」；
 //     登顶 = /state.terrain.laps 加一 → 6 s 内站到峰哥右边、举左手击掌。
+//   台词（第 7 轮，key 见 lines.js）：起步 start；地标 mark（地名带「风」的念 wind）；进台阶 stairs、进下坡 down；普通红灯 red / rest 轮着说、
+//     放行 green；排队 queue、轮到 go；北坳 oxygen；登顶 summit；连续走 45 s 没说话 pace / follow 轮着说。除了互动那几句，两句之间至少 6 s。
 //   返回 { s（她的连续步数）, lat（横向）, face（转身，弧度，+ = 向左转向峰哥）, point（指路 0..1）, act: { oxygen, guard, five }（0..1）,
 //     say（{key, text} 或 null）, dash }
 export const ASSIST = { LEAD: 0.5, LAT: -0.75, VMAX: 5, POINT_S: 2.6, GAP_S: 10, AHEAD: 2.2 };
@@ -27,13 +29,16 @@ const ramp = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a)));
 export function makeAssist(route) {
   const marks = landmarks(route), done = new Set(), Z = zones(route);
   let s = null, hold = null, lastSay = -99, lastLaps = null, lastPs = null, oxyT = 0, oxySaid = false, inQueue = false, summitT = -1;
+  let started = false, inQueueSaid = false, prevSeg = -1, prevWait = false, redN = 0, walkT = 0, paceN = 0, anySay = -99;
+  const segAt = x => { const g = route.segs; let i = 0; while (i < g.length - 1 && x >= g[i].start + g[i].steps) i++; return i; };
   return {
     marks,
     step(t, dt, { T, me, preview }) {
       const ps = me.s;
       let say = null;
-      if ((T && lastLaps !== null && T.laps !== lastLaps) || (lastPs !== null && ps < lastPs - 3)) { done.clear(); hold = null; }   // 新一圈 / 按 R 复位
-      if (T && lastLaps !== null && T.laps > lastLaps) { summitT = 0; say = { key: 'summit', text: '登顶了！来，击个掌！' }; }
+      if ((T && lastLaps !== null && T.laps !== lastLaps) || (lastPs !== null && ps < lastPs - 3)) { done.clear(); hold = null; started = false; prevSeg = -1; }   // 新一圈 / 按 R 复位
+      const moved = lastPs !== null && ps > lastPs + 1e-4;
+      if (T && lastLaps !== null && T.laps > lastLaps) { summitT = 0; say = { key: 'summit' }; }
       if (T) lastLaps = T.laps; lastPs = ps;
       let target = ps + ASSIST.LEAD, point = 0, lat = ASSIST.LAT, face = 0;
       const act = { oxygen: 0, guard: 0, five: 0 }, wait = !!T && T.segment === 'wait';
@@ -46,15 +51,28 @@ export function makeAssist(route) {
       oxyT = atCol ? oxyT + dt : 0;
       if (oxyT > 0.3) {                                               // 北坳吸氧：站到右边、转身递氧气瓶
         target = ps + 0.12; lat = -0.3; face = 0.9; act.oxygen = ramp(oxyT, 0.3, 0.8);
-        if (!oxySaid) { oxySaid = true; say = { key: 'oxygen', text: '氧气给你，慢慢吸。' }; }
+        if (!oxySaid) { oxySaid = true; say = { key: 'oxygen' }; }
       } else if (!atCol) oxySaid = false;
       const atQ = !preview && Z.queue && ps > Z.queue.start - 0.6 && ps < Z.queue.start + 1.2;
       if (atQ && wait) {                                              // 排队：站到正前方半步挡着
         inQueue = true; target = ps + 0.75; lat = 0.25; act.guard = 1;
-      } else if (inQueue) { inQueue = false; say = { key: 'go', text: '到你了，上！' }; }
+      } else if (inQueue) { inQueue = false; say = { key: 'go' }; }
+      if (atQ && wait && !inQueueSaid) { inQueueSaid = true; say = say || { key: 'queue' }; } else if (!atQ) inQueueSaid = false;
+      // 普通台词：起步 / 进台阶 / 进下坡 / 普通红灯 / 放行 / 走久了（互动那几句优先，两句至少隔 6 s）
+      const si = segAt(ps), g = route.segs[si], free = !preview && !say && summitT < 0 && t - anySay > 6;
+      if (!started && moved) { started = true; if (free) say = { key: 'start' }; }
+      else if (free && si !== prevSeg && prevSeg >= 0 && g && !atCol && !atQ) {
+        if (g.kind === 'stairs_up') say = { key: 'stairs' };
+        else if (g.kind === 'down' || g.kind === 'stairs_down') say = { key: 'down' };
+      }
+      if (!say && free && wait && !prevWait && !atCol && !atQ) say = { key: redN++ % 2 ? 'rest' : 'red' };
+      if (!say && !preview && !wait && prevWait && !inQueue && summitT < 0) say = { key: 'green' };
+      walkT = moved && !wait ? walkT + dt : 0;
+      if (!say && free && walkT > 45) { say = { key: paceN++ % 2 ? 'follow' : 'pace' }; walkT = 0; }
+      prevSeg = si; prevWait = wait;
       if (!preview && !hold && !say && !wait && summitT < 0 && t - lastSay > ASSIST.GAP_S) {
         const m = marks.find(x => !done.has(x.s) && ps > x.s - ASSIST.AHEAD - 1 && ps < x.s - 0.5);
-        if (m) { hold = { ...m, t0: t }; done.add(m.s); lastSay = t; say = { key: 'mark', text: `前面就是${m.label}` }; }
+        if (m) { hold = { ...m, t0: t }; done.add(m.s); lastSay = t; say = /风/.test(m.label) ? { key: 'wind', text: `${m.label}到了，风大，拉好拉链。` } : { key: 'mark', text: `前面就是${m.label}` }; }
       }
       if (hold && (wait || summitT >= 0)) hold = null;
       if (hold) {
@@ -65,6 +83,7 @@ export function makeAssist(route) {
       }
       if (s === null || target < s - 2 || target > s + 3) s = target;   // 开场 / 复位 / 落下太远：直接到位，不倒着跑、不长距离追
       else s += Math.sign(target - s) * Math.min(Math.abs(target - s), dt * ASSIST.VMAX);
+      if (say) anySay = t;
       return { s, lat, face, point, act, say, dash: 0 };
     },
   };
