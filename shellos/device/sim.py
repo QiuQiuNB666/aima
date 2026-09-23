@@ -42,7 +42,7 @@ class SimLink:
         self.amp_target = self.amp_max if on else 0.0
 
     def set_cadence(self, spm: float):
-        self.cadence = max(60.0, min(140.0, float(spm)))
+        self.cadence = max(60.0, min(200.0, float(spm)))   # 200：跑步演示（stride_min 0.6 s）
 
     def _run(self):
         period = 1 / 200
