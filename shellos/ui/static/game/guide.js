@@ -9,7 +9,7 @@ import { STEP } from './path.js';
 import { bus } from './voice_bus.js';     // 峰哥声道仲裁：导游讲解期间占住声道，事件 / 地标台词不插嘴
 
 const Q = new URLSearchParams(location.search);
-const GAP_MS = 350, CPS = 4.5;                  // 句间停顿；没声音时按每秒 4.5 字估时长
+const GAP_MS = 350, CPS = 4.5, PRELOAD_MS = 6000;   // 句间停顿；没声音时按每秒 4.5 字估时长；预加载最多等 6 s（等不到的播的时候再说）
 // 镜头三段（秒）：0–t1 正面对着峰哥慢慢推近（像导游对着你说话）；t1–t2 从头顶摇臂翻到身后（只走路线上方，不擦两边的楼）；
 //   t2 以后在身后高处，看前方的山路 / 景点，慢慢升高后退。看点压在脸下面：脸在画面上三分之一，不被正中偏下的「按住 R2」挡住。
 const CAM = { t1: 9, t2: 17, front: [3.0, 2.4], fh: 1.5, look: 1.0, back: 3.8, bh: 3.4, peak: 4.8, ahead: 14, side: 0.5, clear: 0.9, drift: [0.06, 0.05] };
@@ -23,20 +23,33 @@ export async function initGuide({ world, route, camera, me, getS }) {
   const body = document.body, mute = Q.get('voice') === '0';
   const clips = mute ? [] : lines.map((_, i) => Object.assign(new Audio(`/guide/${world.id}/${i}.wav`), { preload: 'auto' }));   // 先下好，句与句之间不卡
   bus.bless(clips);                          // Safari / 严格自动播放策略：第一次按键时把这几段预热一遍，之后不靠手势也能播
-  let run = 0, armed = true, audio = null, cur = '', t0 = 0, tl = 0, raf = 0;
+  // 预加载：每段 ok（能从头放到尾）/ miss（404 或解不了：这句只出气泡，不等）/ slow（6 s 还没下完：照样开讲，播的时候兜底）；全部有结果才开讲
+  const have = clips.map(() => null);
+  let preloaded = mute;
+  Promise.all(clips.map((a, i) => new Promise(r => {
+    const done = v => { if (have[i] == null) { have[i] = v; r(); } };
+    a.addEventListener('canplaythrough', () => done('ok'), { once: true });
+    a.addEventListener('error', () => done('miss'), { once: true });
+    if (a.readyState >= 4) done('ok');
+    setTimeout(() => done('slow'), PRELOAD_MS);
+  }))).then(() => { preloaded = true; note('preload', have.join(',')); });
+  let run = 0, armed = true, audio = null, cur = '', t0 = 0, tl = 0, raf = 0, cancel = null;
   const log = [], note = (...a) => { log.push([Math.round(performance.now()), ...a]); if (log.length > 60) log.shift(); };   // 调试：window.__guide.log
   const pos = new THREE.Vector3(), look = new THREE.Vector3(), want = new THREE.Vector3(), wantLook = new THREE.Vector3(), rel = new THREE.Vector3();
 
   const speak = (i) => new Promise(done => {   // 一句：气泡 + 声音，放完（或估的时长到了）才 resolve
     const text = lines[i], est = text.length / CPS * 1000 + 600;
     let fin = false; const end = (why) => { if (!fin) { fin = true; note(i, why); done(); } };
+    cancel = () => { fin = true; done(); };     // 被打断：这句的计时器之后再到点也不记、不动
     note(i, 'say');
     cur = text; window.__fenggeHud?.say('guide', text, 0);
     if (mute) return setTimeout(end, est, 'est');
+    if (have[i] === 'miss') return setTimeout(end, est, 'nowav');   // 没这句的 wav：只出气泡，按字数估时长，不等
     audio = clips[i]; audio.currentTime = 0;
     audio.onended = () => end('ended'); audio.onerror = () => setTimeout(end, est, 'nowav');
-    audio.play().then(() => note(i, 'play'), e => setTimeout(end, est, e.name));   // 浏览器不让自动出声 / 没缓存：照样按时长出气泡
-    setTimeout(end, est + 8000, 'stuck');               // 兜底：声音卡住也不停在这一句
+    audio.play().then(() => note(i, 'play'), e => setTimeout(end, est, e.name));   // 浏览器不让自动出声 / 放不了：照样按时长出气泡
+    const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 + 1500 : est + 4000;
+    setTimeout(end, dur, 'stuck');                      // 兜底：声音卡住也不停在这一句（知道时长就按时长 + 1.5 s）
   });
 
   const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
@@ -72,7 +85,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
   }
   function stop() {
     if (!body.classList.contains('g-guide')) return;
-    note('stop'); run++; cancelAnimationFrame(raf); window.__camHold = false;
+    note('stop'); run++; cancelAnimationFrame(raf); if (cancel) { cancel(); cancel = null; } window.__camHold = false;
     if (audio) { audio.pause(); audio.onended = audio.onerror = null; audio = null; }
     window.__fenggeHud?.say('guide', cur, 1);   // 同一句、1 ms 后收起（淡出）
     body.classList.remove('g-guide'); bus.release('guide');
@@ -86,7 +99,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
     const atStart = T.pos != null && T.pos < 1;   // 只在山脚开讲：半路停下来（u-play 回到 u-ready）不能突然开始导游
     if (body.classList.contains('g-guide')) { if (!ready || go) stop(); }
     else if (armed && ready && go) armed = false;  // 没听就走了（按住 R2 关掉标题屏）：这一位跳过，别等他半山腰歇脚时再讲
-    else if (armed && ready && !go && atStart) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲（讲了也是哑的），提示按任意键
+    else if (armed && ready && !go && atStart && preloaded) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲（讲了也是哑的），提示按任意键
   }, 200);
   window.__guide = { play, stop, lines, log };
   return window.__guide;

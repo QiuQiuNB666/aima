@@ -107,6 +107,13 @@ for (let k = 0; k < +N; k++) {
     if (g1 || await guiding()) f.push('④R2 开走的还开讲了');
   } else {
     if (scen !== 'reload') await key('Enter', 'Enter');
+    else if (POLICY !== 'none') {       // 没按过键：不该哑着开讲，要出「按任意键开启峰哥声音」；按个不相干的键（Shift）之后带声音开讲
+      await sleep(4000);
+      row.hint = await ev("!!document.getElementById('vbHint')");
+      if (await guiding()) f.push('①没解锁就开讲');
+      if (!row.hint) f.push('①没出「按任意键」提示');
+      await key('ShiftLeft', 'Shift');
+    }
     row.startMs = await until(guiding, 20000);
     if (row.startMs == null) f.push('④没开讲');
     else if (scen === 'enter-listen') {
