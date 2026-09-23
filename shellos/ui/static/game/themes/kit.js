@@ -212,7 +212,7 @@ export function edge() { let was = false; return on => { const r = on && !was; w
 
 // 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter' | 'click' | 'clink' | 'creak' | 'wind' | 'hiss' | 'yakbell'
 //   | 'crunch' | 'ice' | 'rock' | 'rope' | 'ladder' | 'breath' | 'voice' | 'flap' | 'taiko' | 'camo' | 'glitch', vol, { pitch })；
-//   持续音 sfxLoop('rotor' | 'wind' | 'stove') → { set(vol, rate) } 每帧调（rotor = E 线直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
+//   持续音 sfxLoop('rotor' | 'wind' | 'stove' | 'rain' | 'pad') → { set(vol, rate) } 每帧调（rotor = E 线直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
 //   音量再乘 U 设置页的「捷风 / 音效音量」（window.__settings.get('vSfx')，0–100；设置页只管 <audio>，WebAudio 这里自己乘）。
 //   浏览器不让没交互过的页面出声：上下文挂起时等第一次按键 / 点击再恢复（空格走路就算）。音量都压低，峰哥说话时不抢
 const SFX_Q = new URLSearchParams(location.search), SFX_ON = SFX_Q.get('sfx') !== '0' && !SFX_Q.has('preview');
@@ -314,6 +314,17 @@ export function sfxLoop(name) {
       lfo = ac.createOscillator(); lfo.frequency.value = 7; const lg = ac.createGain(); lg.gain.value = 0.12; lfo.connect(lg); lg.connect(am.gain); lfo.start();
       src.connect(hp); hp.connect(lp); lp.connect(am); am.connect(g);
       mod = r => lg.gain.setTargetAtTime(0.05 + 0.25 * r, ac.currentTime, 0.3);
+    } else if (name === 'rain') {                        // 雨：白噪声 高通 + 低通 = 细密沙沙；rate 高 = 更亮
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5000;
+      src.connect(hp); hp.connect(lp); lp.connect(g);
+      mod = r => lp.frequency.setTargetAtTime(3000 + 5000 * r, ac.currentTime, 0.5);
+    } else if (name === 'pad') {                         // 低音垫：A1 × 2（左右失谐）+ E2 + A2 锯齿 → 低通，截止随 rate 抬、再慢慢晃（不是任何原曲）
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 2;
+      for (const [f, d] of [[55, -6], [55, 7], [82.41, 3], [110, -4]]) { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; og.gain.value = 0.16; o.connect(og); og.connect(lp); o.start(); }
+      lfo = ac.createOscillator(); lfo.frequency.value = 0.07; const lg = ac.createGain(); lg.gain.value = 80; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+      lp.connect(g);
+      mod = r => lp.frequency.setTargetAtTime(220 + 520 * r, ac.currentTime, 1.5);
     } else return false;
     src.start(); return true;
   };
