@@ -27,7 +27,7 @@ function zonedMaterial(L) {
         diffuseColor.rgb *= zc;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float fr = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
-        totalEmissiveRadiance += zc * uSelf + uRim * pow(fr, 2.2) * uRimK;`)
+        totalEmissiveRadiance += zc * uSelf + uRim * pow(max(fr, 0.0), 2.2) * uRimK;`)   // max：Metal 上 fr 浮点误差略小于 0 时 pow(负数)=NaN（L 线 9/23 查到的坏点来源）
       .replace('#include <lights_fragment_begin>', pointScaled);
   };
   m.userData.look = U;

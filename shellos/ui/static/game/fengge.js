@@ -179,7 +179,7 @@ function dressClothes(mat, L) {
     Object.assign(sh.uniforms, C);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vBP, vBN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBP = position; vBN = normal;');
-    sh.fragmentShader = sh.fragmentShader.replace('pow(fr, 2.2) * uRimK', 'pow(fr, 2.6) * uRimK * 0.45')   // 深色衣服上轮廓光显得太亮，压一点
+    sh.fragmentShader = sh.fragmentShader.replace('pow(max(fr, 0.0), 2.2) * uRimK', 'pow(max(fr, 0.0), 2.6) * uRimK * 0.45')   // 深色衣服上轮廓光显得太亮，压一点
       .replace('#include <common>', '#include <common>\nvarying vec3 vBP, vBN;\nuniform vec3 uTeal, uGlove, uShoe, uSole, uGaiter;\nuniform float uFist;')
       .replace('diffuseColor.rgb *= zc;', `{
         vec3 bn = normalize(vBN); float ay = abs(vBP.y), z = vBP.z;
