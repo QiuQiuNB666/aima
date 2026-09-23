@@ -44,6 +44,12 @@ def recover_tick(link, guard, now, rs, log=print):
     return ok
 
 
+def _model_label():
+    """蜂群文案里的「谁造的」：大脑心跳报的模型名（MiniMax-M3 / claude-opus-5），没有就写「大模型」。"""
+    from .agent import brain
+    return brain.status.get("model") or "大模型"
+
+
 class App:
     """仪表盘和 Agent 层看到的东西都挂在这上面。"""
 
@@ -194,7 +200,7 @@ class App:
         if not r or not any(float(v) for v in r["delta"].values()):   # 差值为 0 不存卡
             self.say("教练", f"「{quote}」——没听懂，参数不变", "否决")
             return None
-        src = "Claude" if r["source"] == "claude" else "规则表"
+        src = _model_label() if r["source"] == "claude" else "规则表"
         self.say("教练", f"「{quote}」→ 提议 {r['delta']}（{src}：{r.get('why', '')}）", "提议")
         same, opp = [], []
         for it in self.store.retrieve(self.ctl_key(), self.gait.state.cadence):
@@ -240,7 +246,7 @@ class App:
             self.fengge.speak("red", t.route[t.seg_index(t.pos)[0]]["label"])
 
     def make_world(self, text):
-        """一句话造一座山：地形导演（Claude）出草稿，安全员裁剪，马上切过去。"""
+        """一句话造一座山：地形导演（大模型：Claude 或 MiniMax）出草稿，安全员裁剪，马上切过去。"""
         from .worlds import gen
         text = (text or "").strip()[:80]
         if not text:
@@ -248,7 +254,7 @@ class App:
         self.say("地形导演", f"「{text}」→ 在造…", "提议")
         w, source, notes = gen.generate(text)
         steps = sum(s["steps"] for s in w["route"])
-        self.say("地形导演", f"{'Claude' if source == 'claude' else '大脑不在，规则模板'}造好「{w['name']}」：{w['subtitle']}（{steps} 步）", "提议")
+        self.say("地形导演", f"{_model_label() if source == 'claude' else '大脑不在，规则模板'}造好「{w['name']}」：{w['subtitle']}（{steps} 步）", "提议")
         for n in notes:
             self.say("安全员", n, "裁剪")
         if not notes:
