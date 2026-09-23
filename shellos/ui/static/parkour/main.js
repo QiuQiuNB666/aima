@@ -4,22 +4,27 @@
 //   模拟：按住空格走，1/2/3/4 = 步频 80/105/130/140。
 // URL：?fx=low 降画质；?auto=0.8 自动驾驶（每个障碍 80% 概率躲过去，模拟模式下自己按空格；截图 / 展位待机用）；?seed=；?fengge=0；?voice=0；
 //   ?jump= ?slide= ?vjump= 现场调高抬腿 / 下蹲阈值。
+// 动作预览（调动作 / 截图用，确定性）：?demo=1 不连 ShellOS、不发任何请求，髋角用 A2 的 synthHip 合成（10 Hz 喂，和真机一样），自动驾驶用固定种子；
+//   &manual=1 时钟由脚本推进：window.__pk.tick(帧数, dt)；&cad=150 步频；&cam=side 侧面镜头；&hud=0 藏 HUD；&runner=0 关掉跑步层（对比改之前）。
 import * as THREE from 'three';
 import { loadAvatar, preloadAvatar } from '/game/avatar.js';
 import { dressFengge } from '/game/fengge.js';
 import { makeJifeng } from '/game/npc_jifeng.js';
 import { PALETTE, applyCssVars } from '/game/style.js';
-import { TUNE, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
+import { synthHip } from '/game/anim.js';
+import { makeRunner } from './runner.js';
+import { TUNE, rng, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
 import { makeRiso } from './riso.js';
 
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
 const Q = new URLSearchParams(location.search);
-const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : 0, MUTE = Q.get('voice') === '0';
+const DEMO = Q.has('demo'), MANUAL = DEMO && Q.has('manual'), CAM = Q.get('cam'), CAD_DEMO = +(Q.get('cad') || 150);
+const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : DEMO ? 1 : 0, MUTE = Q.get('voice') === '0' || DEMO;
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
 const LEG_READY_S = 5;          // 走满 5 s（anim.js 学完零点）才认高抬腿 / 下蹲：零点没学出来时穿戴偏屈 15–20°，正常走路会被当成高抬腿
 const $ = id => document.getElementById(id);
-const post = (p, b) => fetch(p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json()).catch(() => null);
+const post = (p, b) => DEMO ? Promise.resolve(null) : fetch(p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json()).catch(() => null);   // 预览一个请求都不发
 const err = (m, e) => { console.error(m, e); if (window.__err) window.__err(`${m}${e ? '：' + (e.stack || e) : ''}`); };
 const best = { get: () => { try { return +localStorage.getItem('pk_best') || 0; } catch { return 0; } }, set: v => { try { localStorage.setItem('pk_best', v); } catch {} } };
 const JF = { start: '가자！你先跑三秒。', dash: '就这？빨리빨리！', caught: '逮到了，慢死了。', lost: '哟，跑挺快嘛。' };   // 都在 voice.py NPC_LINES 白名单里
@@ -33,7 +38,7 @@ function setForce(kind, now) {
   forceSent = kind; forceAt = now;
   post('/terrain/force', kind ? { kind, ttl: FORCE_TTL } : { kind: null });
 }
-const forceOff = () => { forceSent = null; navigator.sendBeacon('/terrain/force', JSON.stringify({ kind: null })); };
+const forceOff = () => { forceSent = null; if (!DEMO) navigator.sendBeacon('/terrain/force', JSON.stringify({ kind: null })); };
 addEventListener('pagehide', forceOff);
 addEventListener('beforeunload', forceOff);
 // 失焦 = 操作员去点别的窗口了：游戏照跑，只是不再改腿上的力，回来再接着发
@@ -58,12 +63,15 @@ async function main() {
   const av = await loadAvatar();
   if (Q.get('fengge') !== '0') try { await dressFengge(av); } catch (e) { err('峰哥头加载失败，用原头盔', e); }
   scene.add(av.group);
+  const runner = Q.get('runner') === '0' ? null : makeRunner(av);
   const jf = await makeJifeng(scene);
+  if (Q.get('hud') === '0') document.body.classList.add('clean');
   if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
 
   // ---------- 一局 ----------
   let level, run, legs = makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', bubbleUntil = 0, autoWalk = false;
-  const seed0 = +(Q.get('seed') || Date.now() % 100000);
+  const seed0 = +(Q.get('seed') || (DEMO ? 5 : Date.now() % 100000));
+  const rand = DEMO ? rng(7) : Math.random;
   let seed = seed0;
   function newRun() {
     city.clear(); level = makeLevel(seed++); run = makeRun(level);
@@ -91,9 +99,18 @@ async function main() {
     } catch (e) { $('banner').style.display = 'block'; $('banner').textContent = '连不上 ShellOS（/state）——确认 python -m shellos.main 在跑'; }
     setTimeout(poll, Math.max(0, 100 - (performance.now() - t0)));
   }
-  poll();
+  if (!DEMO) poll();
+  // 预览：合成髋角（人走路 / 跑步的髋角曲线），按 10 Hz 更新 S——和真机轮询一样，A2 的外推 + 滤波照常起作用
+  let demoPh = 0, demoAt = -1;
+  function demoState(dt) {
+    const f = CAD_DEMO / 120; demoPh = (demoPh + dt * f) % 1;
+    if (clock - demoAt < 0.1) return;
+    demoAt = clock;
+    const [a, va] = synthHip(demoPh), [b, vb] = synthHip((demoPh + 0.5) % 1), on = clock > 0.6;
+    S = { t: clock, frame: { l: -a, r: -b, ldps: -va * f, rdps: -vb * f }, gait: { moving: on, cadence: on ? CAD_DEMO : 0 }, sim: { on: false } };
+  }
   const say = key => {
-    jfSaid = key; $('jfSay').textContent = JF[key]; bubbleUntil = performance.now() / 1000 + 2.5;
+    jfSaid = key; $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
     if (MUTE || AUTO) return;
     if (audio) audio.pause();
     audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(JF[key])); audio.play().catch(() => {});
@@ -122,10 +139,10 @@ async function main() {
   // ---------- 自动驾驶（?auto=p）：每个障碍按概率 p 决定躲不躲 ----------
   function autopilot() {
     if (isSim() && !autoWalk) { autoWalk = true; post('/sim', { walk: true, cadence: 130 }); }
-    if (run.over) { if (performance.now() / 1000 - overAt > 8) newRun(); return; }
+    if (run.over) { if (clock - overAt > 8) newRun(); return; }
     const th = nextThreat(run, level, 6);
     if (!th) return;
-    if (th.o.ap === undefined) th.o.ap = Math.random() < AUTO;
+    if (th.o.ap === undefined) th.o.ap = rand() < AUTO;
     if (!th.o.ap) return;
     if (th.what === 'jump' && th.dx < 1.5 + run.speed * 0.12) pend.jump = true;
     if (th.what === 'slide' && th.dx < 2.2) pend.slide = true;
@@ -134,11 +151,13 @@ async function main() {
 
   // ---------- 每帧 ----------
   const P = new THREE.Vector3(), camP = new THREE.Vector3(), look = new THREE.Vector3(), dir = new THREE.Vector3(1, 0, 0), jfP = new THREE.Vector3();
-  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8;
+  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8, sideY = run.y, clock = DEMO ? 0 : last / 1000;
   const HINT = { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！' };
-  function frame() {
-    requestAnimationFrame(frame);
-    const nowMs = performance.now(), dtR = Math.min(0.1, (nowMs - last) / 1000), t = nowMs / 1000; last = nowMs;
+  function frame(dtFix) {
+    if (!MANUAL) requestAnimationFrame(() => frame());
+    const nowMs = performance.now(), dtR = dtFix || Math.min(0.1, (nowMs - last) / 1000); last = nowMs;
+    clock += dtR; const t = clock;
+    if (DEMO) demoState(dtR);
     const g = S && S.gait;
     const moving = !!(g && g.moving);
     if (moving) legWalk += dtR;
@@ -175,6 +194,7 @@ async function main() {
     av.group.rotation.set(0, 0, tilt);
     if (slide) av.group.position.y += 0.1;
     av.group.visible = !(run.invuln > 0 && Math.floor(t * 12) % 2);
+    if (runner) runner.set({ v: run.speed });
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
 
     // 捷风：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
@@ -194,12 +214,18 @@ async function main() {
     // 镜头：身后偏上；跳的时候不跟满，落地有顿挫；撞了抖
     camY += ((gy ?? run.y) - camY) * (1 - Math.exp(-dtR * 4));
     const fov = 60 + Math.min(10, run.speed * 0.6);
-    if (Math.abs(camera.fov - fov) > 0.2) { camera.fov += (fov - camera.fov) * 0.1; camera.updateProjectionMatrix(); }
+    if (CAM !== 'side' && Math.abs(camera.fov - fov) > 0.2) { camera.fov += (fov - camera.fov) * 0.1; camera.updateProjectionMatrix(); }
     shake = Math.max(0, shake - dtR); flash = Math.max(0, flash - dtR * 2.5);
     const sh = shake * 0.4;
-    camP.set(run.x - 4.3, Math.max(camY, run.y - 1) + 2.0 + (Math.random() - 0.5) * sh, run.z * 0.55 + (Math.random() - 0.5) * sh);
-    camera.position.lerp(camP, 1 - Math.exp(-dtR * 10));
-    look.set(run.x + 7, Math.max(camY, run.y - 0.5) + 1.0, run.z * 0.3);
+    if (CAM === 'side') {                        // 侧面（调动作用）：站在跑道右边平视，跟着人平移
+      sideY += (run.y - sideY) * (1 - Math.exp(-dtR * 12));
+      camera.position.set(run.x + 0.2, sideY + 0.95, run.z + 3.0); look.set(run.x + 0.2, sideY + 0.8, run.z);
+      if (camera.fov !== 38) { camera.fov = 38; camera.updateProjectionMatrix(); }
+    } else {
+      camP.set(run.x - 4.3, Math.max(camY, run.y - 1) + 2.0 + (rand() - 0.5) * sh, run.z * 0.55 + (rand() - 0.5) * sh);
+      camera.position.lerp(camP, 1 - Math.exp(-dtR * 10));
+      look.set(run.x + 7, Math.max(camY, run.y - 0.5) + 1.0, run.z * 0.3);
+    }
     camera.lookAt(look);
     moonL.position.set(run.x - 30, 60, -40); moonL.target.position.set(run.x, 0, 0);
     renderer.render(scene, camera);
@@ -232,8 +258,10 @@ async function main() {
     frames++;
     if (nowMs - fpsT > 1000) { window.__fps = frames * 1000 / (nowMs - fpsT); $('fps').textContent = `${window.__fps.toFixed(0)} fps${LOW ? ' · low' : ''}`; frames = 0; fpsT = nowMs; }
   }
-  frame();
-  window.__pk = { get run() { return run; }, get level() { return level; }, get S() { return S; }, press: (k) => { pend[k] = k === 'lane' ? 1 : true; }, renderer, scene, newRun };
+  frame(MANUAL ? 1 / 60 : 0);
+  window.__pk = { get run() { return run; }, get level() { return level; }, get S() { return S; }, press: (k) => { pend[k] = k === 'lane' ? 1 : true; }, renderer, scene, newRun, av, runner,
+    get clock() { return clock; },
+    tick(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) frame(dt); return { t: clock, x: run.x, y: run.y, air: run.air, vy: run.vy, slide: run.slideT > 0, lane: run.lane, z: run.z, speed: run.speed, over: run.over, lives: run.lives }; } };
 }
 
 main().catch(e => { err('跑酷启动失败', e); $('banner').style.display = 'block'; $('banner').textContent = '跑酷启动失败：' + e.message; });

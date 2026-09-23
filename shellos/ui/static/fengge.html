@@ -7,24 +7,28 @@
 addEventListener('error', e => __err(e.message || ('加载失败：' + (e.target && (e.target.src || e.target.href)))), true);
 addEventListener('unhandledrejection', e => __err('unhandledrejection: ' + (e.reason && e.reason.stack || e.reason)));</script>
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
-</head><body><pre id="errlog" hidden></pre><div id="t"><b>峰哥亡命天涯</b><div>化身预览：?yaw=0 正面 · ?walk=0 站着 · ?zoom=1 头部特写 · ?summit=1 登顶 · ?fglod=1 远档</div></div>
+</head><body><pre id="errlog" hidden></pre><div id="t"><b>峰哥亡命天涯</b><div>化身预览：?yaw=0 正面 · ?walk=0 站着 · ?zoom=1 头部特写 · ?summit=1 登顶 · ?fglod=1 远档 · ?outfit=&lt;主题 style&gt; · ?bg=white</div></div>
 <script type="module">
 import * as THREE from 'three';
 import { loadAvatar } from '/game/avatar.js';
-import { dressFengge } from '/game/fengge.js';
+import { dressFengge, reach } from '/game/fengge.js';
 const q = new URLSearchParams(location.search), fixedYaw = q.get('yaw'), walk = q.get('walk') !== '0', zoom = q.get('zoom') === '1', summit = q.get('summit') === '1';
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(devicePixelRatio); r.setSize(innerWidth, innerHeight);
 document.body.appendChild(r.domElement);
-const sc = new THREE.Scene(); sc.background = new THREE.Color('#0b0f14');
+const white = q.get('bg') === 'white';                // ?bg=white：白背景（给穿搭 / 身材对比截图用）、不画地面网格和标题
+if (white) { document.body.style.background = '#fff'; document.getElementById('t').style.display = 'none'; }
+const sc = new THREE.Scene(); sc.background = new THREE.Color(white ? '#ffffff' : '#0b0f14');
 sc.add(new THREE.HemisphereLight('#dfe8ff', '#30261c', 1.6));
 const sun = new THREE.DirectionalLight('#ffffff', 1.4); sun.position.set(3, 4, 2); sc.add(sun);
 const cam = new THREE.PerspectiveCamera(zoom ? 22 : 35, innerWidth / innerHeight, 0.05, 50);
 const av = await loadAvatar(); await dressFengge(av); sc.add(av.group);
-const grid = new THREE.GridHelper(6, 12, '#2a3340', '#1a212a'); sc.add(grid);
+const rq = (q.get('reach') || '').split(',').map(Number);   // ?reach=x,y,z（化身局部坐标：+X 前 +Y 上 +Z 右）：右手伸过去扣住
+if (rq.length === 3 && rq.every(isFinite)) reach(av.group.localToWorld(new THREE.Vector3(...rq)));
+const grid = new THREE.GridHelper(6, 12, '#2a3340', '#1a212a'); if (!white) sc.add(grid);
 let t0 = performance.now(), last = 0;
 r.setAnimationLoop(() => {
   const t = (performance.now() - t0) / 1000, ph = t * 2 * Math.PI * 0.9, dt = t - last; last = t;
-  if ((walk || summit) && av.animate) {           // A2 的全身动作（合成髋角）；站着不登顶时用旧的 pose(0, 0)，截图不会东张西望
+  if ((walk || summit || rq.length === 3) && av.animate) {           // A2 的全身动作（合成髋角）；站着不登顶时用旧的 pose(0, 0)，截图不会东张西望
     const a = walk ? 25 : 0, w = a * 2 * Math.PI * 0.9;
     av.animate(dt, t, { fl: a * Math.sin(ph), fr: a * Math.sin(ph + Math.PI), wl: w * Math.cos(ph), wr: -w * Math.cos(ph), kind: 'flat', summit });
   } else if (walk) av.pose(25 * Math.sin(ph), 25 * Math.sin(ph + Math.PI)); else av.pose(0, 0);
