@@ -6,6 +6,7 @@ const LOW = typeof location !== 'undefined' && new URLSearchParams(location.sear
 
 // 风雪总线（snow.js 读）：squall = 白毛风强度 0..1；sun = 太阳可见度（闪点用）；sunDir = 日照方向（固定）
 export const WX = { squall: 0, sun: 1, sunDir: new THREE.Vector3(0, 1, 0) };
+if (typeof window !== 'undefined') window.__wx = WX;   // 调试：__wx.squall = 1 手动起白毛风
 // 天气事件：北山脊上突然一阵白毛风——2 s 内能见度掉到约 6 m，刮 24 s，4 s 放晴；登顶前一定是晴的（p > 0.88 不起、起了也收）。
 //   触发只看进度：p 走进 [0.64, 0.86) 起一次（回山脚重来会再起）。要 snow_summit.js 在 apply 的 k 里带 p / dt 才会动。
 const SQ = { p0: 0.64, p1: 0.86, len: 30, t0: -1, armed: true };
@@ -256,7 +257,7 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
     // k = 调色结果（入口算好）：sky/hz/below/haze/sink/cloud/everest…；可选 k.alt = 海拔 0..1（不给就按 sink 估）
     apply(k, t) {
       const alt = k.alt ?? Math.min(1, k.sink / 48), dt = k.dt ?? 0;
-      if (k.p !== undefined && dt > 0) WX.squall += (squallTarget(k.p, t) - WX.squall) * Math.min(1, dt * 1.6);   // dt = 0 是 build 里那次空跑，不算
+      if (k.p !== undefined && dt > 0) WX.squall = squallTarget(k.p, t);   // 包络本身按墙钟 t 算（掉帧也按时来、按时走）；dt = 0 是 build 里那次空跑，不算
       const sq = WX.squall, clear = 1 - sq;
       U.top.value.copy(k.top).lerp(STORM_C.top, sq); U.hz.value.copy(k.hz).lerp(STORM_C.hz, sq); U.below.value.copy(k.below).lerp(STORM_C.below, sq);
       U.band.value = k.band * clear; U.halo.value = k.halo * clear; U.alt.value = alt;
