@@ -123,6 +123,7 @@ async function main() {
   document.body.classList.toggle('sc-left', theme.summitCard === 'left');
   if (PREVIEW) document.body.classList.add('preview');   // 预览：登顶卡不做 2 s 延迟淡入，截图时刻稳定
   scene.add(av.group, gh.group);
+  hud.attach(av);                            // U 线：大腿出力闪光（只给玩家化身）
   const ghost = makeGhost(gh, hud);
   const cam = makeCamera(camera, route, camRig);
   const fx = makeFx(scene, route, meshes);

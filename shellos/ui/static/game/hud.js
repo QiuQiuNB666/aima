@@ -1,12 +1,20 @@
 // HUD：只读 /state（10 Hz）。DOM 在 game.html 里。
 import { KIND_NAME, RISE } from './path.js';
+import { makeForce } from './hud_force.js';   // U 线：力矩波形 + 大腿闪光
+import { makeAi } from './hud_ai.js';         // U 线：AI 决策卡 + 造山过场
 
 export const KC = { flat: '#8a95a3', up: '#3ddc84', down: '#4fc3f7', stairs_up: '#ffd54f', stairs_down: '#ff8a65', wait: '#ff2e88' };
 const $ = id => document.getElementById(id);
 const fmt = s => s == null ? '—' : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
-const PEAK_S = 1.5;          // 力矩条 = 最近 1.5 s（≥ 一个步态周期）的峰值保持：/state 10 Hz 采样落在脉冲哪里是随机的，瞬时值看不出强弱
-const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner'];   // 影子标签要让开的 HUD 面板
-const SAFE = { ACTIVE: ['#3ddc84', '有力'], ARMED: ['#ffc53d', '待命（死人开关松开）'], CONNECTED: ['#ffc53d', '已连接'], PREVIEW: ['#8a95a3', '离线预览'] };
+const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner', 'force', 'aicard'];   // 影子标签要让开的 HUD 面板
+// 右上角安全灯：灰 = 没按 R2（没力），绿 = 按住 R2（出力中），红 = 急停 / 看门狗断开
+const WHY = { 'low confidence': '没认准步子，力归零', 'stream stale': '数据断流，力归零', 'deadman released': '扳机松开' };
+export function lampOf(sf) {
+  const st = (sf && sf.state) || '—';
+  if (st === 'DISARMED') return ['red', '急停', '操作员重新上膛'];
+  if (st === 'ACTIVE') return ['green', '出力中', sf.reason && sf.reason !== 'ok' ? WHY[sf.reason] || sf.reason : ''];
+  return ['grey', st === 'PREVIEW' ? '离线预览' : 'R2 松开', st === 'PREVIEW' ? '' : '没力'];
+}
 
 export function makeHud(world) {
   $('wname').textContent = world.name; $('wsub').textContent = world.subtitle || '';
@@ -18,7 +26,8 @@ export function makeHud(world) {
   if (a1 !== a0 && Math.abs(a1 - a0) < 20) { let h = 0; for (const sg of world.route || []) for (let k = 0; k < sg.steps; k++) { hs.push(h); h += RISE[sg.kind] || 0; } }
   const hmax = Math.max(...hs, 0) || 1;
   const altText = T => hs.length ? (a0 + (a1 - a0) * hs[Math.min(hs.length - 1, T.pos)] / hmax).toFixed(1) : (T.altitude ?? '—');
-  const hist = [[], []];      // 每条腿 [{t, v}]
+  const force = makeForce(acc[1] || '#29e7ff'), ai = makeAi(world);
+  window.__hudAi = ai.debug;
   const cards = $('cards');
   function card(kind, quote, detail) {
     const d = document.createElement('div'); d.className = 'card panel';
@@ -55,25 +64,11 @@ export function makeHud(world) {
           $('waitB').style.width = `${Math.min(1, ws / need) * 100}%`;
         } else w.style.display = 'none';
       }
-      const sent = (S.safety && S.safety.sent) || [0, 0], cap = (S.safety && S.safety.cap) || 3;
-      const now = performance.now() / 1000;
-      for (const [k, id, fl] of [[0, 'L', flashL], [1, 'R', flashR]]) {
-        const h = hist[k]; h.push({ t: now, v: sent[k] }); while (h.length && now - h[0].t > PEAK_S) h.shift();
-        const v = h.reduce((m, x) => Math.abs(x.v) > Math.abs(m) ? x.v : m, 0);
-        const bar = $('bar' + id), i = bar.firstElementChild, f = Math.min(1, Math.abs(v) / cap) * 50;
-        i.style.width = f + '%'; i.style.left = v >= 0 ? '50%' : (50 - f) + '%';
-        i.style.background = v >= 0 ? 'var(--acc)' : '#ff8a65';
-        bar.classList.toggle('flash', fl);
-        $('val' + id).textContent = `${v >= 0 ? '+' : ''}${v.toFixed(1)} Nm`;
-      }
+      force.update(S); ai.update(S);
       const P = (S.ctl && S.ctl.params) || {};
-      $('str').innerHTML = P.strength ? `强度 <b>${(+P.strength[0]).toFixed(1)}</b> Nm · 力矩条 = 近 ${PEAK_S} s 峰值`
-        : P.scale ? `摇杆推满 = <b>${(+P.scale[0]).toFixed(1)}</b> Nm · 力矩条 = 近 ${PEAK_S} s 峰值` : '';
-      const st = (S.safety && S.safety.state) || '—';
-      let [c, t] = SAFE[st] || ['#ff4d4f', st === 'DISARMED' ? '已断开（急停/看门狗）' : st];
-      if (st === 'ACTIVE' && S.safety.reason && S.safety.reason !== 'ok') [c, t] = ['#ffc53d', '归零'];   // 低置信/断流：腿上是 0 Nm
-      const dot = document.querySelector('#safe .dot'); dot.style.background = c; dot.style.color = c;
-      $('safeT').textContent = st === 'PREVIEW' ? t : `${st} · ${t}`; $('safeR').textContent = S.safety && S.safety.reason && S.safety.reason !== 'ok' ? S.safety.reason : '';
+      $('fStr').textContent = P.strength ? `强度 ${(+P.strength[0]).toFixed(1)} Nm` : P.scale ? `摇杆推满 ${(+P.scale[0]).toFixed(1)} Nm` : '';
+      const [lc, lt, ls] = lampOf(S.safety), lamp = $('lamp');
+      lamp.className = `hud ${lc}`; $('lampT').textContent = lt; $('lampS').textContent = ls;
       $('wearer').textContent = S.wearer || '—';
       const sim = S.sim && S.sim.on;
       $('hint').style.display = sim ? 'block' : 'none';
@@ -83,7 +78,7 @@ export function makeHud(world) {
       if (m && m.cards) {
         const last = m.cards[m.cards.length - 1];
         if (lastCard === null) lastCard = last ? last.id : 0;
-        else if (last && last.id !== lastCard) { lastCard = last.id; card(`新经验卡 #${last.id}`, `「${last.quote}」`, deltaText(last.delta)); }
+        else if (last && last.id !== lastCard) { lastCard = last.id; if (!ai.busy()) card(`新经验卡 #${last.id}`, `「${last.quote}」`, deltaText(last.delta)); }
         const ap = (m.applied || []).join(',');
         if (ap !== lastApplied) {
           const added = (m.applied || []).filter(x => !lastApplied.split(',').includes(String(x)) && x !== lastCard);
@@ -114,6 +109,7 @@ export function makeHud(world) {
       }
       g.style.left = x + 'px'; g.style.top = y + 'px';
     },
+    attach(av) { force.attach(av); },
     cut() { const c = $('cut'); if (!c) return; c.style.transition = 'none'; c.style.opacity = '1'; void c.offsetWidth; c.style.transition = 'opacity .5s'; c.style.opacity = '0'; },
     puppet(on) { document.body.classList.toggle('puppet', !!on); },
     summit(show, T, prevBest) {
