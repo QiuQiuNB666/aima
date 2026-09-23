@@ -79,7 +79,7 @@ def minimax(text: str) -> bytes:
         "model": MM_MODEL, "text": text, "stream": False, "language_boost": "Chinese", "output_format": "hex",
         "voice_setting": {"voice_id": _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0},
         "audio_setting": {"sample_rate": 24000, "format": "wav", "channel": 1},
-    }, ensure_ascii=False).encode(), timeout=8.0)      # 加上退到 say 的时间，要在 ShellOS 那边 15 s 超时之内
+    }, ensure_ascii=False).encode(), timeout=15.0)     # 9/23 实测一句 10.2 s；加上退到 say 的时间，要在 ShellOS 那边 25 s 之内
     data = bytes.fromhex(j["data"]["audio"])
     if not data.startswith(b"RIFF"):
         raise RuntimeError("MiniMax 返回的不是 wav")

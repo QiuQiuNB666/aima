@@ -37,7 +37,7 @@ def save(text, data):
     os.replace(tmp, path(text))
 
 
-def get(text, timeout=15.0):
+def get(text, timeout=25.0):    # MiniMax 实测一句 10 s 上下，宁可晚念也别退成女声
     global _down_t
     if not text:
         return None
