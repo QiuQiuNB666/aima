@@ -1,15 +1,18 @@
-// J 线追兵 NPC「捷风」的造型和特效。
-// 9/23 球球决定（方案 A，总指挥转达）：名字用「捷风」，模型用 Sketchfab 用户 BojanV06 上传的「Jett (Fighting Stance)」（标 CC-BY，
-//   2.15 万三角面，很可能是从游戏里提取的，原始 IP 属于 Riot Games；风险球球知情）。模型由球球自己登录下载，解压到
-//   static/models/jett/（.gitignore 里，不进 git、不上 GitHub，只由 deploy.sh 同步到展位机）——见 docs/提交/素材授权.md。
-// 模型文件不在 / 加载失败 → 自动退回原创造型（CesiumMan 换装：深蓝腿、蓝外套、白头 + 往后吹的白发 + 白色高领），页面不报错。
-// 捷风模型的骨骼名和 CesiumMan 不一样，A2 的 anim.js 用不上：这里按骨骼名匹配大腿 / 小腿 / 上臂 / 脊柱 / 头，左右按绑定姿态位置分，
-//   摆动轴按「人物左右方向」换算到每根骨骼的局部坐标，所以不依赖具体骨架的命名和轴向。自带的格斗站姿动画用在「追上后站定」和「登顶抓到」。
-// 面数：捷风 ~2.15 万三角；原创造型 ~3.4k；特效（拖尾 3×2×24 + 风刃 2×32）两种都有。
-// 调试：?npcmodel=<url> 换模型文件（比如 /models/CesiumMan.glb 测骨骼匹配），?npcyaw=<弧度> 修正朝向，?npcmodel=0 强制原创造型。
+// J 线追兵 NPC「捷风」的造型和特效。模型按优先级找，找不到 / 坏了就往下退，页面不报错：
+//   ① /models/jett/scene.gltf：带骨骼的模型（将来有就直接换上）。按骨骼名匹配大腿 / 小腿 / 上臂 / 脊柱 / 头，左右按绑定姿态位置分，
+//      摆动轴换算到每根骨骼的局部坐标（不依赖骨架命名和轴向）；自带动画在「追上后站定」「登顶抓到」时播。
+//      （Sketchfab 那个「Jett (Fighting Stance)」要登录，没采用。）
+//   ② /models/jett/jett.stl：Thingiverse thing:4326703「Jett 3D model Valorant」，作者 Frojj123，CC BY 4.0，粉丝原创的 3D 打印手办
+//      （archive.org 备份）。没有骨骼、贴图，固定姿势的雕像 → 按高度 / 前后分区上色（头发白、脸肤色、外套蓝、腿深色）+ 轮廓光，
+//      动作做成「风系飘行」（前倾、上下浮动、呼吸，见 npc.js）。
+//   ③ 原创造型：CesiumMan 换装（深蓝腿、蓝外套、白头 + 往后吹的白发 + 白色高领）。
+// 模型文件都在 static/models/jett/（.gitignore 里，不进 git、不上 GitHub，只由 deploy.sh 同步到展位机）；角色 IP 属于 Riot Games——见 docs/提交/素材授权.md。
+// 面数：STL 雕像 4.4 万三角（1 次绘制）；原创造型 ~3.4k；特效（拖尾 3×2×24 + 风刃 2×32）都有。
+// 调试：?npcmodel=<url> 换 gltf（比如 /models/CesiumMan.glb 测骨骼匹配）、?npcstl=<url> 换 STL、=0 跳过这一档；?npcyaw=<弧度> 修正朝向。
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/GLTFLoader.js';
-import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
+import { STLLoader } from 'three/addons/STLLoader.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/BufferGeometryUtils.js';
 import { loadAvatar, AVATAR_H } from './avatar.js';
 
 const Q = new URLSearchParams(location.search);
@@ -18,13 +21,20 @@ export const 角色名 = Q.get('npcname') || '捷风';
 export const LOOK = { leg: '#27344c', body: '#2f7fe0', head: '#f2f6fb', rim: '#bfeeff', rimK: 0.55, self: 0.28, headScale: 0.86, exo: false, pointK: 0.35 };
 export const WIND = '#9ff3ff';            // 拖尾 / 风刃颜色
 const MODEL = Q.get('npcmodel') || '/models/jett/scene.gltf';
+const STL = Q.get('npcstl') || '/models/jett/jett.stl';
+// STL 雕像分区（高度按身高的比例；前后按头部中心沿前进方向 +X 的偏移，单位 = 头宽）。在浏览器里对着截图调的
+// （yaw 0 = 这个 STL 本来就面朝 +X；站姿、双臂下垂、没有底座）
+export const STATUE = { yaw: 0, hair: '#eef3f8', skin: '#f0c5a4', coat: '#2f7fe0', leg: '#27344c', boot: '#1a2230', gloveC: '#1f2733',
+  legTop: 0.54, coatTop: 0.80, faceTop: 0.935, faceFront: 0.15, bootTop: 0.08, glove: [0.36, 0.56, 0.19],   // 手套：高度区间 + 离中线多远
+  rim: '#bfeeff', rimK: 0.6, self: 0.3 };
 
 const TRAIL_N = 24;                       // 拖尾历史点数
 const STREAKS = [[0.26, 1.18, 0.07], [-0.26, 1.02, 0.06], [0.0, 0.62, 0.09]];   // [横向, 离地, 半宽]：肩两侧 + 腰后三条风线
 
 export async function makeJifeng(scene) {
   let av = null;
-  if (MODEL !== '0') try { av = await loadModel(MODEL); } catch (e) { console.warn('捷风模型加载失败，用原创造型', e); }
+  if (MODEL !== '0') try { av = await loadModel(MODEL); } catch (e) { console.warn('捷风 gltf 加载失败，往下退', e); }
+  if (!av && STL !== '0') try { av = await loadStatue(STL); } catch (e) { console.warn('捷风 STL 加载失败，用原创造型', e); }
   if (!av) {
     av = await loadAvatar({ look: LOOK });
     av.group.name = 'npc_jifeng';
@@ -62,14 +72,15 @@ export async function makeJifeng(scene) {
   let glow = 0;
 
   return {
-    av, group: av.group, pose: av.pose, headWorld: av.headWorld, model: !!av.model,
+    av, group: av.group, pose: av.pose, headWorld: av.headWorld, model: !!av.model, statue: !!av.statue,
     stance: on => av.stance(on),            // true = 播自带的格斗站姿（有的话），返回是否在播
     burst() { burstT = 0; },
     // dash 0..1 = 冲刺强度（拖尾亮度、风刃）；pos/dir = 这一帧的世界位置 / 前进方向
     update(dt, pos, dir, dash) {
       av.tick(dt);
       glow += (dash - glow) * (1 - Math.exp(-dt * 6));
-      if (!hist.length || hist[0].p.distanceToSquared(pos) > 0.0025) { hist.unshift({ p: pos.clone(), d: dir.clone() }); if (hist.length > TRAIL_N) hist.pop(); }
+      const gap = 0.05 + 0.1 * glow;                    // 冲刺越猛，历史点隔得越开 → 拖尾越长（最长约 3.6）
+      if (!hist.length || hist[0].p.distanceToSquared(pos) > gap * gap) { hist.unshift({ p: pos.clone(), d: dir.clone() }); if (hist.length > TRAIL_N) hist.pop(); }
       for (let k = 0; k < STREAKS.length; k++) {
         const [lat, y, hw] = STREAKS[k];
         for (let i = 0; i < TRAIL_N; i++) {
@@ -198,4 +209,59 @@ async function loadModel(url) {
     tick(dt) { if (playing) mixer.update(dt); },
     headWorld(out = tmp) { if (head) head.getWorldPosition(out); else outer.getWorldPosition(out).setY(outer.position.y + 1.4); return out; },
   };
+}
+
+// ---- STL 雕像（捷风手办）：Z 朝上 → Y 朝上，缩放到化身身高、脚底落地、正面转到 +X，合并顶点后算平滑法线，按区域烘顶点色 ----
+async function loadStatue(url) {
+  const g0 = await new Promise(res => new STLLoader().load(url, res, undefined, () => res(null)));   // 404 / 坏文件：往下退
+  if (!g0 || !g0.attributes.position.count) return null;
+  const S = STATUE, yaw = Q.has('npcyaw') ? +Q.get('npcyaw') : S.yaw;
+  g0.deleteAttribute('normal');
+  const geo = mergeVertices(g0); g0.dispose();                // STL 每个三角形各存 3 个点：合并后法线才能平滑
+  geo.rotateX(-Math.PI / 2).rotateY(yaw);                    // Z 朝上 → Y 朝上；yaw 把正面转到 +X
+  geo.computeBoundingBox();
+  let bb = geo.boundingBox, k = AVATAR_H / (bb.max.y - bb.min.y);
+  const c = bb.getCenter(new THREE.Vector3());
+  geo.translate(-c.x, -bb.min.y, -c.z).scale(k, k, k);
+  geo.computeVertexNormals(); geo.computeBoundingBox();
+  // 头部中心：身高 88% 以上顶点的均值（前后 = x）
+  const P = geo.attributes.position, H = AVATAR_H;
+  let hx = 0, hz = 0, hn = 0, hw = 0;
+  for (let i = 0; i < P.count; i++) if (P.getY(i) > H * 0.88) { hx += P.getX(i); hz += P.getZ(i); hn++; }
+  hx /= hn || 1; hz /= hn || 1;
+  for (let i = 0; i < P.count; i++) if (P.getY(i) > H * 0.88) hw = Math.max(hw, Math.abs(P.getZ(i) - hz));
+  const col = new Float32Array(P.count * 3), C = n => new THREE.Color(S[n]);
+  const cHair = C('hair'), cSkin = C('skin'), cCoat = C('coat'), cLeg = C('leg'), cBoot = C('boot'), cGlove = C('gloveC');
+  const [g0y, g1y, gz] = S.glove;
+  for (let i = 0; i < P.count; i++) {
+    const t = P.getY(i) / H, front = (P.getX(i) - hx) / (hw || 0.1);
+    const z = t < S.bootTop ? cBoot : t > g0y && t < g1y && Math.abs(P.getZ(i) - hz) > gz ? cGlove : t < S.legTop ? cLeg : t < S.coatTop ? cCoat
+      : t < S.faceTop && front > S.faceFront ? cSkin : cHair;
+    z.toArray(col, i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const mesh = new THREE.Mesh(geo, statueMaterial(S)); mesh.name = 'jettStatue';
+  const outer = new THREE.Group(); outer.name = 'npc_jifeng'; outer.add(mesh);
+  const headLocal = new THREE.Vector3(hx, H * 0.95, hz), tmp = new THREE.Vector3();
+  console.info(`捷风 STL 雕像：${geo.index ? geo.index.count / 3 : P.count / 3} 三角，${P.count} 顶点`);
+  return {
+    group: outer, mesh, statue: true, model: true, mats: [mesh.material],
+    pose() {}, stance: () => false, tick() {},
+    headWorld(out = tmp) { return mesh.localToWorld(out.copy(headLocal)); },
+  };
+}
+
+// 顶点色 × 场景光 + 自发光打底 + 菲涅尔轮廓光（同 avatar.js 的 zonedMaterial 思路），夜景里看得清
+function statueMaterial(S) {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const U = { uRim: { value: new THREE.Color(S.rim) }, uRimK: { value: S.rimK }, uSelf: { value: S.self } };
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimK, uSelf;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        float fr = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+        totalEmissiveRadiance += diffuseColor.rgb * uSelf + uRim * pow(fr, 2.2) * uRimK;`);
+  };
+  m.customProgramCacheKey = () => 'jett-statue';
+  return m;
 }
