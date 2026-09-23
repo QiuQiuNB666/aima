@@ -11,6 +11,7 @@ import { makeJifeng } from '/game/npc_jifeng.js';
 import { PALETTE, applyCssVars } from '/game/style.js';
 import { TUNE, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
+import { makeRiso } from './riso.js';
 
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
 const Q = new URLSearchParams(location.search);
@@ -58,6 +59,7 @@ async function main() {
   if (Q.get('fengge') !== '0') try { await dressFengge(av); } catch (e) { err('峰哥头加载失败，用原头盔', e); }
   scene.add(av.group);
   const jf = await makeJifeng(scene);
+  if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
 
   // ---------- 一局 ----------
   let level, run, legs = makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', bubbleUntil = 0, autoWalk = false;
