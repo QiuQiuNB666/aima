@@ -14,7 +14,7 @@ import { PALETTE, UI, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
 import { makeRunner, damp } from './runner.js';
 import { makeCloth } from './cloth.js';
-import { TUNE, TIERS, tierAt, rng, H4, atLeg, yawOf, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
+import { TUNE, TIERS, tierAt, jumpLen, rng, H4, atLeg, yawOf, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
 
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
@@ -161,6 +161,7 @@ async function main() {
 
   // ---------- 自动驾驶（?auto=p）：每个障碍按概率 p 决定躲不躲 ----------
   // 离下一次 lift 出力还有几秒（两条腿取近的）：/state 的步态相位按步频外推到现在
+  const CAD_NOW = () => (S && S.gait && S.gait.cadence) || 0;           // 现在的步频（没有 = 0，jumpLen 按 150 算）
   const liftIn = () => {
     const g = S && S.gait; if (!g || !(g.cadence > 0) || g.phase_l == null) return 9;
     const f = g.cadence / 120, lp = (((S.terrain && S.terrain.hs_phase) ?? 0.5) + TUNE.LIFT_LIT) % 1, age = DEMO ? clock - S.t : performance.now() / 1000 - sAt + 0.01;   // 样本多旧（真机：收到时刻 + 服务端 ~10 ms）
@@ -178,10 +179,10 @@ async function main() {
     //   /state 里就有这两个数：把 gait.phase_l / phase_r 按步频外推到现在，哪条腿这一帧跨过 lift 相位就起跳——和腿上出力用的是同一个钟。只在安全窗口里等：
     //   最早 = 还跳得过（楼缝：落点过对面楼沿 0.6 m；矮障碍：够高的那段滞空盖住它），最晚 = 原来的起跳距离（不会比以前更晚）
     if (th.what === 'jump') {
-      // 安全窗口按物理算：矮障碍 = 脚在 LOW_H 以上的那段滞空 [t1, t2] 盖住它（碰撞 ±0.3 再留 0.3）；楼缝 = 楼沿前 0.35 m 以内起跳、落点过对面 0.6 m；最晚再留两帧的路
-      const v = Math.max(run.speed, 1), G = TUNE.G, V0 = TUNE.V0, gap = th.o.kind === 'gap';
-      const q = Math.sqrt(Math.max(0, V0 * V0 - 2 * G * TUNE.LOW_H)), t1 = (V0 - q) / G, t2 = (V0 + q) / G;
-      const late = (gap ? 0.35 : t1 * v + 0.6) + v * 2 / 60, early = gap ? v * 2 * V0 / G - (th.o.x1 - th.o.x0) - 0.6 : t2 * v - th.o.len - 0.6;
+      // 安全窗口按弧线算（第 8 轮：跳按路程参数化）：矮障碍 = 脚在 LOW_H 以上的那段 r ∈ [r1, 1 − r1] 盖住它（盒子 ±0.75 再留 0.3）；
+      //   楼缝 = 楼沿前 0.35 m 以内起跳、落点过对面 0.6 m；最晚再留两帧的路
+      const v = Math.max(run.speed, 1), Lj = jumpLen(run.speed, CAD_NOW(), TUNE), gap = th.o.kind === 'gap', r1 = Math.asin(Math.min(1, TUNE.LOW_H / TUNE.JUMP_H)) / Math.PI;
+      const late = (gap ? 0.35 : r1 * Lj + 0.6) + v * 2 / 60, early = gap ? Lj - (th.o.x1 - th.o.x0) - 0.6 : (1 - r1) * Lj - 1.5;
       const li = liftIn(), beat = li < dtNow / 2 || li > liPrev + dtNow / 2;   // 这一帧最接近 lift 出力（刚要到 / 刚过去）
       liPrev = li;
       if (th.dx < late || (th.dx < early && beat)) pend.jump = true;
@@ -211,7 +212,7 @@ async function main() {
     if (AUTO) autopilot();
     const vT = speedFor(g ? g.cadence : 0, moving);
     {
-      const inp = { v: vT, jump: pend.jump, slide: pend.slide || pend.slideHold, lane: pend.lane, turn: pend.turn };
+      const inp = { v: vT, cad: g ? g.cadence : 0, jump: pend.jump, slide: pend.slide || pend.slideHold, lane: pend.lane, turn: pend.turn };
       pend.jump = pend.slide = false; pend.lane = 0; pend.turn = 0;
       const n = Math.ceil(dtR / (1 / 120));
       for (let i = 0; i < n; i++) { run.step(dtR / n, i ? { v: vT } : inp); }
