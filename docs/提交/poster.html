@@ -3,92 +3,102 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>峰哥亡命天涯 · 海报</title>
+<title>峰哥亡命天涯 · A1 海报</title>
 <!--
-  A1 竖版海报（594 × 841 mm），文案来自 docs/提交/海报文案.md。
-  打印：Chrome 打开 → ⌘P → 目标「另存为 PDF」→ 纸张会自动取 A1（@page）→ 边距「无」→ 勾「背景图形」。
+  A1 竖版海报（594 × 841 mm）。和 docs/提交/海报A4/poster_a4.html 同一套视觉：深海军蓝底、珠峰登顶主视觉、真实力波形、三卖点。
+  配色按 shellos/ui/static/game/style.js：HUD 强调色霓虹紫 #b48cff；路段色 上坡 #3ddc84 / 台阶（上下同色）#ffd54f / 站定 #ff4d4f。
+  力波形 = terrain.pulse()（强度 3.0、底宽 16%、软限 4），左腿，上坡 2 步 → 上台阶 2 步 → 下台阶 2 步。
+  打印：Chrome 打开 → ⌘P → 另存为 PDF → 纸张自动 A1（@page）→ 边距「无」→ 勾「背景图形」。
   峰哥版是默认：峰哥本人 9/23 已当面口头同意本次黑客松展示使用他的肖像、口吻和 AI 复刻声音。
-  备用版：地址加 ?fengge=0（或点屏幕右上角开关）= 备用标题版，峰哥的名字、照片、解说气泡、素材署名整体去掉；
-  只在他改主意时用，那种场次游戏屏也用 /game?fengge=0&voice=0（关头像、气泡、贴脸和峰哥音色）。
+  备用版：地址加 ?fengge=0（或点屏幕右上角开关）= 不出现峰哥的名字、照片和署名；只在他改主意时用，那种场次游戏屏也用 /game?fengge=0&voice=0。
+  二维码还是占位（等公开网址）；地址加 ?qr=repo 临时换成仓库地址的二维码。
 -->
 <style>
 :root{
-  --bg:#0a0b14; --bg2:#1a0b2e; --ink:#f4f5fb; --dim:#a9adc4; --line:rgba(255,255,255,.14);
-  --pink:#ff2e88; --cyan:#29e7ff; --yellow:#ffd000; --green:#3ddc84;
-  --font:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+  --bg:#0b1220; --card:#101a2c; --line:#26354a; --node:#172338; --ink:#eef3f8; --dim:#b9c6d6; --faint:#7f93ad; --sky:#9fd8ff;
+  --acc:#b48cff; --up:#3ddc84; --st:#ffd54f; --dn:#4fc3f7; --wait:#ff4d4f; --warn:#ff9f1a; --fg:#ffb03a;
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{background:#2a2c38}
+html,body{background:#23293a}
 body{font-family:var(--font);color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .no-fg .fg{display:none!important}
 html:not(.no-fg) .alt{display:none!important}
+.qr-repo .qr .ph{display:none} html:not(.qr-repo) .qr svg{display:none}
 
-/* 屏幕预览：整张海报缩放到窗口宽；打印时不缩放 */
 .stage{padding:16px;display:flex;justify-content:center}
-.poster{width:594mm;height:841mm;flex:none;overflow:hidden;position:relative;
-  background:radial-gradient(120% 60% at 50% 0%,var(--bg2) 0%,var(--bg) 60%) ,var(--bg);
-  display:flex;flex-direction:column}
+.poster{width:594mm;height:841mm;flex:none;overflow:hidden;position:relative;background:var(--bg);display:flex;flex-direction:column}
+.up{color:var(--up)} .st{color:var(--st)} .wt{color:var(--wait)} .ac{color:var(--acc)}
 
-/* 顶部 */
-.top{padding:26mm 40mm 0}
-.kicker{font-size:11mm;letter-spacing:1.2mm;color:var(--cyan);font-weight:700}
-h1{font-weight:900;line-height:1;margin-top:9mm;letter-spacing:3mm;white-space:nowrap}
-h1.fg{font-size:78mm}
-h1.alt{font-size:51mm;letter-spacing:1mm}
-.sub{font-size:21mm;font-weight:800;margin-top:11mm;line-height:1.25}
-.sub b{color:var(--yellow)}
-.sub2{font-size:12mm;color:var(--dim);margin-top:5mm;line-height:1.35}
+/* 主视觉 */
+.hero{position:relative;height:274mm;flex:none}
+.hero{overflow:hidden}
+.hero img{width:100%;height:100%;object-fit:cover;object-position:50% 40%;display:block}
+.hero:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,18,32,.88) 0%,rgba(11,18,32,.62) 26%,rgba(11,18,32,.18) 42%,rgba(11,18,32,0) 55%,rgba(11,18,32,0) 78%,var(--bg) 100%)}
+.top{position:absolute;left:36mm;right:36mm;top:18mm;z-index:2}
+.kicker{font-size:10mm;letter-spacing:3mm;color:var(--sky);font-weight:700}
+h1{font-weight:900;line-height:1.02;margin-top:6mm;letter-spacing:3mm;white-space:nowrap;text-shadow:0 1.5mm 8mm rgba(0,0,0,.55)}
+h1.fg{font-size:62mm} h1.alt{font-size:46mm;letter-spacing:1mm}
+.sub{font-size:13mm;font-weight:700;margin-top:4mm;text-shadow:0 0.6mm 2mm rgba(0,0,0,.9),0 1mm 6mm rgba(0,0,0,.7);line-height:1.35}
+.sub b{color:var(--st);display:block}
+.badge{position:absolute;right:30mm;top:20mm;z-index:2;text-align:right}
+.badge b{display:block;font-size:20mm;font-weight:900;text-shadow:0 1mm 5mm rgba(0,0,0,.45)}
+.badge span{display:block;font-size:9mm;color:var(--dim);margin-top:1mm}
+.hcap{position:absolute;left:36mm;bottom:6mm;z-index:2;font-size:6.5mm;color:var(--dim)}
 
-/* 主图 */
-.hero{position:relative;margin-top:12mm;height:298mm}
-.hero img.shot{width:100%;height:100%;object-fit:cover;object-position:50% 45%;display:block}
-.cap{font-size:7mm;color:var(--dim);padding:3mm 40mm 0}
-.hero .fade{position:absolute;inset:auto 0 0 0;height:22mm;background:linear-gradient(transparent,var(--bg))}
-.pulse{position:absolute;right:8mm;bottom:5mm;width:200mm;background:#fff;border-radius:5mm;padding:4mm 4mm 2mm;
-  box-shadow:0 4mm 12mm rgba(0,0,0,.45)}
-.pulse img{width:100%;display:block}
-.pulse p{color:#333;font-size:7mm;padding:1.5mm 2mm 0;font-weight:700}
-.feng{position:absolute;left:0;top:0;width:134mm;display:flex;flex-direction:column;align-items:center;padding:7mm 8mm 8mm;
-  background:rgba(10,11,20,.96);border-radius:0 0 8mm 0;box-shadow:2mm 2mm 10mm rgba(0,0,0,.5)}
-.feng .head{width:92mm;height:92mm;border-radius:50%;overflow:hidden;border:2.5mm solid var(--yellow);background:#0a0b14;flex:none}
-.feng .head img{width:223%;margin-left:-63%;margin-top:-30%;display:block}
-.bubble{background:#fff;color:#111;border-radius:6mm;padding:5mm 6mm;width:100%;position:relative;margin-top:8mm}
-.bubble:before{content:"";position:absolute;left:50%;top:-6mm;margin-left:-5mm;border:5mm solid transparent;border-bottom:6mm solid #fff;border-top:0}
-.bubble .q{font-size:10.5mm;font-weight:900;line-height:1.3}
-.bubble .who{font-size:6mm;color:#666;margin-top:2mm}
+.wrap{padding:0 36mm}
+/* 力波形 */
+.wave{margin-top:1mm}
+.wave .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:8.2mm;color:var(--dim)}
+.wave .lab b{color:var(--ink);font-weight:800;font-size:10mm}
+.wave .lab i{font-style:normal;font-weight:800}
+.wave svg{width:100%;height:28mm;display:block;margin-top:2mm}
+.wave .seg{display:grid;grid-template-columns:repeat(3,1fr);font-size:7mm;color:var(--faint);margin-top:1.5mm;text-align:center}
 
-/* 卖点 */
-.points{display:grid;grid-template-columns:1fr 1fr;gap:9mm 12mm;padding:10mm 40mm 0}
-.pt{border-left:3mm solid var(--c);padding:1mm 0 1mm 7mm}
-.pt h3{font-size:15mm;font-weight:900;color:var(--c)}
-.pt p{font-size:10mm;line-height:1.4;margin-top:2.5mm;color:var(--ink)}
+/* 三卖点 */
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8mm;margin-top:7mm}
+.card{border:0.6mm solid var(--line);border-radius:6mm;padding:6mm 7mm 6mm;background:var(--card)}
+.card h3{font-size:13mm;font-weight:900;margin:0 0 2.5mm;display:flex;align-items:center;gap:3mm}
+.card .ic{font-size:11mm;line-height:1}
+.card p{font-size:7.8mm;line-height:1.55;color:#c8d3e0}
 
-/* 蜂群 */
-.swarm{margin:13mm 40mm 0;border:0.6mm solid var(--line);border-radius:6mm;padding:8mm 10mm;background:rgba(255,255,255,.04)}
-.swarm .row{display:flex;align-items:center;justify-content:space-between;gap:4mm}
-.role{flex:1;text-align:center;border-radius:4mm;padding:4.5mm 2mm;background:rgba(255,255,255,.06)}
-.role b{display:block;font-size:13mm;font-weight:900}
-.role span{display:block;font-size:7.5mm;color:var(--dim);margin-top:1mm}
-.role.ai b{color:var(--cyan)} .role.code b{color:var(--ink)} .role.hard{background:rgba(255,46,136,.16);outline:0.6mm solid var(--pink)}
-.role.hard b{color:var(--pink)}
-.arr{font-size:10mm;color:var(--dim)}
-.swarm .tag{font-size:10mm;margin-top:6mm;line-height:1.4}
-.swarm .tag b{color:var(--yellow)}
-.swarm .tag small{display:block;font-size:7.5mm;color:var(--dim);margin-top:1.5mm}
+/* 地图 */
+h2{font-size:10mm;font-weight:900;margin:7mm 0 3.5mm;display:flex;align-items:baseline;gap:5mm}
+h2 small{font-size:7.5mm;font-weight:500;color:var(--faint)}
+.maps{display:grid;grid-template-columns:repeat(6,1fr);gap:5mm}
+.map{background:var(--card);border:0.5mm solid var(--line);border-radius:4mm;overflow:hidden}
+.map img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block}
+.map div{padding:2.5mm 3mm 3mm}
+.map b{display:block;font-size:7.6mm;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map span{display:block;font-size:6mm;color:var(--dim);margin-top:.8mm}
+
+/* AI 卡 + 架构 */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8mm;align-items:start}
+.box{background:var(--card);border:0.6mm solid var(--line);border-radius:6mm;padding:5mm}
+.box .t{font-size:8.6mm;font-weight:800;margin-bottom:3mm}
+.box .t small{font-weight:500;color:var(--faint);font-size:6.5mm;margin-left:2mm}
+.aic img{width:100%;display:block;border-radius:3mm}
+.aic p{font-size:6.8mm;line-height:1.5;color:var(--dim);margin-top:3mm}
+.arch svg{width:100%;height:auto;display:block}
+
+/* 四步 */
+.how{display:grid;grid-template-columns:repeat(4,1fr);gap:6mm;margin-top:6mm}
+.how div{background:var(--card);border:0.5mm solid var(--line);border-radius:4.5mm;padding:4mm 4mm;text-align:center;font-size:7.4mm;line-height:1.4;color:var(--dim)}
+.how b{display:block;font-size:10mm;color:var(--acc);margin-bottom:1.5mm;font-weight:900}
 
 /* 底栏 */
-.foot{margin-top:auto;padding:0 40mm 26mm;display:flex;align-items:flex-end;gap:12mm}
-.foot .txt{flex:1;font-size:8.5mm;color:var(--dim);line-height:1.55}
+.foot{margin-top:auto;padding:0 36mm 12mm;display:flex;gap:12mm;align-items:flex-end}
+.foot .txt{flex:1;font-size:7.6mm;color:var(--dim);line-height:1.6}
 .foot .txt b{color:var(--ink)}
-.qr{flex:none;text-align:center}
-.qr .box{width:64mm;height:64mm;background:#fff;padding:4mm;border-radius:3mm}
-.qr svg{width:100%;height:100%;display:block}
-.qr p{font-size:7mm;color:var(--dim);margin-top:2.5mm}
+.foot .meta{font-size:6.4mm;color:var(--faint);margin-top:2mm}
+.qr{flex:none;width:52mm;text-align:center}
+.qr .ph{width:52mm;height:52mm;border:0.8mm dashed #5b708b;border-radius:4mm;display:flex;align-items:center;justify-content:center;font-size:7mm;color:#8497b0;line-height:1.5}
+.qr svg{width:52mm;height:52mm;background:#fff;padding:4mm;border-radius:3mm;display:block}
+.qr p{font-size:6.2mm;color:var(--faint);margin-top:2mm}
 
-/* 屏幕上的开关，打印时隐藏 */
 .ctl{position:fixed;top:12px;right:12px;z-index:9;display:flex;gap:8px;align-items:center;font:14px/1.3 var(--font);
   background:#111320;color:#fff;border:1px solid #3a3d52;border-radius:10px;padding:8px 12px;max-width:min(360px,calc(100vw - 24px))}
-.ctl button{font:inherit;background:#ffd000;color:#111;border:0;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:700;flex:none}
+.ctl button{font:inherit;background:#b48cff;color:#111;border:0;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:700;flex:none}
 .ctl .ok{color:#8ff0b8}
 
 @page{size:594mm 841mm;margin:0}
@@ -101,67 +111,168 @@ h1.alt{font-size:51mm;letter-spacing:1mm}
 </style>
 </head>
 <body>
-<div class="ctl" id="ctl">
-  <span><b id="mode"></b><br><span class="ok fg">已获峰哥本人同意（9/23）</span><span class="alt">不含峰哥；游戏屏用 ?fengge=0&amp;voice=0</span></span>
-  <button id="flip" type="button">切换</button>
-</div>
+<div class="ctl"><span><b id="mode"></b><br><span class="ok fg">已获峰哥本人同意（9/23）</span><span class="alt">不含峰哥；游戏屏用 ?fengge=0&amp;voice=0</span></span><button id="flip" type="button">切换</button></div>
 <div class="stage"><div class="poster" id="poster">
 
-  <div class="top">
-    <div class="kicker">EvoTavern 进化酒馆 · 深圳站 · 具身与穿戴硬件赛道</div>
-    <h1 class="fg">峰哥亡命天涯</h1>
-    <h1 class="alt">原地迈步，腿上爬山</h1>
-    <div class="sub"><span class="fg">原地迈步，腿上爬山；</span><b>说一句话，山就变。</b></div>
-    <div class="sub2">消费级髋外骨骼，按步态相位把坡和台阶「放」到你腿上。<br>7 座山（新加珠峰北坡）· 屋顶跑酷：步频就是跑速</div>
-  </div>
-
   <div class="hero">
-    <img class="shot fg" src="截图/游戏-泰山台阶-峰哥v2.jpg" alt="泰山十八盘：上台阶的峰哥化身（正面镜头），身后半透明的是上一位，左下是腿上的力">
-    <img class="shot alt" src="截图/游戏-泰山台阶-v2.jpg" alt="泰山十八盘：上台阶，化身与半透明影子并排，左下是腿上的力">
-    <div class="fade"></div>
-    <div class="feng fg">
-      <div class="head"><img src="截图/fengge_v2_front.png" alt="峰哥化身 v2 头部"></div>
-      <div class="bubble"><div class="q">这是个好事儿啊，<br>腿酸说明你真爬了。</div><div class="who">峰哥解说 · 内置语录（口吻模仿）</div></div>
+    <img class="fg" src="截图/海报-珠峰登顶-峰哥.jpg" alt="珠峰北坡登顶：峰哥化身竖大拇指，身边测量觇标，脚下云海">
+    <img class="alt" src="截图/海报-珠峰登顶.jpg" alt="珠峰北坡登顶：化身站在顶峰，身边测量觇标，脚下云海">
+    <div class="top">
+      <div class="kicker">EVOTAVERN 深圳 · 具身与穿戴硬件赛道</div>
+      <h1 class="fg">峰哥亡命天涯</h1>
+      <h1 class="alt">原地迈步，腿上爬山</h1>
+      <div class="sub">穿上外骨骼原地迈步——腿会感觉到一座虚拟的山<b>说一句话，山就变。</b></div>
     </div>
-    <div class="pulse"><img src="截图/脉冲-上台阶-阻力.png" alt="上台阶一周期的髋力矩：支撑期阻力，摆动期为 0，梯形"><p>上台阶一步里的髋力矩：踩下去往回拉，抬腿时一点不压（梯形脉冲，强度 3.0 峰值 3.6 Nm，底宽 16%，软限 4）</p></div>
-  </div>
-  <div class="cap fg">游戏画面：泰山十八盘 · 上台阶，正面镜头看峰哥化身；左下是此刻发给两条腿的阻力脉冲（模拟外骨骼实走，强度 3.0，9/23）</div>
-  <div class="cap alt">游戏画面：泰山十八盘 · 上台阶，半透明的是上一位；左下是此刻发给两条腿的阻力脉冲（模拟外骨骼实走，强度 3.0，9/23）</div>
-
-  <div class="points">
-    <div class="pt" style="--c:var(--cyan)"><h3>穿着就能走</h3><p>不靠平台、不靠地板，一台量产髋外骨骼</p></div>
-    <div class="pt" style="--c:var(--yellow)"><h3>腿上有力</h3><p>上坡推一下、上台阶腿发沉、下台阶往下一沉、红灯拉住你</p></div>
-    <div class="pt" style="--c:var(--green)"><h3>说一句，它就记住</h3><p>「太陡了」→ 当场变轻、存成经验卡，下一个人自动继承；删卡就回到原样</p></div>
-    <div class="pt" style="--c:var(--pink)"><h3>说一句，造一座山</h3><p>大模型出路线，安全员（写死的代码）裁剪，马上能爬；登顶时<span class="fg">峰哥</span><span class="alt">解说员</span>来一句</p></div>
+    <div class="badge"><b>8848.86 m</b><span>珠峰北坡 · 登顶</span></div>
+    <div class="hcap">游戏画面：珠峰北坡登顶（模拟外骨骼离线预览，去掉了 HUD，9/23）</div>
   </div>
 
-  <div class="swarm">
-    <div class="row">
-      <div class="role ai"><b>教练</b><span>大模型</span></div><div class="arr">→</div>
-      <div class="role ai"><b>地形导演</b><span>大模型</span></div><div class="arr">→</div>
-      <div class="role code"><b>记忆员</b><span>代码</span></div><div class="arr">→</div>
-      <div class="role hard"><b>安全员</b><span>硬代码 · 不交给大模型</span></div>
+  <div class="wrap">
+    <div class="wave">
+      <div class="lab"><span><b>腿上的力（Nm）</b>　真实控制律输出 · 强度 3.0 · 软限 4（红虚线）</span><span><i class="up">上坡 推一把</i> · <i class="st">▲ 上台阶 往回拽</i> · <i class="st">▼ 下台阶 落地一沉 + 助力</i></span></div>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 160" preserveAspectRatio="none">
+<rect x="0.0" y="0" width="400.0" height="160" fill="#3ddc84" opacity=".08"/>
+<rect x="400.0" y="0" width="400.0" height="160" fill="#ffd54f" opacity=".08"/>
+<rect x="800.0" y="0" width="400.0" height="160" fill="#ffd54f" opacity=".08"/>
+<line x1="0" y1="12.0" x2="1200" y2="12.0" stroke="#ff4d4f" stroke-width="1.2" stroke-dasharray="6 6" opacity=".6"/>
+<line x1="0" y1="148.0" x2="1200" y2="148.0" stroke="#ff4d4f" stroke-width="1.2" stroke-dasharray="6 6" opacity=".6"/>
+<line x1="0" y1="80.0" x2="1200" y2="80.0" stroke="#2b3d57" stroke-width="1.5"/>
+<polyline points="0.0,80.0 1.2,80.0 2.5,80.0 3.8,80.0 5.0,80.0 6.2,78.4 7.5,70.4 8.8,62.5 10.0,54.5 11.2,46.5 12.5,38.6 13.8,30.6 15.0,29.0 16.2,29.0 17.5,29.0 18.8,29.0 20.0,29.0 21.2,29.0 22.5,29.0 23.8,29.0 25.0,29.0 26.2,29.0 27.5,29.0 28.8,29.0 30.0,29.0 31.2,37.0 32.5,44.9 33.8,52.9 35.0,60.9 36.2,68.8 37.5,76.8 38.8,80.0 40.0,80.0 41.2,80.0 42.5,80.0 43.8,80.0 45.0,80.0 46.2,80.0 47.5,80.0 48.8,80.0 50.0,80.0 51.2,80.0 52.5,80.0 53.8,80.0 55.0,80.0 56.2,80.0 57.5,80.0 58.8,80.0 60.0,80.0 61.2,80.0 62.5,80.0 63.8,80.0 65.0,80.0 66.2,80.0 67.5,80.0 68.8,80.0 70.0,80.0 71.2,80.0 72.5,80.0 73.8,80.0 75.0,80.0 76.2,80.0 77.5,80.0 78.8,80.0 80.0,80.0 81.2,80.0 82.5,80.0 83.8,80.0 85.0,80.0 86.2,80.0 87.5,80.0 88.8,80.0 90.0,80.0 91.2,80.0 92.5,80.0 93.8,80.0 95.0,80.0 96.2,80.0 97.5,80.0 98.8,80.0 100.0,80.0 101.2,80.0 102.5,80.0 103.8,80.0 105.0,80.0 106.2,80.0 107.5,80.0 108.8,80.0 110.0,80.0 111.2,80.0 112.5,80.0 113.8,80.0 115.0,80.0 116.2,80.0 117.5,80.0 118.8,80.0 120.0,80.0 121.2,80.0 122.5,80.0 123.8,80.0 125.0,80.0 126.2,80.0 127.5,80.0 128.8,80.0 130.0,80.0 131.2,80.0 132.5,80.0 133.8,80.0 135.0,80.0 136.2,80.0 137.5,80.0 138.8,80.0 140.0,80.0 141.2,80.0 142.5,80.0 143.8,80.0 145.0,80.0 146.2,80.0 147.5,80.0 148.8,80.0 150.0,80.0 151.2,80.0 152.5,80.0 153.8,80.0 155.0,80.0 156.2,80.0 157.5,80.0 158.8,80.0 160.0,80.0 161.2,80.0 162.5,80.0 163.8,80.0 165.0,80.0 166.2,80.0 167.5,80.0 168.8,80.0 170.0,80.0 171.2,80.0 172.5,80.0 173.8,80.0 175.0,80.0 176.2,80.0 177.5,80.0 178.8,80.0 180.0,80.0 181.2,80.0 182.5,80.0 183.8,80.0 185.0,80.0 186.2,80.0 187.5,80.0 188.8,80.0 190.0,80.0 191.2,80.0 192.5,80.0 193.8,80.0 195.0,80.0 196.2,80.0 197.5,80.0 198.8,80.0 200.0,80.0" fill="none" stroke="#3ddc84" stroke-width="4" stroke-linejoin="round"/>
+<polyline points="200.0,80.0 201.2,80.0 202.5,80.0 203.8,80.0 205.0,80.0 206.2,78.4 207.5,70.4 208.8,62.5 210.0,54.5 211.2,46.5 212.5,38.6 213.8,30.6 215.0,29.0 216.2,29.0 217.5,29.0 218.8,29.0 220.0,29.0 221.2,29.0 222.5,29.0 223.8,29.0 225.0,29.0 226.2,29.0 227.5,29.0 228.8,29.0 230.0,29.0 231.2,37.0 232.5,44.9 233.8,52.9 235.0,60.9 236.2,68.8 237.5,76.8 238.8,80.0 240.0,80.0 241.2,80.0 242.5,80.0 243.8,80.0 245.0,80.0 246.2,80.0 247.5,80.0 248.8,80.0 250.0,80.0 251.2,80.0 252.5,80.0 253.8,80.0 255.0,80.0 256.2,80.0 257.5,80.0 258.8,80.0 260.0,80.0 261.2,80.0 262.5,80.0 263.8,80.0 265.0,80.0 266.2,80.0 267.5,80.0 268.8,80.0 270.0,80.0 271.2,80.0 272.5,80.0 273.8,80.0 275.0,80.0 276.2,80.0 277.5,80.0 278.8,80.0 280.0,80.0 281.2,80.0 282.5,80.0 283.8,80.0 285.0,80.0 286.2,80.0 287.5,80.0 288.8,80.0 290.0,80.0 291.2,80.0 292.5,80.0 293.8,80.0 295.0,80.0 296.2,80.0 297.5,80.0 298.8,80.0 300.0,80.0 301.2,80.0 302.5,80.0 303.8,80.0 305.0,80.0 306.2,80.0 307.5,80.0 308.8,80.0 310.0,80.0 311.2,80.0 312.5,80.0 313.8,80.0 315.0,80.0 316.2,80.0 317.5,80.0 318.8,80.0 320.0,80.0 321.2,80.0 322.5,80.0 323.8,80.0 325.0,80.0 326.2,80.0 327.5,80.0 328.8,80.0 330.0,80.0 331.2,80.0 332.5,80.0 333.8,80.0 335.0,80.0 336.2,80.0 337.5,80.0 338.8,80.0 340.0,80.0 341.2,80.0 342.5,80.0 343.8,80.0 345.0,80.0 346.2,80.0 347.5,80.0 348.8,80.0 350.0,80.0 351.2,80.0 352.5,80.0 353.8,80.0 355.0,80.0 356.2,80.0 357.5,80.0 358.8,80.0 360.0,80.0 361.2,80.0 362.5,80.0 363.8,80.0 365.0,80.0 366.2,80.0 367.5,80.0 368.8,80.0 370.0,80.0 371.2,80.0 372.5,80.0 373.8,80.0 375.0,80.0 376.2,80.0 377.5,80.0 378.8,80.0 380.0,80.0 381.2,80.0 382.5,80.0 383.8,80.0 385.0,80.0 386.2,80.0 387.5,80.0 388.8,80.0 390.0,80.0 391.2,80.0 392.5,80.0 393.8,80.0 395.0,80.0 396.2,80.0 397.5,80.0 398.8,80.0 400.0,80.0" fill="none" stroke="#3ddc84" stroke-width="4" stroke-linejoin="round"/>
+<polyline points="400.0,110.6 401.2,120.2 402.5,129.7 403.8,139.3 405.0,141.2 406.2,141.2 407.5,141.2 408.8,141.2 410.0,141.2 411.2,141.2 412.5,141.2 413.8,141.2 415.0,141.2 416.2,141.2 417.5,141.2 418.8,141.2 420.0,141.2 421.2,131.6 422.5,122.1 423.8,112.5 425.0,103.0 426.2,93.4 427.5,83.8 428.8,80.0 430.0,80.0 431.2,80.0 432.5,80.0 433.8,80.0 435.0,80.0 436.2,80.0 437.5,80.0 438.8,80.0 440.0,80.0 441.2,80.0 442.5,80.0 443.8,80.0 445.0,80.0 446.2,80.0 447.5,80.0 448.8,80.0 450.0,80.0 451.2,80.0 452.5,80.0 453.8,80.0 455.0,80.0 456.2,80.0 457.5,80.0 458.8,80.0 460.0,80.0 461.2,80.0 462.5,80.0 463.8,80.0 465.0,80.0 466.2,80.0 467.5,80.0 468.8,80.0 470.0,80.0 471.2,80.0 472.5,80.0 473.8,80.0 475.0,80.0 476.2,80.0 477.5,80.0 478.8,80.0 480.0,80.0 481.2,80.0 482.5,80.0 483.8,80.0 485.0,80.0 486.2,80.0 487.5,80.0 488.8,80.0 490.0,80.0 491.2,80.0 492.5,80.0 493.8,80.0 495.0,80.0 496.2,80.0 497.5,80.0 498.8,80.0 500.0,80.0 501.2,80.0 502.5,80.0 503.8,80.0 505.0,80.0 506.2,80.0 507.5,80.0 508.8,80.0 510.0,80.0 511.2,80.0 512.5,80.0 513.8,80.0 515.0,80.0 516.2,80.0 517.5,80.0 518.8,80.0 520.0,80.0 521.2,80.0 522.5,80.0 523.8,80.0 525.0,80.0 526.2,80.0 527.5,80.0 528.8,80.0 530.0,80.0 531.2,80.0 532.5,80.0 533.8,80.0 535.0,80.0 536.2,80.0 537.5,80.0 538.8,80.0 540.0,80.0 541.2,80.0 542.5,80.0 543.8,80.0 545.0,80.0 546.2,80.0 547.5,80.0 548.8,80.0 550.0,80.0 551.2,80.0 552.5,80.0 553.8,80.0 555.0,80.0 556.2,80.0 557.5,80.0 558.8,80.0 560.0,80.0 561.2,80.0 562.5,80.0 563.8,80.0 565.0,80.0 566.2,80.0 567.5,80.0 568.8,80.0 570.0,80.0 571.2,80.0 572.5,80.0 573.8,80.0 575.0,80.0 576.2,80.0 577.5,80.0 578.8,80.0 580.0,80.0 581.2,80.0 582.5,80.0 583.8,80.0 585.0,80.0 586.2,80.0 587.5,80.0 588.8,80.0 590.0,80.0 591.2,80.0 592.5,80.0 593.8,80.0 595.0,80.0 596.2,81.9 597.5,91.5 598.8,101.0 600.0,110.6" fill="none" stroke="#ffd54f" stroke-width="4" stroke-linejoin="round"/>
+<polyline points="600.0,110.6 601.2,120.2 602.5,129.7 603.8,139.3 605.0,141.2 606.2,141.2 607.5,141.2 608.8,141.2 610.0,141.2 611.2,141.2 612.5,141.2 613.8,141.2 615.0,141.2 616.2,141.2 617.5,141.2 618.8,141.2 620.0,141.2 621.2,131.6 622.5,122.1 623.8,112.5 625.0,103.0 626.2,93.4 627.5,83.8 628.8,80.0 630.0,80.0 631.2,80.0 632.5,80.0 633.8,80.0 635.0,80.0 636.2,80.0 637.5,80.0 638.8,80.0 640.0,80.0 641.2,80.0 642.5,80.0 643.8,80.0 645.0,80.0 646.2,80.0 647.5,80.0 648.8,80.0 650.0,80.0 651.2,80.0 652.5,80.0 653.8,80.0 655.0,80.0 656.2,80.0 657.5,80.0 658.8,80.0 660.0,80.0 661.2,80.0 662.5,80.0 663.8,80.0 665.0,80.0 666.2,80.0 667.5,80.0 668.8,80.0 670.0,80.0 671.2,80.0 672.5,80.0 673.8,80.0 675.0,80.0 676.2,80.0 677.5,80.0 678.8,80.0 680.0,80.0 681.2,80.0 682.5,80.0 683.8,80.0 685.0,80.0 686.2,80.0 687.5,80.0 688.8,80.0 690.0,80.0 691.2,80.0 692.5,80.0 693.8,80.0 695.0,80.0 696.2,80.0 697.5,80.0 698.8,80.0 700.0,80.0 701.2,80.0 702.5,80.0 703.8,80.0 705.0,80.0 706.2,80.0 707.5,80.0 708.8,80.0 710.0,80.0 711.2,80.0 712.5,80.0 713.8,80.0 715.0,80.0 716.2,80.0 717.5,80.0 718.8,80.0 720.0,80.0 721.2,80.0 722.5,80.0 723.8,80.0 725.0,80.0 726.2,80.0 727.5,80.0 728.8,80.0 730.0,80.0 731.2,80.0 732.5,80.0 733.8,80.0 735.0,80.0 736.2,80.0 737.5,80.0 738.8,80.0 740.0,80.0 741.2,80.0 742.5,80.0 743.8,80.0 745.0,80.0 746.2,80.0 747.5,80.0 748.8,80.0 750.0,80.0 751.2,80.0 752.5,80.0 753.8,80.0 755.0,80.0 756.2,80.0 757.5,80.0 758.8,80.0 760.0,80.0 761.2,80.0 762.5,80.0 763.8,80.0 765.0,80.0 766.2,80.0 767.5,80.0 768.8,80.0 770.0,80.0 771.2,80.0 772.5,80.0 773.8,80.0 775.0,80.0 776.2,80.0 777.5,80.0 778.8,80.0 780.0,80.0 781.2,80.0 782.5,80.0 783.8,80.0 785.0,80.0 786.2,80.0 787.5,80.0 788.8,80.0 790.0,80.0 791.2,80.0 792.5,80.0 793.8,80.0 795.0,80.0 796.2,81.9 797.5,91.5 798.8,101.0 800.0,110.6" fill="none" stroke="#ffd54f" stroke-width="4" stroke-linejoin="round"/>
+<polyline points="800.0,131.0 801.2,131.0 802.5,131.0 803.8,131.0 805.0,131.0 806.2,118.2 807.5,105.5 808.8,92.8 810.0,80.0 811.2,80.0 812.5,76.8 813.8,68.8 815.0,60.9 816.2,52.9 817.5,44.9 818.8,37.0 820.0,29.0 821.2,29.0 822.5,29.0 823.8,29.0 825.0,29.0 826.2,29.0 827.5,29.0 828.8,29.0 830.0,29.0 831.2,29.0 832.5,29.0 833.8,29.0 835.0,29.0 836.2,30.6 837.5,38.6 838.8,46.5 840.0,54.5 841.2,62.5 842.5,70.4 843.8,78.4 845.0,80.0 846.2,80.0 847.5,80.0 848.8,80.0 850.0,80.0 851.2,80.0 852.5,80.0 853.8,80.0 855.0,80.0 856.2,80.0 857.5,80.0 858.8,80.0 860.0,80.0 861.2,80.0 862.5,80.0 863.8,80.0 865.0,80.0 866.2,80.0 867.5,80.0 868.8,80.0 870.0,80.0 871.2,80.0 872.5,80.0 873.8,80.0 875.0,80.0 876.2,80.0 877.5,80.0 878.8,80.0 880.0,80.0 881.2,80.0 882.5,80.0 883.8,80.0 885.0,80.0 886.2,80.0 887.5,80.0 888.8,80.0 890.0,80.0 891.2,80.0 892.5,80.0 893.8,80.0 895.0,80.0 896.2,80.0 897.5,80.0 898.8,80.0 900.0,80.0 901.2,80.0 902.5,80.0 903.8,80.0 905.0,80.0 906.2,80.0 907.5,80.0 908.8,80.0 910.0,80.0 911.2,80.0 912.5,80.0 913.8,80.0 915.0,80.0 916.2,80.0 917.5,80.0 918.8,80.0 920.0,80.0 921.2,86.4 922.5,92.8 923.8,99.1 925.0,105.5 926.2,111.9 927.5,118.2 928.8,120.8 930.0,120.8 931.2,120.8 932.5,120.8 933.8,120.8 935.0,120.8 936.2,120.8 937.5,120.8 938.8,120.8 940.0,120.8 941.2,120.8 942.5,120.8 943.8,120.8 945.0,115.7 946.2,109.3 947.5,103.0 948.8,96.6 950.0,90.2 951.2,83.8 952.5,80.0 953.8,80.0 955.0,80.0 956.2,80.0 957.5,80.0 958.8,80.0 960.0,80.0 961.2,80.0 962.5,80.0 963.8,80.0 965.0,80.0 966.2,80.0 967.5,80.0 968.8,80.0 970.0,80.0 971.2,80.0 972.5,80.0 973.8,80.0 975.0,80.0 976.2,80.0 977.5,80.0 978.8,80.0 980.0,80.0 981.2,80.0 982.5,80.0 983.8,80.0 985.0,80.0 986.2,80.0 987.5,80.0 988.8,80.0 990.0,80.0 991.2,92.8 992.5,105.5 993.8,118.2 995.0,131.0 996.2,131.0 997.5,131.0 998.8,131.0 1000.0,131.0" fill="none" stroke="#ffd54f" stroke-width="4" stroke-linejoin="round"/>
+<polyline points="1000.0,131.0 1001.2,131.0 1002.5,131.0 1003.8,131.0 1005.0,131.0 1006.2,118.2 1007.5,105.5 1008.8,92.8 1010.0,80.0 1011.2,80.0 1012.5,76.8 1013.8,68.8 1015.0,60.9 1016.2,52.9 1017.5,44.9 1018.8,37.0 1020.0,29.0 1021.2,29.0 1022.5,29.0 1023.8,29.0 1025.0,29.0 1026.2,29.0 1027.5,29.0 1028.8,29.0 1030.0,29.0 1031.2,29.0 1032.5,29.0 1033.8,29.0 1035.0,29.0 1036.2,30.6 1037.5,38.6 1038.8,46.5 1040.0,54.5 1041.2,62.5 1042.5,70.4 1043.8,78.4 1045.0,80.0 1046.2,80.0 1047.5,80.0 1048.8,80.0 1050.0,80.0 1051.2,80.0 1052.5,80.0 1053.8,80.0 1055.0,80.0 1056.2,80.0 1057.5,80.0 1058.8,80.0 1060.0,80.0 1061.2,80.0 1062.5,80.0 1063.8,80.0 1065.0,80.0 1066.2,80.0 1067.5,80.0 1068.8,80.0 1070.0,80.0 1071.2,80.0 1072.5,80.0 1073.8,80.0 1075.0,80.0 1076.2,80.0 1077.5,80.0 1078.8,80.0 1080.0,80.0 1081.2,80.0 1082.5,80.0 1083.8,80.0 1085.0,80.0 1086.2,80.0 1087.5,80.0 1088.8,80.0 1090.0,80.0 1091.2,80.0 1092.5,80.0 1093.8,80.0 1095.0,80.0 1096.2,80.0 1097.5,80.0 1098.8,80.0 1100.0,80.0 1101.2,80.0 1102.5,80.0 1103.8,80.0 1105.0,80.0 1106.2,80.0 1107.5,80.0 1108.8,80.0 1110.0,80.0 1111.2,80.0 1112.5,80.0 1113.8,80.0 1115.0,80.0 1116.2,80.0 1117.5,80.0 1118.8,80.0 1120.0,80.0 1121.2,86.4 1122.5,92.8 1123.8,99.1 1125.0,105.5 1126.2,111.9 1127.5,118.2 1128.8,120.8 1130.0,120.8 1131.2,120.8 1132.5,120.8 1133.8,120.8 1135.0,120.8 1136.2,120.8 1137.5,120.8 1138.8,120.8 1140.0,120.8 1141.2,120.8 1142.5,120.8 1143.8,120.8 1145.0,115.7 1146.2,109.3 1147.5,103.0 1148.8,96.6 1150.0,90.2 1151.2,83.8 1152.5,80.0 1153.8,80.0 1155.0,80.0 1156.2,80.0 1157.5,80.0 1158.8,80.0 1160.0,80.0 1161.2,80.0 1162.5,80.0 1163.8,80.0 1165.0,80.0 1166.2,80.0 1167.5,80.0 1168.8,80.0 1170.0,80.0 1171.2,80.0 1172.5,80.0 1173.8,80.0 1175.0,80.0 1176.2,80.0 1177.5,80.0 1178.8,80.0 1180.0,80.0 1181.2,80.0 1182.5,80.0 1183.8,80.0 1185.0,80.0 1186.2,80.0 1187.5,80.0 1188.8,80.0 1190.0,80.0 1191.2,92.8 1192.5,105.5 1193.8,118.2 1195.0,131.0 1196.2,131.0 1197.5,131.0 1198.8,131.0 1200.0,131.0" fill="none" stroke="#ffd54f" stroke-width="4" stroke-linejoin="round"/>
+</svg>
+      <div class="seg"><span>上坡 · 早支撑伸展 +3.0</span><span>上台阶 · 支撑期阻力 −3.6，抬腿时不压腿</span><span>下台阶 · 落阶冲击 −3.0 → 助力 +3.0 → 帮迈腿 −2.4</span></div>
     </div>
-    <div class="tag"><b>大模型只出主意，安全员说了算。</b>断网也能玩：规则表 / 模板 / 内置语录兜底。
-      <small class="fg">四个角色叫「蜂群」——巧的是，峰哥当年合伙的公司就叫「蜂群文化」。</small></div>
+
+    <div class="three">
+      <div class="card"><h3><span class="ic">🦵</span>腿上有路</h3><p>自研控制软件 ShellOS 驱动 Hypershell 髋外骨骼：按步态相位放力矩脉冲，<span class="up">上坡推</span>、<span class="st">上台阶拽</span>、<span class="st">下台阶落地一沉</span>、<span class="wt">红灯拉住你</span>。只有安全层能碰电机。</p></div>
+      <div class="card"><h3><span class="ic">🐝</span>一句话改手感</h3><p>评委说「太陡了」，AI 蜂群（教练 / 地形导演 / 记忆员 / 安全员）当场改参数；说一句话还能现场造一座山。<span class="ac">安全员是硬代码，大模型只出主意。</span></p></div>
+      <div class="card"><h3><span class="ic">🧠</span>越玩越懂你</h3><p>每句反馈存成经验卡，下一位步频相近的人自动继承，删卡立刻回到原样；上一位登山者化作影子和你并排爬。</p></div>
+    </div>
+
+    <h2>六座山 <small>每座山是一份 JSON：路段决定腿上的力，也决定屏幕上是坡还是台阶；另有一句话现场造山、屋顶跑酷</small></h2>
+    <div class="maps">
+      <div class="map"><img src="截图/地图-东京.jpg" alt="赛博东京·夜行"><div><b>赛博东京·夜行</b><span>37 步 · 红灯 + 天桥</span></div></div>
+      <div class="map"><img src="截图/地图-泰山.jpg" alt="泰山·十八盘"><div><b>泰山·十八盘</b><span>39 步 · 1545 m</span></div></div>
+      <div class="map"><img src="截图/地图-富士.jpg" alt="富士山·吉田线夜登"><div><b>富士山·吉田线</b><span>40 步 · 3776 m</span></div></div>
+      <div class="map"><img src="截图/地图-珠峰.jpg" alt="珠峰·北坡"><div><b>珠峰·北坡</b><span>56 步 · 8848.86 m</span></div></div>
+      <div class="map"><img src="截图/地图-华山.jpg" alt="华山·长空栈道"><div><b>华山·长空栈道</b><span>60 步 · 2154.9 m</span></div></div>
+      <div class="map"><img src="截图/地图-梧桐山.jpg" alt="深圳梧桐山·好汉坡"><div><b>梧桐山·好汉坡</b><span>35 步 · 944 m</span></div></div>
+    </div>
+
+    <h2>AI 怎么决定 <small>左：大屏上的 AI 决策卡（实拍）· 右：腿上的安全链路和大模型完全分开</small></h2>
+    <div class="two">
+      <div class="box aic">
+        <div class="t">评委说一句，四个角色在商量</div>
+        <img src="截图/AI决策卡-软限4.png" alt="AI 决策卡：教练提议、记忆员对照、安全员裁剪到软限 4 Nm、生效">
+        <p>教练提议 +0.5 → 记忆员对照 → <span style="color:var(--warn)">安全员裁到软限 4 Nm（橙底）</span> → 生效、存卡。实拍，这次大脑是 MiniMax-M3。</p>
+      </div>
+      <div class="box arch">
+        <div class="t">技术架构 <small>红 = 能碰到人身上的那一道，都是确定的代码</small></div>
+        <svg viewBox="0 94 800 380" role="img" aria-label="架构图：左边是 ShellOS 100 Hz 控制循环（步态估计、控制律、Guard 安全层、外骨骼），右边是 Agent 蜂群（教练、地形导演、记忆员、安全员）和大脑进程">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7f93ad"/></marker>
+        <marker id="ahp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ff4d4f"/></marker>
+        <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#b48cff"/></marker>
+      </defs>
+      <style>
+        .at{font:700 14px "PingFang SC","Hiragino Sans GB",sans-serif;fill:#eef3f8}
+        .as{font:12px "PingFang SC","Hiragino Sans GB",sans-serif;fill:#b9c6d6}
+        .ag{font:800 12px "PingFang SC","Hiragino Sans GB",sans-serif;fill:#7f93ad;letter-spacing:.04em}
+        .abx{fill:#172338;stroke:#2b3d57;stroke-width:1.2}
+        .aai{fill:#211a38;stroke:#b48cff;stroke-width:1.6}
+        .ahd{fill:#2a1420;stroke:#ff4d4f;stroke-width:2}
+        .aln{stroke:#7f93ad;stroke-width:1.6;fill:none}
+      </style>
+
+      <!-- 界面 -->
+      <rect class="abx" x="20" y="14" width="360" height="54" rx="9"/>
+      <text class="at" x="36" y="37">界面：登山游戏 /game · 仪表盘 /</text>
+      <text class="as" x="36" y="56">只读 /state（10 Hz），只发动作；蜂群时间线在仪表盘上</text>
+      <path class="aln" d="M200 98 V72" stroke-dasharray="4 4" marker-end="url(#ah)"/>
+
+      <!-- ShellOS 100 Hz -->
+      <rect x="20" y="100" width="360" height="290" rx="12" fill="none" stroke="#3b4d66" stroke-dasharray="6 5"/>
+      <text class="ag" x="36" y="122">SHELLOS · 100 Hz 控制循环（笔记本）</text>
+      <rect class="abx" x="40" y="134" width="300" height="48" rx="8"/>
+      <text class="at" x="56" y="155">步态估计</text><text class="as" x="56" y="173">髋角 → 相位 · 步频 · 置信度</text>
+      <rect class="abx" x="40" y="204" width="300" height="48" rx="8"/>
+      <text class="at" x="56" y="225">控制律 terrain</text><text class="as" x="56" y="243">按路段在步态相位上打梯形脉冲</text>
+      <rect class="ahd" x="40" y="274" width="300" height="100" rx="8"/>
+      <text class="at" x="56" y="297" style="fill:#ff6b7a">Guard 安全层 ★ 唯一写串口</text>
+      <text class="as" x="56" y="318">软限 4 Nm（展位）· 斜率 50 Nm/s</text>
+      <text class="as" x="56" y="337">死人开关（松扳机 = 0）· 置信度 &lt;0.5 = 0</text>
+      <text class="as" x="56" y="356">看门狗 100 ms 发零、1 s 断使能</text>
+      <path class="aln" d="M190 182 V200" marker-end="url(#ah)"/>
+      <path class="aln" d="M190 252 V270" marker-end="url(#ah)"/>
+
+      <!-- 设备 -->
+      <rect class="abx" x="20" y="412" width="360" height="54" rx="9" style="fill:#05080f;stroke:#2b3d57"/>
+      <text class="at" x="36" y="435" style="fill:#eef3f8">Hypershell X MaxS 髋外骨骼</text>
+      <text class="as" x="36" y="454" style="fill:#9fb0c6">黑客松固件 2.9.99.1 · USB 串口 3 Mbps · 硬限 ±7.5 Nm</text>
+      <path class="aln" d="M110 374 V408" marker-end="url(#ahp)" style="stroke:#ff4d4f"/>
+      <text class="as" x="124" y="398" style="fill:#ff6b7a">T,左,右 · 100 Hz</text>
+      <path class="aln" d="M362 410 V158 H344" marker-end="url(#ah)"/>
+      <text class="as" x="252" y="398">髋角 183 Hz ↑</text>
+
+      <!-- 蜂群 -->
+      <rect x="420" y="100" width="360" height="290" rx="12" fill="none" stroke="#3b4d66" stroke-dasharray="6 5"/>
+      <text class="ag" x="436" y="122">AGENT 蜂群 · 秒级，不在 100 Hz 循环里</text>
+      <rect x="436" y="132" width="116" height="26" rx="13" fill="#2a2410" stroke="#ffd54f"/>
+      <text class="as" x="494" y="150" text-anchor="middle" style="fill:#eef3f8;font-weight:700">评委一句话</text>
+      <path class="aln" d="M552 145 H566" marker-end="url(#ah)"/>
+      <rect class="aai" x="436" y="166" width="164" height="50" rx="8"/>
+      <text class="at" x="450" y="187">教练 · 大模型</text><text class="as" x="450" y="205">一句话 → 参数差值</text>
+      <rect class="aai" x="608" y="166" width="160" height="50" rx="8"/>
+      <text class="at" x="622" y="187">地形导演 · 大模型</text><text class="as" x="622" y="205">一句话 → 一条路线</text>
+      <rect class="abx" x="436" y="232" width="332" height="44" rx="8"/>
+      <text class="at" x="450" y="259">记忆员 · 代码</text><text class="as" x="560" y="259">对照经验卡库：同向几张、反向几张</text>
+      <rect class="ahd" x="436" y="292" width="332" height="68" rx="8"/>
+      <text class="at" x="450" y="313" style="fill:#ff6b7a">安全员 · 硬代码（不交给大模型）</text>
+      <text class="as" x="450" y="332">力矩超软限就裁 · 30 s 同参数 ≤3 次 · 急停全否</text>
+      <text class="as" x="450" y="350">造山：起步平地 · 台阶 ≤ 一半 · 红灯 ≤2 · 20–80 步</text>
+      <path class="aln" d="M602 216 V228" marker-end="url(#ah)"/>
+      <path class="aln" d="M602 276 V288" marker-end="url(#ah)"/>
+      <text class="as" x="436" y="380">放行的差值 / 裁剪后的路线 → 生效，存成经验卡</text>
+      <path class="aln" d="M436 326 H400 V228 H344" marker-end="url(#ahp)" style="stroke:#ff4d4f"/>
+
+      <!-- 大脑 -->
+      <rect class="aai" x="420" y="412" width="360" height="54" rx="9"/>
+      <text class="at" x="436" y="435">大脑进程 · 大模型（Claude；没 key 时 MiniMax-M3）</text>
+      <text class="as" x="436" y="454">另一台机器 + SSH 隧道；断线 → 规则表 / 模板 / 内置语录</text>
+      <path class="aln" d="M788 408 V191 H772" stroke-dasharray="4 4" style="stroke:#b48cff" marker-end="url(#ahc)"/>
+    </svg>
+      </div>
+    </div>
+
+    <div class="how">
+      <div><b>① 穿上</b>髋外骨骼<span class="fg">；峰哥先当导游讲这座山</span></div>
+      <div><b>② 按住 R2</b>原地踏步 · 松手立刻没力</div>
+      <div><b>③ 说一句</b>「太陡了」改手感<br>或者说一座山</div>
+      <div><b>④ 登顶</b><span class="fg">峰哥给你点赞</span><span class="alt">看成绩卡</span>，你成了下一位的影子</div>
+    </div>
   </div>
 
   <div class="foot">
     <div class="txt">
-      <b>ShellOS</b> · Hypershell X MaxS（黑客松固件）· 软限 4 Nm · 松手即停<br>
-      EvoTavern 深圳站 · 具身与穿戴硬件赛道<br>
-      <span class="fg">峰哥的肖像、口吻和 AI 复刻声音经本人同意用于本次展示 · 素材来自开源仓库 talk-to-fengge-live、feng-ge-skill（MIT）、talk-to-fengge（Apache-2.0）</span>
+      <b>ShellOS</b> · Hypershell X MaxS（黑客松固件）· 软限 4 Nm · 死人开关 · 看门狗 100 ms 归零 · 真机 183 Hz 数据流<br>
+      大模型：Claude（没 key 时 MiniMax-M3）· 教练 23 句方向 23/23、一句话改参 p50 1.6 s（MiniMax-M3 实测）
+      <div class="meta"><span class="fg">峰哥本人同意使用肖像 / 口吻 / AI 复刻声音（素材来自 MIT / Apache-2.0 开源仓库）· </span>捷风为粉丝致敬（模型 Frojj123 · CC BY 4.0，IP 属 Riot）· 非商业黑客松作品</div>
     </div>
-    <div class="qr"><div class="box"><svg viewBox="0 0 29 29" role="img" aria-label="二维码：github.com/QiuQiuNB666/aima"><path stroke="#000" d="M0 0.5h7m2 0h1m2 0h1m1 0h4m1 0h1m2 0h7m-29 1h1m5 0h1m1 0h2m1 0h1m1 0h2m3 0h1m1 0h1m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m3 0h1m3 0h2m4 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m1 0h1m3 0h1m1 0h4m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m2 0h1m2 0h1m3 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h3m3 0h1m-15 1h1m5 0h1m1 0h5m2 0h1m1 0h1m1 0h1m1 0h2m2 0h3m-27 1h2m1 0h1m3 0h1m2 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h2m1 0h2m-28 1h1m4 0h3m2 0h2m1 0h4m3 0h1m3 0h1m-25 1h2m3 0h1m2 0h3m2 0h1m2 0h1m4 0h1m3 0h1m-22 1h1m1 0h1m1 0h3m1 0h2m2 0h2m1 0h1m2 0h2m4 0h1m-28 1h2m4 0h1m2 0h1m1 0h1m2 0h4m1 0h1m1 0h3m2 0h2m-27 1h1m1 0h1m1 0h1m2 0h4m2 0h3m2 0h2m2 0h3m-26 1h2m2 0h1m3 0h1m1 0h1m4 0h1m1 0h2m3 0h2m1 0h1m1 0h1m-28 1h1m2 0h3m2 0h1m1 0h2m6 0h1m1 0h1m1 0h1m1 0h2m-27 1h1m1 0h1m2 0h1m3 0h2m2 0h4m1 0h2m2 0h3m1 0h3m-29 1h2m4 0h5m4 0h1m2 0h2m4 0h2m2 0h1m-29 1h1m2 0h1m1 0h1m2 0h2m3 0h1m4 0h1m1 0h1m1 0h1m-23 1h1m1 0h2m1 0h3m2 0h2m2 0h2m1 0h8m1 0h3m-21 1h1m1 0h1m1 0h1m1 0h2m4 0h1m3 0h2m-26 1h7m2 0h4m2 0h3m1 0h2m1 0h1m1 0h3m-27 1h1m5 0h1m2 0h1m4 0h3m1 0h3m3 0h1m2 0h2m-29 1h1m1 0h3m1 0h1m2 0h1m2 0h3m1 0h1m1 0h8m1 0h2m-29 1h1m1 0h3m1 0h1m2 0h2m3 0h2m3 0h3m3 0h2m1 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m3 0h3m1 0h1m1 0h9m-28 1h1m5 0h1m2 0h3m2 0h2m2 0h1m3 0h2m1 0h2m1 0h1m-29 1h7m1 0h3m1 0h1m1 0h6m2 0h3m1 0h1"/></svg></div><p>扫码看代码与技术说明<br>github.com/QiuQiuNB666/aima</p></div>
+    <div class="qr"><div class="ph">二维码<br>（待公开网址）</div><svg viewBox="0 0 29 29" role="img" aria-label="二维码：github.com/QiuQiuNB666/aima"><path stroke="#000" d="M0 0.5h7m2 0h1m2 0h1m1 0h4m1 0h1m2 0h7m-29 1h1m5 0h1m1 0h2m1 0h1m1 0h2m3 0h1m1 0h1m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m3 0h1m3 0h2m4 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m1 0h1m3 0h1m1 0h4m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m2 0h1m2 0h1m3 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h3m3 0h1m-15 1h1m5 0h1m1 0h5m2 0h1m1 0h1m1 0h1m1 0h2m2 0h3m-27 1h2m1 0h1m3 0h1m2 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h2m1 0h2m-28 1h1m4 0h3m2 0h2m1 0h4m3 0h1m3 0h1m-25 1h2m3 0h1m2 0h3m2 0h1m2 0h1m4 0h1m3 0h1m-22 1h1m1 0h1m1 0h3m1 0h2m2 0h2m1 0h1m2 0h2m4 0h1m-28 1h2m4 0h1m2 0h1m1 0h1m2 0h4m1 0h1m1 0h3m2 0h2m-27 1h1m1 0h1m1 0h1m2 0h4m2 0h3m2 0h2m2 0h3m-26 1h2m2 0h1m3 0h1m1 0h1m4 0h1m1 0h2m3 0h2m1 0h1m1 0h1m-28 1h1m2 0h3m2 0h1m1 0h2m6 0h1m1 0h1m1 0h1m1 0h2m-27 1h1m1 0h1m2 0h1m3 0h2m2 0h4m1 0h2m2 0h3m1 0h3m-29 1h2m4 0h5m4 0h1m2 0h2m4 0h2m2 0h1m-29 1h1m2 0h1m1 0h1m2 0h2m3 0h1m4 0h1m1 0h1m1 0h1m-23 1h1m1 0h2m1 0h3m2 0h2m2 0h2m1 0h8m1 0h3m-21 1h1m1 0h1m1 0h1m1 0h2m4 0h1m3 0h2m-26 1h7m2 0h4m2 0h3m1 0h2m1 0h1m1 0h3m-27 1h1m5 0h1m2 0h1m4 0h3m1 0h3m3 0h1m2 0h2m-29 1h1m1 0h3m1 0h1m2 0h1m2 0h3m1 0h1m1 0h8m1 0h2m-29 1h1m1 0h3m1 0h1m2 0h2m3 0h2m3 0h3m3 0h2m1 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m3 0h3m1 0h1m1 0h9m-28 1h1m5 0h1m2 0h3m2 0h2m2 0h1m3 0h2m1 0h2m1 0h1m-29 1h7m1 0h3m1 0h1m1 0h6m2 0h3m1 0h1"/></svg><p>github.com/QiuQiuNB666/aima</p></div>
   </div>
 
 </div></div>
 <script>
 (function(){
-  var q=new URLSearchParams(location.search), root=document.documentElement;
-  function set(on){ root.classList.toggle('no-fg',!on); document.getElementById('mode').textContent=on?'峰哥版':'备用版'; document.title=on?'峰哥亡命天涯 · 海报':'原地迈步，腿上爬山 · 海报'; }
-  var on=q.get('fengge')!=='0'; set(on);
-  document.getElementById('flip').onclick=function(){ on=!on; set(on); q.set('fengge',on?'1':'0'); history.replaceState(null,'','?'+q.toString()); };
+  var q=new URLSearchParams(location.search), root=document.documentElement, on=q.get('fengge')!=='0';
+  root.classList.toggle('qr-repo', q.get('qr')==='repo');
+  function set(){ root.classList.toggle('no-fg',!on); document.getElementById('mode').textContent=on?'峰哥版':'备用版'; document.title=(on?'峰哥亡命天涯':'原地迈步，腿上爬山')+' · A1 海报'; }
+  set();
+  document.getElementById('flip').onclick=function(){ on=!on; set(); q.set('fengge',on?'1':'0'); history.replaceState(null,'','?'+q.toString()); };
   var p=document.getElementById('poster');
   function fit(){ p.style.zoom=Math.min(1,(window.innerWidth-32)/(594*96/25.4)); }   // 594 mm 在屏幕上约 2245 px
   fit(); window.addEventListener('resize',fit);
