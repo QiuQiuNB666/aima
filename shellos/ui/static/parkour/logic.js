@@ -1,6 +1,6 @@
 // 跑酷（R 线）的纯逻辑：关卡生成、物理、腿 → 跳 / 滑铲、腿上的力该是什么。不依赖 three，tests/test_parkour.py 用 node 直接跑。
 // 坐标：前进 = +x（米），车道 = z（右 = +z），高度 = y。三条道 z = −LANE, 0, +LANE。
-// 一局：无尽城市屋顶，撞 3 次结束（障碍 / 掉楼缝 / 被疾风追上都算一次）。跑速只看步频。
+// 一局：无尽城市屋顶，撞 3 次结束（障碍 / 掉楼缝 / 被捷风追上都算一次）。跑速只看步频。
 
 export const LANE = 1.6;
 export const TUNE = {                  // 现场调这里（也可以 URL 覆盖：?jump=45&slide=35&vjump=80）
@@ -16,7 +16,7 @@ export const TUNE = {                  // 现场调这里（也可以 URL 覆盖
   LOW_H: 0.85,     // 低障碍（空调外机 / 矮墙）高度：脚离地要超过它
   HIGH_Y: 1.0,     // 高障碍（晾衣杆）下沿：滑铲时身高 0.8 能钻过去
   LIVES: 3, INVULN: 1.5,
-  JF_GAP0: 1.5, JF_WAIT: 3, JF_RESET: 7, JF_V0: 6.3, JF_ACC: 0.004, JF_VMAX: 13.5, JF_GAPMAX: 16,   // 疾风：开局站你身边，「你先跑三秒」后才追；速度随跑的距离涨（1000 m 时 10.3 m/s ≈ 步频 137）
+  JF_GAP0: 1.5, JF_WAIT: 3, JF_RESET: 7, JF_V0: 6.3, JF_ACC: 0.004, JF_VMAX: 13.5, JF_GAPMAX: 16,   // 捷风：开局站你身边，「你先跑三秒」后才追；速度随跑的距离涨（1000 m 时 10.3 m/s ≈ 步频 137）
 };
 
 // ---------- 随机数（固定种子：同一局路一样，测试可复现） ----------
@@ -145,7 +145,7 @@ export function makeRun(level, T = TUNE) {
       const bad = o.type === 'block' || (o.type === 'low' && foot < T.LOW_H) || (o.type === 'high' && S.slideT <= 0 && foot < 1.2);
       if (bad && S.invuln <= 0) { o.hit = true; hit(o.type); }
     }
-    // 疾风：速度随距离涨；你比她快就拉开，慢就被追上
+    // 捷风：速度随距离涨；你比她快就拉开，慢就被追上
     if (S.started) {
       S.jfV = S.t - S.startT < T.JF_WAIT ? 0 : Math.min(T.JF_VMAX, T.JF_V0 + S.dist * T.JF_ACC);
       S.jfGap = Math.min(T.JF_GAPMAX, S.jfGap + (S.speed - S.jfV) * dt);
