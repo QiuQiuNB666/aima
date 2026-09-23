@@ -50,6 +50,7 @@ SAY_VOICE = os.environ.get("SHELLOS_SAY_VOICE", "Tingting")
 MM_BASE = os.environ.get("MINIMAX_BASE", "https://api.minimax.cn").rstrip("/")
 MM_MODEL = os.environ.get("MINIMAX_MODEL", "speech-2.8-hd")
 REF_WAV = os.path.join(voice.DIR, "ref", "fengge_ref.wav")
+REF_M4A = os.path.join(voice.DIR, "ref", "fengge_ref.m4a")   # 有就优先传它：开发机上行约 10 KB/s，1.5 MB 的 wav 传不完（afconvert -f m4af -d aac -b 32000）
 VOICE_ID_FILE = os.path.join(voice.DIR, "minimax_voice_id")
 MAX_CHARS = 200
 MM_BACKOFF_S = 30.0
@@ -74,12 +75,15 @@ def _mm(path, body, ctype="application/json", timeout=10.0):
     return j
 
 
+MM_TIMEOUT = 8.0
+
+
 def minimax(text: str) -> bytes:
     j = _mm("/v1/t2a_v2", json.dumps({
         "model": MM_MODEL, "text": text, "stream": False, "language_boost": "Chinese", "output_format": "hex",
         "voice_setting": {"voice_id": _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0},
         "audio_setting": {"sample_rate": 24000, "format": "wav", "channel": 1},
-    }, ensure_ascii=False).encode(), timeout=8.0)      # 加上退到 say 的时间，要在 ShellOS 那边 15 s 超时之内
+    }, ensure_ascii=False).encode(), timeout=MM_TIMEOUT)   # 现场 8 s：加上退到 say 的时间，要在 ShellOS 那边 15 s 超时之内
     data = bytes.fromhex(j["data"]["audio"])
     if not data.startswith(b"RIFF"):
         raise RuntimeError("MiniMax 返回的不是 wav")
@@ -128,10 +132,11 @@ def clone():
     if _mm_voice_id():
         sys.exit(f"已经复刻过：{_mm_voice_id()}（重来就删掉 {VOICE_ID_FILE}）")
     b = uuid.uuid4().hex
+    ref, ctype = (REF_M4A, "audio/mp4") if os.path.exists(REF_M4A) else (REF_WAV, "audio/wav")
     body = (f"--{b}\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nvoice_clone\r\n"
-            f"--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"fengge_ref.wav\"\r\n"
-            f"Content-Type: audio/wav\r\n\r\n").encode() + open(REF_WAV, "rb").read() + f"\r\n--{b}--\r\n".encode()
-    file_id = _mm("/v1/files/upload", body, "multipart/form-data; boundary=" + b, timeout=60)["file"]["file_id"]
+            f"--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{os.path.basename(ref)}\"\r\n"
+            f"Content-Type: {ctype}\r\n\r\n").encode() + open(ref, "rb").read() + f"\r\n--{b}--\r\n".encode()
+    file_id = _mm("/v1/files/upload", body, "multipart/form-data; boundary=" + b, timeout=180)["file"]["file_id"]
     vid = time.strftime("Fengge%m%d%H%M%S")          # 规则：8~256 位，字母开头，不能跟已有的重复
     _mm("/v1/voice_clone", json.dumps({"file_id": file_id, "voice_id": vid,
                                        "need_noise_reduction": True, "need_volume_normalization": True}).encode(), timeout=60)
@@ -182,6 +187,7 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--canned" in sys.argv:
         from shellos.agent.fengge import CANNED
+        MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0            # 离线预生成：慢点没关系，一句失败别连累后面的
         for line in sorted({s for v in CANNED.values() for s in v}):
             _, keep = get(line)
             print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.key(line), line)
