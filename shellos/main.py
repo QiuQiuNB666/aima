@@ -463,6 +463,8 @@ def main():
         Dashboard(app, a.http)
         from .agent import brain
         brain.watch()                    # 10 s 一次 GET /health：仪表盘马上知道大脑在不在、有没有 key
+        from .agent import guide as _guide
+        _guide.check(fill=True)          # 导游 / 地标语音缺哪几句：打印清单，隧道通着就后台补进缓存
         print(f"[ui] http://localhost:{a.http}")
 
     def stop(*_):
