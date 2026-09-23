@@ -17,13 +17,14 @@ import { stairNoses } from './cliff_path/props.js';
 import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
-import { prayerFlags, tentGeo, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
+import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
 import { sfx as play } from './kit.js';
 import { popIcon } from './cliff_path/interact.js';
 import { buildCamp } from './snow_summit/camp.js';
 import { buildHeli } from './snow_summit/heli.js';
 import { buildYaks } from './snow_summit/yaks.js';
 import { fgSay } from './snow_summit/lines.js';
+import { tentGeo, glowMaterial } from './snow_summit/tent_model.js';
 
 const LOW = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fx') === 'low';
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -208,7 +209,9 @@ export function build(scene, ctx) {
     const chorten = new THREE.Mesh(util.merged(P), lowVc); chorten.name = 'chorten'; scene.add(chorten); hideLow.push(chorten);
   }
   // 大本营村落（石碑、玛尼堆、餐厅大帐、大穹顶帐篷、停机坪、晾衣绳）：snow_summit/camp.js
-  const CAMP = buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW });
+  const tentGlow = { value: 0.06 }, glowVc = glowMaterial(revealable, revLow, tentGlow);   // 帐篷 / 大本营门窗：天暗了里面亮灯（update 里按风雪调）
+  const CAMP = buildCamp(ctx, { hAt, rightOf, texts, glowMat: glowVc, Z, windDir, LOW });
+  const smoke = LOW || !CAMP.smokeAt ? null : kit.particles(ctx, { color: '#7d7a76', alpha: 0.6, n: 90, gravity: -0.22, name: 'campSmoke' });   // 餐厅帐烟囱冒烟
   for (const m of CAMP.meshes) { scene.add(m); hideLow.push(m); }
   // 帐篷：大本营、前进营地、北坳营地；路右（影子那侧）多、路左少且在 3.5 以外
   const tents = [], bottles = [];
@@ -231,7 +234,7 @@ export function build(scene, ctx) {
       bottles.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) + (lie ? 0.08 : 0), a.pos.z], q: new THREE.Quaternion().setFromEuler(new THREE.Euler(lie ? Math.PI / 2 : 0, -a.heading + R(), 0)), s: 1 });
     }
   }
-  const tm = util.instanced(tentGeo(util), lowVc, tents); tm.name = 'tents'; scene.add(tm); hideLow.push(tm);
+  const tm = util.instanced(tentGeo(LOW), glowVc, tents); tm.name = 'tents'; scene.add(tm); hideLow.push(tm);
   if (bottles.length) { const bm = util.instanced(bottleGeo(util), lowVc, bottles); bm.name = 'oxygen'; scene.add(bm); hideLow.push(bm); }
   if (Z.abc) {                                                                // 前进营地一小串经幡
     const a = rightOf(Z.abc.start - 0.5, -3.2, 2.1), b = rightOf(Z.end(Z.abc) + 1.5, -3.6, 2.0);
@@ -371,7 +374,7 @@ export function build(scene, ctx) {
 
   ctx.theme.summitCard = 'left';                                              // 化身 + 觇标在画面正中，登顶卡放左下
   S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, sfx, anchors: camAnchors(Z, N),
-    I: buildInteract(scene, ctx, { flagLines, BF, windDir }),
+    I: buildInteract(scene, ctx, { flagLines, BF, windDir }), tentGlow, smoke, smokeAt: CAMP.smokeAt, smokeT: 0,
     heli: buildHeli(ctx, { Z, pad: CAMP.pad, LOW, onTouchdown: () => fgSay('heli') }),
     yaks: LOW ? null : buildYaks(ctx, { Z, hAt, onYield: () => fgSay('yak') }),
     a0: world.alt ? +world.alt[0] : 0, a1: world.alt ? +world.alt[1] : 0, revRock, revTop, revLow, hideRock, hideTop, hideLow,
@@ -460,6 +463,8 @@ export function update(dt, st) {
   for (const m of S.hideLow) show(m, S.revLow.value > 0.001);
   // 缺氧：按海拔（world.alt 插值），登顶那几秒松一口气
   const alt = S.a0 + (S.a1 - S.a0) * route.heightAt(st.s) / route.hmax;
+  S.tentGlow.value = 0.06 + 0.85 * storm;                                       // 风雪一起，帐篷里的灯透出来
+  if (S.smoke && st.s < 24) { if ((S.smokeT -= dt) <= 0) { S.smokeT = 0.12; S.smoke.burst(S.smokeAt.x, S.smokeAt.y, S.smokeAt.z, 0.22, 1, { up: 2.6, life: 3.4, size: 3.4, spread: 0.04, floor: false }); } S.smoke.update(dt, st.camera); }
   S.heli.update(dt, st);
   if (S.yaks) S.yaks.update(dt, st);
   const oxy = interact(dt, st);                                                     // 互动；北坳吸上氧，缺氧暗角松一点

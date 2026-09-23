@@ -56,17 +56,6 @@ export function prayerFlags(ctx, lines, { spacing = 0.26, cap = 600, rev = null 
   return { meshes, U, count: flags.length };
 }
 
-// 圆顶帐篷（登山队的黄帐篷）：扁半球 + 深色门 + 前厅；instanceColor 给篷布颜色
-export function tentGeo(util) {
-  const dome = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  return util.merged([
-    { geo: dome, s: [0.95, 0.62, 0.72], color: '#ffffff' },
-    { geo: new THREE.SphereGeometry(1, 8, 4, -Math.PI / 2, Math.PI, 0, Math.PI / 2), p: [0.72, 0, 0], s: [0.45, 0.42, 0.52], color: '#d9d9d9' },   // 前厅
-    { geo: new THREE.CircleGeometry(0.2, 3), p: [1.13, 0.16, 0], ry: Math.PI / 2, color: '#2a2622' },                                              // 门洞
-    { geo: new THREE.BoxGeometry(1.9, 0.03, 0.03), p: [0.1, 0.62, 0], color: '#555555' },                                                          // 帐杆
-  ]);
-}
-
 // 氧气瓶：橙色瓶身 + 灰色瓶阀
 export function bottleGeo(util) {
   return util.merged([
