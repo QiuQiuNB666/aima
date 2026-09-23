@@ -13,6 +13,7 @@ import { makeCamera, defaultRig } from './camera.js';
 import { makeHud } from './hud.js';
 import { makeFx } from './fx.js';
 import { bindInput } from './input.js';
+import { makeLighting, FX } from './lighting.js';   // L 线：色调映射 / 近景阴影 / 泛光 / 调色；?fx=off 回到原来的直出
 import * as kit from './themes/kit.js';
 import * as util from './util.js';
 
@@ -89,13 +90,14 @@ async function main() {
 
   // ---------- 渲染器 / 场景 ----------
   const canvas = document.getElementById('c');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.get('aa') !== '0', powerPreference: 'high-performance' });   // ?aa=0 = 降画质（关抗锯齿）
-  renderer.setPixelRatio(1);                  // 规格：pixelRatio=1、不开阴影
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.get('aa') !== '0' && !FX.post, powerPreference: 'high-performance' });   // ?aa=0 = 降画质（关抗锯齿）
+  renderer.setPixelRatio(1);                  // 规格：pixelRatio=1；阴影 / 抗锯齿（后期开着时在 lighting 的 MSAA 渲染目标里做）交给 lighting.js
   renderer.shadowMap.enabled = false;
   renderer.setSize(innerWidth, innerHeight, false);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(theme.fog || '#000');
   const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 1200);
+  const lit = makeLighting(renderer, scene, camera, theme);
   const hemi = new THREE.HemisphereLight(0xffffff, 0x334455, 1.2);
   const sun = new THREE.DirectionalLight(0xffffff, 1.2);
   sun.position.set(-20, 30, 12); scene.add(hemi, sun, sun.target);
@@ -230,7 +232,7 @@ async function main() {
     fx.update(dt, t);
     if (themeMod.update && !themeErr) try { themeMod.update(dt, { t, dt, s, progress: Math.max(0, Math.min(1, s / route.N)), pos: T.pos, total: T.total, avatar: A.pos, heading: A.heading, kind: A.kind, ghost: g ? G.pos : null, terrain: T, summit, preview: !!PREVIEW, camera }); }
       catch (e) { themeErr = true; err(`主题 ${theme.style} update 出错（之后不再调用）`, e); }
-    renderer.render(scene, camera);
+    lit.render(ctx, A, s, summit);
     if (!document.body.dataset.ready) {        // 第一帧画完：给 dom.sh / 截图脚本读就绪与预算
       const r = util.stats(renderer), a = util.sceneStats(scene), b = document.body.dataset;
       if (av.group.getObjectByName('exoStrip')) for (const m of av.exo.bars) m.visible = false;   // 主题自己做了腿侧亮条（富士山）：引擎的连杆/腰带让位
