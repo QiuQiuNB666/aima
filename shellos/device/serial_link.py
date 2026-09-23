@@ -92,14 +92,13 @@ class SerialLink:
                 self.on_frame(f)
 
     def _reconnect(self) -> bool:
-        """线被拔了：每秒试着重开串口，最多等 60 s。重连后需要上层重新 ENABLE（needs_recovery 会为真）。"""
+        """线被拔了：每秒试着重开串口，直到插回来（以前最多等 60 s 就放弃，读线程退出后再插也没用）。
+        重连后需要上层重新 ENABLE（needs_recovery 会为真）。"""
         try:
             self.ser.close()
         except Exception:
             pass
-        for _ in range(60):
-            if not self._alive:
-                return False
+        while self._alive:
             time.sleep(1.0)
             try:
                 self.port = find_port()
@@ -119,8 +118,14 @@ class SerialLink:
 
     # ---- 写 ----
     def send(self, cmd: str):
+        """线松一下（USB 闪断）写会抛 Device not configured：记一次、丢掉这条，不让主循环崩（9/23 真机崩过一次）。
+        读线程会发现断线并重开串口；needs_recovery() 为真 → 上层重新 ENABLE。设备 100 ms 没新力矩自己清零。"""
         with self._wlock:
-            self.ser.write((cmd + "\n").encode("ascii"))
+            try:
+                self.ser.write((cmd + "\n").encode("ascii"))
+            except (serial.SerialException, OSError):
+                self.enabled = False
+                self.replies_seen["SEND_FAIL"] = self.replies_seen.get("SEND_FAIL", 0) + 1
 
     def send_torque(self, tl: float, tr: float):
         self.send(f"T,{tl:.3f},{tr * R_SIGN:.3f}")
