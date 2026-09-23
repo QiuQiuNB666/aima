@@ -38,6 +38,9 @@ h2{padding:1rem 2rem 0;margin:0;font-size:1rem;color:var(--dim);letter-spacing:.
 .stats span{font-size:.85rem;color:var(--dim)}
 .diff{font-size:.85rem;font-weight:900;padding:.05rem .5rem;border-radius:.35rem;margin-left:.5rem;vertical-align:.3rem;color:#000;background:var(--acc)}
 .diff.hard{background:#ff9f1a}
+.star{font-size:.85rem;font-weight:900;padding:.05rem .5rem;border-radius:.35rem;margin-left:.4rem;vertical-align:.3rem;color:#000;background:var(--who-fengge,#ffb03a)}
+.card.feat{grid-column:span 2}
+.card.feat .sky{height:12rem}
 .mix{display:flex;height:.45rem;border-radius:.25rem;overflow:hidden}
 .legend{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.85rem;color:var(--dim)}
 .legend i{display:inline-block;width:.6rem;height:.6rem;border-radius:.15rem;margin-right:.3rem}
@@ -63,6 +66,7 @@ const fmt=s=>s==null?'—':s<60?`${s.toFixed(1)} s`:`${Math.floor(s/60)}:${(s%60
 // 最佳成绩：游戏页每次登顶记进 localStorage（fg_records，同一台大屏）；当前世界再用 /state 的 best / ghost_who 补上（ShellOS 内存里的，只读）
 let REC={};try{REC=JSON.parse(localStorage.getItem('fg_records')||'{}')||{}}catch(e){}
 let cards=[],chosen=null;
+const FEATURED='everest_north';   // 9/23 定：展位主打地图（docs/珠峰-架构.md），排第一张、大一号、带「主打」
 function drawSky(cv,w){
   const r=cv.getBoundingClientRect(),W=cv.width=r.width*devicePixelRatio,H=cv.height=r.height*devicePixelRatio,ctx=cv.getContext('2d');
   const t=w.theme,g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,t.sky[0]);g.addColorStop(1,t.sky[1]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
@@ -87,12 +91,12 @@ function stat(w){
   return {n,stairs:Math.round(sh*100),waits:waits.length,waitName:red?'红灯':'站定',diff:hard?'硬核':easy?'入门':'适中',hard};
 }
 function card(w,i){
-  const d=document.createElement('div');d.className='card'+(w.generated?' gen':'');d.tabIndex=-1;
+  const d=document.createElement('div');d.className='card'+(w.generated?' gen':'')+(w.id===FEATURED?' feat':'');d.tabIndex=-1;
   const S=stat(w),rec=REC[w.id]||{};
   const mix=Object.entries(w.mix).map(([k,v])=>`<div style="flex:${v};background:${SEG[k]||SEG.flat}"></div>`).join('');
   const leg=Object.entries(w.mix).map(([k,v])=>`<span><i style="background:${SEG[k]||SEG.flat}"></i>${k==='wait'?S.waitName:KN[k]||k} ${v}</span>`).join('');
   d.innerHTML=`<div class="sky"><canvas></canvas><div class="tag l">${w.training?'训练场':w.generated?(w.generated==='claude'?'AI 造':'现场造'):'0'+(i+1)}</div><div class="tag r">${esc(w.alt[0])} → ${esc(w.alt[1])} ${esc(w.unit)}</div></div>
-   <div class="body"><div class="name">${esc(w.name)}<span class="diff${S.hard?' hard':''}">${S.diff}</span></div><div class="sub">${esc(w.subtitle)}</div>
+   <div class="body"><div class="name">${esc(w.name)}<span class="diff${S.hard?' hard':''}">${S.diff}</span>${w.id===FEATURED?'<span class="star">主打</span>':''}</div><div class="sub">${esc(w.subtitle)}</div>
    <div class="stats"><div><b>${S.n}</b><span>步</span></div><div><b>${S.stairs}%</b><span>台阶</span></div><div><b>${S.waits}</b><span>${S.waitName}</span></div><div><b>${esc(Math.round(w.alt[1]-w.alt[0]))}</b><span>爬升 ${esc(w.unit)}</span></div></div>
    <div class="mix">${mix}</div><div class="legend">${leg}</div>
    <div class="rec" data-rec>${rec.best!=null?`最佳 <b>${fmt(rec.best)}</b>${rec.who?` · 影子：${esc(rec.who)}`:''}`:'还没人登顶过——第一个爬上去的人会变成影子'}</div>
@@ -111,6 +115,7 @@ async function load(pick_){
   if(cur&&cur.best!=null)REC[cur.preset]={...(REC[cur.preset]||{}),best:Math.min(cur.best,(REC[cur.preset]||{}).best??1e9),who:(REC[cur.preset]||{}).who||cur.ghost_who};
   let n=0;cards=[];
   document.getElementById('main').innerHTML='';document.getElementById('train').innerHTML='';
+  ws.sort((a,b)=>(b.id===FEATURED)-(a.id===FEATURED));
   ws.forEach(w=>{const c=card(w,w.training?0:n++);cards.push({el:c,w});(w.training?document.getElementById('train'):document.getElementById('main')).appendChild(c)});
   const want=pick_||(cur&&cur.preset),hit=cards.find(c=>c.w.id===want)||cards[0];if(hit)pick(hit.el,hit.w);
 }
