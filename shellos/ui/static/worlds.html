@@ -49,12 +49,14 @@ h2{padding:1rem 2rem 0;margin:0;font-size:1rem;color:var(--dim);letter-spacing:.
 .go{position:fixed;right:2rem;bottom:1.6rem;padding:.9rem 1.6rem;font:inherit;font-size:1.3rem;font-weight:900;border-radius:1rem;border:0;background:var(--acc);color:#000;cursor:pointer;display:none;box-shadow:0 .5rem 2rem rgba(0,0,0,.5)}
 </style></head><body>
 <header><h1>选择地图</h1><p>你在原地迈步，坡和台阶会变成腿上的力；上一位登山者化作影子，和你并排爬。</p><a class="back" href="/game">← 回游戏（Esc）</a></header>
-<div class="keys"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 选山 · <kbd>Enter</kbd> 进入 · <kbd>/</kbd> 跳到造山框 · <kbd>Esc</kbd> 回游戏</div>
+<div class="keys"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 选山 · <kbd>Enter</kbd> 进入 · <kbd>/</kbd> 跳到造山框 · <kbd>Esc</kbd> 回游戏 · <kbd>P</kbd> 跑酷闯关</div>
 <div class="mk"><input id="mk" placeholder="说一句话，现场造一座山：峰哥被追到泰山顶，一路狂奔上十八盘……"><button id="mkb">造山</button><span id="mkst"></span></div>
 <h2>名山</h2>
 <div class="grid" id="main"></div>
 <h2>训练场</h2>
 <div class="grid" id="train"></div>
+<h2>跑酷闯关</h2>
+<div class="grid"><a class="card" href="/parkour" style="text-decoration:none;color:inherit"><div class="body"><div class="name">屋顶跑酷<span class="diff hard">闯关</span></div><div class="sub">峰哥在屋顶上被捷风追，起跳前外骨骼帮你抬腿</div><div class="note">按 <kbd>P</kbd> 直接进入 · 不占地图，随时回来爬山</div></div></a></div>
 <button class="go" id="go">进入 →</button>
 <script type="module">
 import { SEG, applyCssVars } from '/game/style.js';
@@ -125,6 +127,7 @@ load();
 addEventListener('keydown',e=>{
   if(document.activeElement===$mk){if(e.key==='Escape')$mk.blur();return}
   if(e.key==='Escape'){location.href='/game';return}
+  if(e.key==='p'||e.key==='P'){location.href='/parkour';return}
   if(e.key==='/'){e.preventDefault();$mk.focus();return}
   if(e.key==='Enter'){e.preventDefault();go();return}
   const dir={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];if(!dir||!cards.length)return;e.preventDefault();
