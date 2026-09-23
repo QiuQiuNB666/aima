@@ -1,0 +1,60 @@
+Q 助理（开源二次元版）候选模型 — 来源与许可
+整理日期 2026-09-24。所有 .vrm 都是原件经同目录 shrink.py 瘦身（缩略图 / 法线贴图换 1×1 占位、其余贴图 ≤1024 px 重编码），
+网格 / 骨骼 / 表情 / 元数据未改；原始文件与瘦身前后大小见 docs/助理-开源版说明.md。
+
+一、VRoid Studio 官方样例（作者 pixiv Inc.）——CC0 1.0
+  Sendagaya_Shino.vrm   千駄ヶ谷 篠（VRoid Studio v0.4.0 样例）
+  Victoria_Rubin.vrm    β Ver AvatarSample_4
+  Vita.vrm              β Ver AvatarSample_3
+  Vivi.vrm              β Ver AvatarSample_2
+  许可原文（各模型页面「CC License」段）："The CC license for this model is CC0. This model can be edited and used freely.
+    Copyright is waived, and there is no particular limit when using them."
+    https://vroid.pixiv.help/hc/en-us/articles/360013482714  （Sendagaya Shino）
+    https://vroid.pixiv.help/hc/en-us/articles/360014900233  （β Ver AvatarSample_4 = Victoria Rubin）
+    https://vroid.pixiv.help/hc/en-us/articles/360014900113  （β Ver AvatarSample_3 = Vita）
+    https://vroid.pixiv.help/hc/en-us/articles/360014900273  （β Ver AvatarSample_2 = Vivi）
+    总览：https://vroid.pixiv.help/hc/en-us/articles/4402614652569
+    CC0 全文：https://creativecommons.org/publicdomain/zero/1.0/
+  文件取自 GitHub 镜像 https://github.com/madjin/vrm-samples（vroid/beta/），VRM 内嵌 meta.licenseName = "CC0"。
+
+二、VRoid 官方样例 AvatarSample_A / AvatarSample_B（作者 VRoid / pixiv Inc.）——VRoid 样例模型使用条款（非 CC0）
+  AvatarSample_A.vrm、AvatarSample_B.vrm
+  条款原文：https://vroid.pixiv.help/hc/en-us/articles/4402394424089
+    "This model's .vroid and VRM files can be used by anyone in any kind of activity, be it for-profit or not.
+     There is no need to credit the original creator when using this sample model."
+    允许："Edit its texture and parameters, upload it to VRoid Hub, and redistribute it."
+    禁止："Redistributing the .vroid or VRM file of the sample model ... in exchange for a fee"；
+          "Distributing a sample model or its VRM file to a third party by setting the 'Redistribution and alteration'
+           conditions of use to 'Copyright Disclaimer (CC0)'"；用其数据做角色创建服务。
+  → 随本仓库免费分发 OK；不得改标 CC0、不得收费分发。
+  官方页：A https://hub.vroid.com/en/characters/2843975675147313744/models/5644550979324015604
+          B https://hub.vroid.com/en/characters/7939147878897061040/models/2292219474373673889
+  文件取自 GitHub 镜像 https://github.com/madjin/vrm-samples（vroid/stable/）。
+
+三、Seed-san（作者 VirtualCast, Inc.）——VRM Public License 1.0，须署名
+  Seed-san.vrm
+  来源：https://github.com/vrm-c/vrm-specification/tree/master/samples/Seed-san （README："Seed-san model by VirtualCast, Inc."）
+  许可：https://vrm.dev/en/licenses/1.0/  VRM 内嵌 meta：allowRedistribution = true，modification = allowModificationRedistribution，
+        creditNotation = required，commercialUsage = corporation，copyrightInformation = "VirtualCast, Inc."
+  署名："Seed-san © VirtualCast, Inc."（用到她时写进 docs/提交/素材授权.md 和结尾字幕）。
+
+四、VRM1_Constraint_Twist_Sample（three-vrm 示例模型，作者 pixiv Inc.）——VRM Public License 1.0，免署名
+  VRM1_Constraint_Twist_Sample.vrm
+  来源：https://github.com/vrm-c/vrm-specification/tree/master/samples/VRM1_Constraint_Twist_Sample
+        （同一文件也在 https://github.com/pixiv/three-vrm/tree/dev/packages/three-vrm/examples/models）
+  许可：https://vrm.dev/licenses/1.0/  VRM 内嵌 meta：allowRedistribution = true，modification = allowModificationRedistribution，
+        creditNotation = unnecessary，commercialUsage = corporation，"(c) 2022 pixiv Inc."
+
+五、动作源 mixamo_clips.glb —— Adobe Mixamo 动作，经 three.js 示例 Xbot.glb
+  来源：https://github.com/mrdoob/three.js/blob/dev/examples/models/gltf/Xbot.glb ，本文件去掉网格 / 材质，只留 idle / walk / run 三条
+        mixamorig 骨骼动画（shrink.py --anim-only）。
+  许可：Mixamo 资产，Adobe 官方 FAQ https://community.adobe.com/questions-696/mixamo-faq-licensing-royalties-ownership-eula-and-tos-589400
+        "There are no limitations on the types of paid or nonpaid projects you can use as long as it follows the distribution rules"；
+        不得把原始角色 / 动画文件当资源包再分发。作为游戏内嵌资源随仓库分发与 three.js 仓库自身做法一致，属灰区（见说明文档「已知问题」）。
+  替换方案：VRoid 官方 VRMA 动作包或自录 VRMA，零许可顾虑。
+
+六、运行库 ../../game/assistant_q/vendor/three-vrm.module.min.js —— @pixiv/three-vrm 3.5.5，MIT（同目录 three-vrm.LICENSE.txt）
+  https://github.com/pixiv/three-vrm ；Mixamo 重定向数学照抄其 examples/humanoidAnimation/loadMixamoAnimation.js（MIT）。
+
+不在此目录、已排除的：Unity-chan（官方只发 unitypackage，没有官方 VRM，转 VRM 要 Unity + UniVRM；UCL 2.0 要求显示 UCL 标志，
+  https://unity-chan.com/contents/guideline/ ）；AvatarSample_C、Sakurada Fumiriya（男性）；Alicia Solid（ニコニ立体条款禁止模型再分发）。

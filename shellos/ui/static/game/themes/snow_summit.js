@@ -17,13 +17,15 @@ import { stairNoses } from './cliff_path/props.js';
 import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
-import { prayerFlags, tentGeo, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
+import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, rockGeo, revealable, beaconFlag, crevasseGeo, iceSheen } from './snow_summit/props.js';
+import { climberGeo, climberMaterials } from './snow_summit/climber_model.js';
 import { sfx as play } from './kit.js';
 import { popIcon } from './cliff_path/interact.js';
 import { buildCamp } from './snow_summit/camp.js';
 import { buildHeli } from './snow_summit/heli.js';
 import { buildYaks } from './snow_summit/yaks.js';
 import { fgSay } from './snow_summit/lines.js';
+import { tentGeo, glowMaterial } from './snow_summit/tent_model.js';
 
 const LOW = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fx') === 'low';
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -97,7 +99,7 @@ export function pathMaterials(ctx) {
   ctx.theme.stairsRiser = 0.5;                          // 立面压暗：雪地里一级一级也看得出
   return {
     road: new THREE.MeshLambertMaterial({ color: '#ffffff', map: trailTexture(util, kit), vertexColors: true }),   // 顶点色在 build 里按路段给（碛石 → 雪）
-    stairs: new THREE.MeshLambertMaterial({ color: '#ffffff', map: grainTexture(util, kit) }),
+    stairs: iceSheen(new THREE.MeshLambertMaterial({ color: '#ffffff', map: grainTexture(util, kit) }), 1, 'blue'),   // 冰壁那几级（偏蓝的）有冰面反光，岩台阶没有
   };
 }
 
@@ -208,7 +210,9 @@ export function build(scene, ctx) {
     const chorten = new THREE.Mesh(util.merged(P), lowVc); chorten.name = 'chorten'; scene.add(chorten); hideLow.push(chorten);
   }
   // 大本营村落（石碑、玛尼堆、餐厅大帐、大穹顶帐篷、停机坪、晾衣绳）：snow_summit/camp.js
-  const CAMP = buildCamp(ctx, { hAt, rightOf, texts, lowVc, Z, windDir, LOW });
+  const tentGlow = { value: 0.06 }, glowVc = glowMaterial(revealable, revLow, tentGlow);   // 帐篷 / 大本营门窗：天暗了里面亮灯（update 里按风雪调）
+  const CAMP = buildCamp(ctx, { hAt, rightOf, texts, glowMat: glowVc, Z, windDir, LOW });
+  const smoke = LOW || !CAMP.smokeAt ? null : kit.particles(ctx, { color: '#7d7a76', alpha: 0.6, n: 90, gravity: -0.22, name: 'campSmoke' });   // 餐厅帐烟囱冒烟
   for (const m of CAMP.meshes) { scene.add(m); hideLow.push(m); }
   // 帐篷：大本营、前进营地、北坳营地；路右（影子那侧）多、路左少且在 3.5 以外
   const tents = [], bottles = [];
@@ -231,7 +235,7 @@ export function build(scene, ctx) {
       bottles.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) + (lie ? 0.08 : 0), a.pos.z], q: new THREE.Quaternion().setFromEuler(new THREE.Euler(lie ? Math.PI / 2 : 0, -a.heading + R(), 0)), s: 1 });
     }
   }
-  const tm = util.instanced(tentGeo(util), lowVc, tents); tm.name = 'tents'; scene.add(tm); hideLow.push(tm);
+  const tm = util.instanced(tentGeo(LOW), glowVc, tents); tm.name = 'tents'; scene.add(tm); hideLow.push(tm);
   if (bottles.length) { const bm = util.instanced(bottleGeo(util), lowVc, bottles); bm.name = 'oxygen'; scene.add(bm); hideLow.push(bm); }
   if (Z.abc) {                                                                // 前进营地一小串经幡
     const a = rightOf(Z.abc.start - 0.5, -3.2, 2.1), b = rightOf(Z.end(Z.abc) + 1.5, -3.6, 2.0);
@@ -243,15 +247,17 @@ export function build(scene, ctx) {
   for (let k = 0, tries = 0; k < (LOW ? 30 : 55) && tries < 1500; tries++) {       // 冰塔林：只在右侧冰川面上，成片（噪声高处）
     const s = mix(7, Z.snowS - 0.5, R()), lat = -(4.5 + Math.pow(R(), 1.2) * 13), a = route.at(s, lat);
     if (kit.fbm(a.pos.x * 0.12 + 5, a.pos.z * 0.12, 3) < 0.5 || !clearOfRoad(a.pos.x, a.pos.z, 2.8)) continue;
-    const hgt = (0.9 + 1.7 * R()) * (0.7 + 0.4 * smooth(4, 12, -lat));
+    const hgt = (1.1 + 2.2 * R()) * (0.7 + 0.5 * smooth(4, 12, -lat));          // 离路越远越高（冰塔林往冰川中间越来越密越高）
     spires.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) - 0.15, a.pos.z], ry: R() * 6.28, s: [0.45 + 0.4 * R(), hgt, 0.45 + 0.4 * R()] }); k++;
   }
-  if (spires.length) { const sm = util.instanced(spireGeo(3), revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#10202c' }), revLow), spires); sm.name = 'icePinnacles'; scene.add(sm); hideLow.push(sm); }
+  if (spires.length) { const sm = util.instanced(spireGeo(3), iceSheen(revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#10202c' }), revLow), 1), spires); sm.name = 'icePinnacles'; scene.add(sm); hideLow.push(sm); }
   const stones = [], crags = [];
-  for (let k = 0, tries = 0; k < (LOW ? 110 : 200) && tries < 1500; tries++) {                  // 碛石：大本营 → 前进营地
-    const s = -12 + R() * (Z.snowS + 12), side = R() < 0.5 ? 1 : -1, lat = side * (1.55 + Math.pow(R(), 1.6) * 12), a = route.at(s, lat);
+  // 碛石：大本营 → 前进营地。一多半堆在冰川两侧的侧碛带里（随路弯弯曲曲）、一部分沿冰川中间一条中碛、剩下零散；大小是长尾（碎石多、大块少）
+  for (let k = 0, tries = 0; k < (LOW ? 110 : 220) && tries < 1800; tries++) {
+    const s = -12 + R() * (Z.snowS + 12), side = R() < 0.5 ? 1 : -1, mode = R();
+    const lat = mode < 0.55 ? side * (4.2 + 3.2 * R() + 1.3 * Math.sin(s * 0.35 + side)) : mode < 0.8 ? -(7 + 1.6 * Math.sin(s * 0.22)) + (R() - 0.5) * 1.3 : side * (1.55 + Math.pow(R(), 1.6) * 12), a = route.at(s, lat);
     if (!clearOfRoad(a.pos.x, a.pos.z, 0.4)) continue;
-    const sz = 0.08 + R() * R() * 0.5;
+    const sz = 0.06 + Math.pow(R(), 3) * 0.75;
     if (side > 0 && lat < 3 && sz > 0.45) continue;
     stones.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) + sz * 0.15, a.pos.z], q: new THREE.Quaternion().setFromEuler(new THREE.Euler(R() * 3, R() * 3, R() * 3)), s: [sz * (1 + R() * 0.7), sz * (0.55 + R() * 0.4), sz], color: new THREE.Color('#857d71').multiplyScalar(0.8 + 0.35 * R()) });
     k++;
@@ -268,6 +274,8 @@ export function build(scene, ctx) {
   const crm = util.instanced(rockGeo('#5b5853', 2), vc, crags); crm.name = 'crags'; scene.add(crm);
 
   // ---------- 北坳冰壁：右侧冰塔（高）、左侧矮冰块；固定绳从冰壁一路拉到顶 ----------
+  const ropeSway = { uT: { value: 0 }, uWind: { value: 1 }, uWD: { value: windDir.clone().setY(0).normalize() } };   // 路绳随风晃（update 里给风力）
+  let ladderU = null;                                                          // 中国梯往下弯（下面梯子那段给）
   const seracs = [];
   if (Z.wall) {
     const s0 = Z.wall.start - 2, s1 = Z.end(Z.wall) - 0.4;              // 冰塔只沿冰壁：坳口（营地、氧气瓶）空出来
@@ -279,8 +287,23 @@ export function build(scene, ctx) {
       if (R() < 0.5) put(1.7 + R() * 0.8, 0.3 + 0.25 * R(), 0.3 + 0.6 * R());   // 左侧 < 1.0
       if (R() < 0.35) put(3.8 + R() * 3, 0.6 + 0.5 * R(), 0.8 + 1.4 * R());
     }
-    const sm = util.instanced(seracGeo(5), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: '#0e1c28' }), seracs); sm.name = 'seracs'; scene.add(sm);
-    for (const m of fixedRope(ctx, [[Z.wall.start - 1, N - 1.5]], { lat: -1.5, every: 2 })) scene.add(m);   // 路右沿外：镜头在左边，别从镜头底下穿过去
+    const sm = util.instanced(seracGeo(5), iceSheen(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: '#0e1c28' }), 1.2), seracs); sm.name = 'seracs'; scene.add(sm);
+    for (const m of fixedRope(ctx, [[Z.wall.start - 1, N - 1.5]], { lat: -1.5, every: 2, sway: ropeSway })) scene.add(m);   // 路右沿外：镜头在左边，别从镜头底下穿过去
+  }
+  // 冰裂缝：北坳上下两侧的雪坡上（不压帐篷、冰塔、停机坪，彼此隔开），横着坡走向（和路大致垂直）、贴着地面斜度；离路 ≥ 1.1
+  {
+    const cr = [], nrm = new THREE.Vector3(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), s0 = Z.snowS + 2, s1 = Z.col ? Z.col.start + 5 : Z.snowS + 10;
+    for (let k = 0, tries = 0; k < (LOW ? 8 : 16) && tries < 900; tries++) {
+      const s = mix(s0, s1, R()), side = R() < 0.5 ? 1 : -1, lat = side * (2.6 + Math.pow(R(), 1.4) * 6.5), a = route.at(s, lat);
+      const far = (arr, r) => !arr.some(t => Math.hypot((t.p ? t.p[0] : t.x) - a.pos.x, (t.p ? t.p[2] : t.z) - a.pos.z) < r + (t.r || 0));
+      if (!clearOfRoad(a.pos.x, a.pos.z, 1.1) || !far(tents, 2.6) || !far(seracs, 1.4) || !far(CAMP.blockers, 1.0) || !far(cr, 2.6)) continue;   // 路绕回来时别落到停机坪边上；彼此隔开，不叠成一簇
+      const x = a.pos.x, z = a.pos.z, e = 0.4, h0 = hAt(x, z);
+      nrm.set(hAt(x - e, z) - hAt(x + e, z), 2 * e, hAt(x, z - e) - hAt(x, z + e)).normalize();
+      qa.setFromUnitVectors(new THREE.Vector3(0, 1, 0), nrm); qb.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a.heading + Math.PI / 2 + (R() - 0.5) * 0.6);
+      cr.push({ p: [x, h0 + 0.03, z], q: qa.clone().multiply(qb), s: [2.2 + 3.2 * R(), 1, 0.26 + 0.34 * R()] }); k++;
+    }
+    const cm = util.instanced(crevasseGeo(), new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), cr);
+    cm.name = 'crevasses'; scene.add(cm);
   }
 
   // ---------- 岩石台阶（第一 / 第二台阶）：两侧一堆扎进地里的岩块（第一台阶偏黄 = 黄带那种石灰岩），左侧 3 以内 ≤ 1.2；
@@ -303,7 +326,18 @@ export function build(scene, ctx) {
   const rockMat = revealable(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), revRock);
   [rockGeo('#4f4c49', 7), rockGeo('#7a6d5a', 9)].forEach((g, k) => { if (!blocks[k].length) return; const m = util.instanced(g, rockMat, blocks[k]); m.name = 'rockStep'; scene.add(m); hideRock.push(m); });
   if (Z.ladder) {
-    const lm = new THREE.Mesh(util.merged(ladderParts(ctx, Z.ladder, { lat: 0.35 })), revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#3a4450' }), revRock));
+    const lmat = revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#3a4450' }), revRock), lbase = lmat.onBeforeCompile;
+    // 踩上去梯子往下弯一点：以脚下为中心的一个凹（两头梯脚 / 梯顶不动），每上一级再弹一下
+    const a0 = route.at(Z.ladder.start - 0.35, 0.35).pos, a1 = route.at(Z.end(Z.ladder), 0.35).pos, ld = a1.clone().sub(a0).setY(0);
+    ladderU = { uP0: { value: new THREE.Vector2(a0.x, a0.z) }, uDir: { value: new THREE.Vector2(ld.x, ld.z).normalize() }, uLen: { value: ld.length() }, uFoot: { value: -10 }, uDip: { value: 0 } };
+    lmat.onBeforeCompile = sh => {
+      lbase(sh); Object.assign(sh.uniforms, ladderU);
+      sh.vertexShader = 'uniform vec2 uP0, uDir; uniform float uLen, uFoot, uDip;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        { float d = dot(transformed.xz - uP0, uDir), x = (d - uFoot) / 0.7;
+          transformed.y -= uDip * sin(3.14159 * clamp(d / uLen, 0.0, 1.0)) * exp(-x * x); }`);
+    };
+    lmat.customProgramCacheKey = () => 'snowRevLadder';
+    const lm = new THREE.Mesh(util.merged(ladderParts(ctx, Z.ladder, { lat: 0.35 })), lmat);
     lm.name = 'ladder'; scene.add(lm); hideRock.push(lm);
   }
 
@@ -338,16 +372,17 @@ export function build(scene, ctx) {
   // ---------- 排队的人影（最后那段红灯 → 顶峰），数量有上限 ----------
   let people = null;
   if (Z.queue) {
-    const { suit, gear } = climberGeos(util), n = LOW ? 3 : 5;
-    const SUIT = ['#e0402c', '#f2b01e', '#2f6fd6', '#e0402c', '#7a3fc0'];
-    const sm = new THREE.InstancedMesh(suit, revealable(new THREE.MeshLambertMaterial({ vertexColors: true }), revTop), n);
-    const gm = new THREE.InstancedMesh(gear, revealable(new THREE.MeshLambertMaterial({ vertexColors: true }), revTop), n);
-    for (let k = 0; k < n; k++) sm.setColorAt(k, new THREE.Color(SUIT[k]));
-    sm.instanceColor.needsUpdate = true;
-    sm.frustumCulled = gm.frustumCulled = false; sm.name = gm.name = 'queue';
-    scene.add(sm, gm); hideTop.push(sm, gm);
+    // 登山者：一个 InstancedMesh（climber_model.js），羽绒服 / 背包颜色、跺脚 / 搓手 / 抬头 / 走都是实例属性
+    const n = LOW ? 3 : 5, geo = climberGeo(), CM = climberMaterials(revealable, revTop);
+    const SUIT = ['#e0402c', '#f2b01e', '#3a7bd8', '#2f9c55', '#7a3fc0'], PK = ['#2b2f36', '#d63b2a', '#2b2f36', '#e8781c', '#3a5a8a'];
+    const suitA = new Float32Array(n * 3), packA = new Float32Array(n * 3), anim = new Float32Array(n * 4), c = new THREE.Color();
+    for (let k = 0; k < n; k++) { suitA.set(c.set(SUIT[k]).toArray(), k * 3); packA.set(c.set(PK[k]).toArray(), k * 3); }
+    geo.setAttribute('aSuit', new THREE.InstancedBufferAttribute(suitA, 3)); geo.setAttribute('aPack', new THREE.InstancedBufferAttribute(packA, 3));
+    const aAnim = new THREE.InstancedBufferAttribute(anim, 4); geo.setAttribute('aAnim', aAnim);
+    const sm = new THREE.InstancedMesh(geo, CM.mat, n); sm.customDepthMaterial = CM.depth;
+    sm.frustumCulled = false; sm.name = 'queue'; scene.add(sm); hideTop.push(sm);
     const q0 = Z.queue.start;
-    people = { sm, gm, n, s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
+    people = { sm, n, anim, aAnim, ph: Array.from({ length: n }, (_, k) => k * 1.7), wk: new Array(n).fill(0), rb: new Array(n).fill(0), lk: new Array(n).fill(0), ps: new Array(n).fill(null), s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
       red: k => q0 + 1.3 + k * 1.3, go: k => N + 4 + k * 1.1, sig: M.signals.find(g => g.seg.start === q0), wt: 0, aside: false, asideS: 0 };
     people.cl = people.lat.slice();                                          // 当前横向位置（让路时往右挪）
   }
@@ -366,12 +401,12 @@ export function build(scene, ctx) {
   // 登顶：镜头从化身左前方起（face 取右后方），看得见峰哥的脸；影子（右边 0.85）和觇标（右前）都错开在化身右侧，不被挡；
   //   停 1.2 s 再慢慢转
   Object.assign(rig.summit, { radius: 4.2, height: 1.8, lookY: 1.3, speed: 0.2, hold: 1.2, face: route.at(N + 1.2 - 4.8, 0.35 - 2.4).pos.setY(route.heightAt(N) + 1.2) });
-  const snowFx = buildSnow(scene, { count: LOW ? 700 : 2200, windDir });
+  const snowFx = buildSnow(scene, { count: LOW ? 800 : 2600, windDir });
   const hyp = makeHypoxia({ blur: !LOW });
 
   ctx.theme.summitCard = 'left';                                              // 化身 + 觇标在画面正中，登顶卡放左下
   S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, sfx, anchors: camAnchors(Z, N),
-    I: buildInteract(scene, ctx, { flagLines, BF, windDir }),
+    I: buildInteract(scene, ctx, { flagLines, BF, windDir }), tentGlow, smoke, smokeAt: CAMP.smokeAt, smokeT: 0, ropeSway, ladderU, flagT: 0, ldK: 0, ldStep: null,
     heli: buildHeli(ctx, { Z, pad: CAMP.pad, LOW, onTouchdown: () => fgSay('heli') }),
     yaks: LOW ? null : buildYaks(ctx, { Z, hAt, onYield: () => fgSay('yak') }),
     a0: world.alt ? +world.alt[0] : 0, a1: world.alt ? +world.alt[1] : 0, revRock, revTop, revLow, hideRock, hideTop, hideLow,
@@ -450,8 +485,22 @@ export function update(dt, st) {
   S.sky.apply({ top: K.top, hz: K.hz, below: K.below, band: K.band, halo: K.halo, sun: K.sun, haze: K.haze,
     sink: 48 * Math.max(smooth(0.08, 1, p), sk), cloud: Math.max(smooth(0.38, 0.62, p), sk), everest: (1 - smooth(0.3, 0.46, p)) * (1 - sk) }, st.t || 0);
   const vh = S.ctx.renderer.domElement.clientHeight || innerHeight;
-  S.snow.update(st.t || 0, st.dt || dt || 0, Math.min(1, storm * (LOW ? 0.7 : 1) + 0.12 * smooth(0.3, 0.42, p) * (1 - sk)), st.camera, vh);
-  for (const f of S.flags) { f.uT.value = (st.t || 0) % 1000; f.uWind.value = 1 + 1.5 * storm; }
+  // 雪：风雪强度 + 越高越密；大风口（北坳后的上坡）贴地吹雪（?fx=low 不要）
+  const R_ = Z.ridge, rz = R_ ? smooth(R_.start - 1, R_.start + 1, st.s) * (1 - smooth(Z.end(R_), Z.end(R_) + 2, st.s)) : 0;
+  S.snow.update(st.t || 0, st.dt || dt || 0, Math.min(1, storm * (LOW ? 0.7 : 1) + (0.12 * smooth(0.3, 0.42, p) + 0.3 * smooth(0.55, 0.9, p)) * (1 - sk)), st.camera, vh,
+    LOW ? 0 : rz * (0.45 + 0.55 * storm) * (1 - sk), route.heightAt(st.s));
+  // 风力分级：大本营微风 → 前进营地起风 → 北山脊风雪里大风（旗被扯平）；再叠一点阵风。旗的抖动频率也跟着风走（相位按帧累加，不跳）
+  const t0 = st.t || 0, wind = (0.55 + 0.9 * smooth(0.02, 0.45, p) + 1.6 * storm) * (1 + 0.25 * Math.sin(t0 * 0.7) * Math.sin(t0 * 1.9 + 1)) * (1 - 0.3 * sk);
+  S.flagT = (S.flagT + dt * (0.5 + 0.55 * wind)) % 1000;
+  for (const f of S.flags) { f.uT.value = S.flagT; f.uWind.value = wind; }
+  S.ropeSway.uT.value = S.flagT; S.ropeSway.uWind.value = wind;
+  if (S.ladderU && S.Z.ladder) {                                                  // 梯子：人在梯上往下弯，每上一级弹一下
+    const L = S.Z.ladder, on = !st.summit && st.s > L.start - 0.3 && st.s < L.start + L.steps + 0.2, k = Math.floor(st.s);
+    if (on && S.ldStep !== null && k !== S.ldStep) S.ldK = 1;
+    S.ldStep = k; S.ldK = Math.max(0, S.ldK - dt * 3);
+    const U = S.ladderU; U.uDip.value += ((on ? 0.05 + 0.04 * S.ldK : 0) - U.uDip.value) * Math.min(1, dt * 8);
+    if (st.avatar) U.uFoot.value = (st.avatar.x - U.uP0.value.x) * U.uDir.value.x + (st.avatar.z - U.uP0.value.y) * U.uDir.value.y;
+  }
   S.revRock.value = st.summit ? 1 : smooth(S.rockS - 18, S.rockS - 12, st.s);    // 走到才露面：离地标 6–9 个单位开始显出来
   S.revTop.value = st.summit ? 1 : smooth(S.topS - 18, S.topS - 12, st.s);
   for (const m of S.hideRock) show(m, S.revRock.value > 0.001);
@@ -460,6 +509,8 @@ export function update(dt, st) {
   for (const m of S.hideLow) show(m, S.revLow.value > 0.001);
   // 缺氧：按海拔（world.alt 插值），登顶那几秒松一口气
   const alt = S.a0 + (S.a1 - S.a0) * route.heightAt(st.s) / route.hmax;
+  S.tentGlow.value = 0.06 + 0.85 * storm;                                       // 风雪一起，帐篷里的灯透出来
+  if (S.smoke && st.s < 24) { if ((S.smokeT -= dt) <= 0) { S.smokeT = 0.12; S.smoke.burst(S.smokeAt.x, S.smokeAt.y, S.smokeAt.z, 0.22, 1, { up: 2.6, life: 3.4, size: 3.4, spread: 0.04, floor: false }); } S.smoke.update(dt, st.camera); }
   S.heli.update(dt, st);
   if (S.yaks) S.yaks.update(dt, st);
   const oxy = interact(dt, st);                                                     // 互动；北坳吸上氧，缺氧暗角松一点
@@ -488,9 +539,16 @@ export function update(dt, st) {
       const gone = 1 - smooth(N + 1.6, N + 2.6, P.s[k]);
       const block = st.camera && (st.camera.position.distanceTo(_mid) < 1.2 || segDist(_mid, st.camera.position, _head) < 0.42);
       _sc.setScalar(block ? 0 : 0.95 * gone);
-      _m4.compose(_c, _q, _sc); P.sm.setMatrixAt(k, _m4); P.gm.setMatrixAt(k, _m4);
+      _m4.compose(_c, _q, _sc); P.sm.setMatrixAt(k, _m4);
+      // 小动作：走 = 按实际挪动的速度；站着的时候每人轮着跺脚 / 搓手 / 抬头看梯子（各人错开）
+      const v = P.ps[k] === null || dt <= 0 ? 0 : Math.abs(P.s[k] - P.ps[k]) / dt; P.ps[k] = P.s[k];
+      const mode = Math.floor(((st.t || 0) * 0.22 + k * 0.61) % 3), fz = Math.min(1, dt * 3);
+      P.wk[k] += ((st.preview ? 0 : Math.min(1, v * 1.5)) - P.wk[k]) * fz;
+      P.rb[k] += ((mode === 1 ? 1 : 0) * (1 - P.wk[k]) - P.rb[k]) * fz; P.lk[k] += ((mode === 2 ? 1 : 0) * (1 - P.wk[k]) - P.lk[k]) * fz;
+      P.ph[k] += dt * (3 + 4 * P.wk[k]);
+      P.anim.set([P.ph[k], P.wk[k], P.rb[k], P.lk[k]], k * 4);
     }
-    P.sm.instanceMatrix.needsUpdate = P.gm.instanceMatrix.needsUpdate = true;
+    P.sm.instanceMatrix.needsUpdate = true; P.aAnim.needsUpdate = true;
   }
 }
 

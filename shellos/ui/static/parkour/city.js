@@ -2,7 +2,7 @@
 // 窗户、屋顶车道线都在着色器里按坐标画（不用贴图，楼多长都不拉伸）。
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
-import { rng, LANE } from './logic.js';
+import { rng, LANE, atLeg, yawOf } from './logic.js';
 import { SEG, PALETTE } from '/game/style.js';
 
 export const ROOF_W = 8;                     // 屋顶宽（z），三条道在中间 ±2.4
@@ -16,10 +16,10 @@ const lin = hex => { const c = new THREE.Color(hex); return `vec3(${c.r.toFixed(
 function winMat(base, local, roof) {
   const m = new THREE.MeshLambertMaterial({ color: base });
   m.onBeforeCompile = sh => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vP; varying vec3 vN;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvN = normal;\nvP = ${local ? 'position' : '(modelMatrix * vec4(position, 1.0)).xyz'};`);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vP; varying vec3 vN; varying vec3 vL;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvL = position;\nvN = ${local ? 'normal' : 'normalize(mat3(modelMatrix) * normal)'};\nvP = ${local ? 'position' : '(modelMatrix * vec4(position, 1.0)).xyz'};`);   // 第 6 轮：楼会转 90°，窗户按世界法线分面
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vP; varying vec3 vN;
+      varying vec3 vP; varying vec3 vN; varying vec3 vL;
       float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         if (abs(vN.y) < 0.5) {
@@ -32,13 +32,13 @@ function winMat(base, local, roof) {
           totalEmissiveRadiance += win * lit * wc * 0.9;
         }${roof ? ` else if (vN.y > 0.5) {
           diffuseColor.rgb = vec3(0.29, 0.31, 0.36);
-          vec2 g = abs(fract(vP.xz / 2.0) - 0.5);
+          vec2 g = abs(fract(vL.xz / 2.0) - 0.5);                      // 屋顶花纹按楼自己的坐标（x = 沿路，z = 横向）：转弯以后车道线还在路中间
           diffuseColor.rgb *= 0.85 + 0.15 * step(0.03, min(g.x, g.y));
-          float z = abs(vP.z);
+          float z = abs(vL.z);
           float lane = 1.0 - smoothstep(0.03, 0.07, abs(z - ${(LANE / 2).toFixed(2)}));
-          totalEmissiveRadiance += lane * step(0.45, fract(vP.x / 3.0)) * ${lin(MOON)} * 0.6;
+          totalEmissiveRadiance += lane * step(0.45, fract(vL.x / 3.0)) * ${lin(MOON)} * 0.6 * step(abs(vL.z), ${(ROOF_W / 2).toFixed(1)});
           float edge = step(${(LANE * 1.5 + 0.1).toFixed(2)}, z) * step(z, ${(LANE * 1.5 + 0.45).toFixed(2)});
-          diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.62, 0.64, 0.68), vec3(0.08), step(0.5, fract((vP.x + z) / 1.2))), edge);
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.62, 0.64, 0.68), vec3(0.08), step(0.5, fract((vL.x + z) / 1.2))), edge);
         }` : ''}`);
   };
   m.customProgramCacheKey = () => 'win' + (local ? 'L' : 'W') + (roof ? 'R' : '');
@@ -67,32 +67,53 @@ export function makeCity(scene, { low = false } = {}) {
   scene.background = skyT;
   scene.fog = new THREE.Fog('#3a1a44', 60, low ? 170 : 230);
 
-  const T = 240, R = rng(11), parts = [], skyMat = winMat('#161a28', true);
-  for (let i = 0; i < (low ? 45 : 100); i++) {           // 两侧的楼：近的矮（楼顶比跑道低，才像在屋顶上跑），远的才有高塔
-    const far = R(), z = (R() < 0.5 ? -1 : 1) * (14 + far * 130), top = -14 + far * far * 60 + R() * 12;
-    const w = 8 + R() * 12, d = 8 + R() * 12, h = top + 60, x = R() * T;
-    for (const k of [-1, 0, 1]) parts.push(new THREE.BoxGeometry(w, h, d).translate(x + k * T, top - h / 2, z));
+  // 远景：第 6 轮起路会往四个方向拐，天际线改成围着人的一圈（跟着人整体平移，1 次绘制）；近处的视差交给每栋屋顶两边的矮楼（segMesh）
+  const R = rng(11), parts = [], skyMat = winMat('#161a28', true);
+  for (let i = 0; i < (low ? 60 : 130); i++) {
+    const far = R(), a = R() * Math.PI * 2, rr = 70 + far * 140, top = -6 + far * far * 60 + R() * 14;
+    const w = 10 + R() * 14, d = 10 + R() * 14, h = top + 60;
+    parts.push(new THREE.BoxGeometry(w, h, d).rotateY(a).translate(Math.cos(a) * rr, top - h / 2, Math.sin(a) * rr));
   }
   const skyline = new THREE.Mesh(mergeGeometries(parts), skyMat); skyline.frustumCulled = false;
   scene.add(skyline);
   const moon = new THREE.Mesh(new THREE.CircleGeometry(9, 32), new THREE.MeshBasicMaterial({ color: '#ffe9c4', fog: false }));
   moon.position.set(300, 90, -120); moon.lookAt(0, 0, 0); scene.add(moon);
+  const W = {};
 
   // ---- 关卡物件 ----
   const live = new Map();                                  // 关卡里的 seg / obs 对象 → 网格
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  // 楼 / 斜板都在自己那条腿的坐标里建（x = 沿路，z = 右），最后按腿的起点和朝向摆到世界里
+  const place = (g, leg, sMid, y) => { atLeg(leg, sMid, 0, W); g.position.set(W.x, y, W.z); g.rotation.y = yawOf(leg.dir); return g; };
   function segMesh(s, prev, next) {
-    const L = s.x1 - s.x0, g = new THREE.Group();
+    const g = new THREE.Group();
     if (s.kind === 'roof') {
-      const b = new THREE.Mesh(box(L, 80, ROOF_W).translate(0, -40, 0), M.win);
-      const par = new THREE.Mesh(mergeGeometries([box(L, 0.5, 0.25).translate(0, 0.25, ROOF_W / 2 - 0.12), box(L, 0.5, 0.25).translate(0, 0.25, -ROOF_W / 2 + 0.12)]), M.parapet);
-      g.add(b, par, new THREE.Mesh(mergeGeometries([box(L, 0.08, 0.1).translate(0, -0.3, ROOF_W / 2 + 0.05), box(L, 0.08, 0.1).translate(0, -0.3, -ROOF_W / 2 - 0.05)]), M.side));
+      // 路口（第 6 轮）：转出去的这栋（turnIn）往回多盖 ROOF_W/2，把路口那块方地盖住；转进来的那栋（turnOut）少盖 ROOF_W/2，免得两块叠在一起闪
+      const a0 = s.x0 - (s.turnIn ? ROOF_W / 2 : 0), a1 = s.x1 - (s.turnOut ? ROOF_W / 2 : 0), L = a1 - a0, c = (a0 + a1) / 2;
+      const R2 = rng(Math.floor(Math.abs(s.x0) * 7) + 3), boxes = [box(L, 80, ROOF_W).translate(0, -40, 0)];
+      for (const side of [-1, 1]) for (let x = -L / 2; x < L / 2 - 4;) {   // 两边的矮楼：楼顶比跑道低 2–11 m，近处的视差靠它们
+        const w = Math.min(L / 2 - x, 8 + R2() * 8), d = 6 + R2() * 8, top = -2 - R2() * 9, off = ROOF_W / 2 + 1.5 + R2() * 5 + d / 2;
+        boxes.push(box(w - 1, 80 + top, d).translate(x + w / 2, top - (80 + top) / 2, side * off)); x += w;
+      }
+      g.add(new THREE.Mesh(mergeGeometries(boxes), M.win));
+      // 两边矮墙 + 楼沿霓虹；路口那栋在进来的一侧开口（前 ROOF_W 米），对面立一堵封墙（不转弯就撞它）
+      const entry = s.turnIn ? s.turnIn : 0, pars = [], neon = [];
+      for (const side of [-1, 1]) {
+        const open = entry && side === entry ? ROOF_W : 0, l = L - open, x = open / 2;
+        pars.push(box(l, 0.5, 0.25).translate(x, 0.25, side * (ROOF_W / 2 - 0.12)));
+        neon.push(box(l, 0.08, 0.1).translate(x, -0.3, side * (ROOF_W / 2 + 0.05)));
+      }
+      g.add(new THREE.Mesh(mergeGeometries(pars), M.parapet), new THREE.Mesh(mergeGeometries(neon), M.side));
+      if (entry) {                                                    // 封墙：在路口那块方地的外侧（右转 = 新腿的左边），2.4 m 高，顶上一道品红
+        const z = -entry * (ROOF_W / 2 + 0.2), x = -L / 2 + ROOF_W / 2;
+        g.add(new THREE.Mesh(box(ROOF_W + 0.4, 2.4, 0.3).translate(x, 1.2, z), M.parapet), new THREE.Mesh(box(ROOF_W + 0.4, 0.12, 0.34).translate(x, 2.4, z), M.side));
+      }
       // 楼头楼尾的亮沿：前面是楼缝 = 起跳（台阶黄），前面是斜板 = 上坡绿；后面是楼缝 = 落地（下坡蓝）。楼缝在哪一眼看清
-      if (next) g.add(new THREE.Mesh(box(0.14, 0.1, ROOF_W).translate(L / 2 - 0.07, 0.02, 0), next.kind === 'ramp' ? M.up : M.jump));
+      if (next && next.kind !== 'roof') g.add(new THREE.Mesh(box(0.14, 0.1, ROOF_W).translate(L / 2 - 0.07, 0.02, 0), next.kind === 'ramp' ? M.up : M.jump));
       if (prev && prev.kind === 'gap') g.add(new THREE.Mesh(box(0.14, 0.1, ROOF_W).translate(-L / 2 + 0.07, 0.02, 0), M.land));
-      g.position.set((s.x0 + s.x1) / 2, s.h0, 0);
+      return place(g, s.leg, c, s.h0);
     } else if (s.kind === 'ramp') {
-      const dy = s.h1 - s.h0, len = Math.hypot(L, dy);
+      const L = s.x1 - s.x0, dy = s.h1 - s.h0, len = Math.hypot(L, dy);
       const p = new THREE.Mesh(box(len, 0.25, ROOF_W - 1.5), M.ramp);
       p.rotation.z = Math.atan2(dy, L); p.position.y = -0.12;
       const e = (ROOF_W - 1.5) / 2;                     // 斜板上给的是 up：扶手 + 两侧板沿都用上坡绿
@@ -100,9 +121,9 @@ export function makeCity(scene, { low = false } = {}) {
         box(len, 0.08, 0.12).translate(0, 0.02, e - 0.06), box(len, 0.08, 0.12).translate(0, 0.02, -e + 0.06)]), M.up);
       rails.rotation.z = p.rotation.z;
       g.add(p, rails);
-      g.position.set((s.x0 + s.x1) / 2, (s.h0 + s.h1) / 2, 0);
-    } else return null;
-    return g;
+      return place(g, s.leg, (s.x0 + s.x1) / 2, (s.h0 + s.h1) / 2);
+    }
+    return null;
   }
   function obsMesh(o, groundY) {
     const g = new THREE.Group(), zs = o.lanes.map(l => (l - 1) * LANE);
@@ -128,19 +149,18 @@ export function makeCity(scene, { low = false } = {}) {
         g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.1, 16).translate(0, 2.2, z), M.tankBand));
       }
     }
-    g.position.set(o.x, groundY, 0);
-    return g;
+    return place(g, o.leg, o.x, groundY);
   }
   const kill = m => { scene.remove(m); m.traverse(c => { if (c.isMesh) c.geometry.dispose(); }); };
   return {
     // 每帧：把关卡里新出现的物件建出来、没了的扔掉；天际线跟着人挪
-    sync(level, px) {
+    sync(level, pw) {                                   // pw = 玩家世界位置 {x, z}
       const want = new Set();
       level.segs.forEach((s, i) => { want.add(s); if (!live.has(s)) { const m = segMesh(s, level.segs[i - 1], level.segs[i + 1]); live.set(s, m); if (m) scene.add(m); } });
       for (const o of level.obs) { want.add(o); if (!live.has(o)) { const m = obsMesh(o, level.ground(o.x) ?? 0); live.set(o, m); scene.add(m); } }
       for (const [k, m] of live) if (!want.has(k)) { if (m) kill(m); live.delete(k); }
-      skyline.position.x = Math.floor(px / T) * T;
-      moon.position.x = px + 300;
+      skyline.position.set(pw.x, 0, pw.z);
+      moon.position.set(pw.x + 300, 90, pw.z - 120);
     },
     meshOf: k => live.get(k),
     clear() { for (const m of live.values()) if (m) kill(m); live.clear(); },

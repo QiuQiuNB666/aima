@@ -57,6 +57,7 @@ export function buildHeli(ctx, { Z, pad, LOW, onTouchdown }) {
       else if (H.mode === 'hover' || H.mode === 'orbit') start('leave');
       else if (H.mode === 'none' && !H.landed && s < bcEnd + 10 && (s > 0.05 || st.preview)) start('land');
       else if (H.mode === 'parked' && s > bcEnd + 24) H.mode = 'none';
+      else if (H.mode === 'land' && st.preview && s > bcEnd + 12) H.mode = 'none';           // 预览直接跳到山上：别让开场那架还悬在大本营
       H.t += dt;
       let beamOn = false, ground = null, wob = 0;
       // ---- 各段怎么飞（只定位置和机头朝向；俯仰 / 侧倾统一按加速度算，见下面） ----

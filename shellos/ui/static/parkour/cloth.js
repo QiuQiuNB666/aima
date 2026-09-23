@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { FENGGE_LOOK } from '/game/fengge.js';
 import { AVATAR_LOOK } from '/game/avatar.js';
 
-const G = new THREE.Vector3(0, -9.8, 0);
+const G = new THREE.Vector3(0, -9.8, 0), FWD = new THREE.Vector3(1, 0, 0);
 export const CLOTH = { DRAG: 5.5, ITER: 3, SUB: 1 / 120, FLUTTER: 0.9 };   // 阻力（1/s）、约束迭代、子步长、飘动噪声（m/s²）
 
 export function makeCloth(scene, av) {
@@ -48,7 +48,7 @@ export function makeCloth(scene, av) {
   return {
     mesh,
     // 每帧：骨骼摆好、group 位置设好之后调。cam = 镜头位置（带子宽度朝它转）
-    update(dt, cam, visible = true) {
+    update(dt, cam, visible = true, fwd = FWD) {             // fwd = 人朝向（第 6 轮起会转弯）
       mesh.visible = visible && outer.visible;
       outer.updateMatrixWorld(true);
       dt = Math.min(dt, 0.1);
@@ -58,7 +58,7 @@ export function makeCloth(scene, av) {
           for (let i = 0; i < s.n; i++) { s.p[i].copy(A).addScaledVector(G, s.seg * i / 9.8); s.q[i].copy(s.p[i]); }
           s.init = true;
         }
-        const back = A.x + 0.02;                                   // 不许甩到身体前面去（人朝 +X）
+        const bx = A.x, bz = A.z;                                  // 不许甩到身体前面去：沿朝向的投影 ≤ 挂点 + 0.02
         for (let n = Math.ceil(dt / CLOTH.SUB), h = dt / n, k = 0; k < n; k++) {
           t += h;
           for (let i = 1; i < s.n; i++) {                          // Verlet：x' = x + (x − x_prev)·(1 − drag·h) + a·h²
@@ -73,7 +73,8 @@ export function makeCloth(scene, av) {
             d.copy(s.p[i]).sub(s.p[i - 1]); const L = d.length() || 1e-6;
             s.p[i].addScaledVector(d, (s.seg - L) / L * (i === 1 ? 1 : 0.5));
             if (i > 1) s.p[i - 1].addScaledVector(d, -(s.seg - L) / L * 0.5);
-            if (s.p[i].x > back) s.p[i].x = back;
+            const ahead = (s.p[i].x - bx) * fwd.x + (s.p[i].z - bz) * fwd.z - 0.02;
+            if (ahead > 0) { s.p[i].x -= fwd.x * ahead; s.p[i].z -= fwd.z * ahead; }
           }
         }
         // 写顶点：每个点左右各一个，宽度方向 = 带子方向 × 看向镜头的方向
