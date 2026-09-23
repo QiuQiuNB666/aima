@@ -1,0 +1,2 @@
+# 大脑的 key（MINIMAX_API_KEY 等）放 brain/.env，不进 git
+.env

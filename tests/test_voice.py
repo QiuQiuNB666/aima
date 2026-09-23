@@ -1,11 +1,12 @@
-"""峰哥语音：缓存命中不联网、TTS 挂了不出声不报错、/voice/last.wav 只念当前这句。不调真 TTS（say / 克隆服务）。"""
+"""峰哥语音：缓存命中不联网、TTS 挂了不出声不报错、/voice/last.wav 只念当前这句、MiniMax 失败退到 say 且不缓存。
+不调真 TTS：say 换成假的，MiniMax 是本机假服务。"""
 from __future__ import annotations
 import importlib.util
 import json
 import os
 import threading
 import urllib.request
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ from shellos.agent import voice
 from shellos.ui.server import Dashboard
 
 WAV = b"RIFF\x24\x00\x00\x00WAVEfake"
+SAY = b"RIFF\x24\x00\x00\x00WAVEsay"
 
 
 @pytest.fixture(autouse=True)
@@ -24,13 +26,50 @@ def isolated(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def tts(monkeypatch):
-    """起 brain/tts.py 的服务，synth 换成假的，记调用次数。"""
+def brain_tts(monkeypatch, tmp_path):
+    """brain/tts.py 模块：key 是假的、MiniMax 指向连不上的端口、voice_id / 参考音频都在 tmp。"""
+    monkeypatch.setenv("MINIMAX_API_KEY", "test-key")          # 先占住，brain/.env 里真 key 不会被读进来
     spec = importlib.util.spec_from_file_location("brain_tts", os.path.join(os.path.dirname(__file__), "..", "brain", "tts.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "MM_BASE", "http://127.0.0.1:9")
+    monkeypatch.setattr(mod, "VOICE_ID_FILE", str(tmp_path / "voice_id"))
+    monkeypatch.setattr(mod, "REF_WAV", str(tmp_path / "ref.wav"))
+    monkeypatch.setattr(mod, "say", lambda text: SAY)
+    return mod
+
+
+@pytest.fixture
+def minimax(brain_tts, monkeypatch):
+    """假 MiniMax：记下每个请求，按路径回 JSON。"""
+    seen, replies = [], {}
+
+    class FakeMM(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            seen.append((self.path, self.headers["Authorization"], self.headers["Content-Type"], body))
+            out = json.dumps(replies[self.path]).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeMM)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    monkeypatch.setattr(brain_tts, "MM_BASE", f"http://127.0.0.1:{srv.server_address[1]}")
+    yield SimpleNamespace(seen=seen, replies=replies)
+    srv.shutdown()
+
+
+@pytest.fixture
+def tts(brain_tts, monkeypatch):
+    """起 brain/tts.py 的服务，synth 换成假的，记调用次数。"""
+    mod = brain_tts
     calls = []
-    monkeypatch.setattr(mod, "synth", lambda text: calls.append(text) or WAV)
+    monkeypatch.setattr(mod, "synth", lambda text: (calls.append(text) or WAV, True))
     srv = ThreadingHTTPServer(("127.0.0.1", 0), mod.H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     monkeypatch.setattr(voice, "URL", f"http://127.0.0.1:{srv.server_address[1]}")
@@ -81,3 +120,63 @@ def test_dashboard_voice_route_only_speaks_current_line(tts):
             assert b"/voice/last.wav" in r.read()
     finally:
         dash.httpd.shutdown()
+
+
+def test_minimax_t2a_request_and_cache(brain_tts, minimax):
+    open(brain_tts.VOICE_ID_FILE, "w").write("Fengge0923120000")
+    minimax.replies["/v1/t2a_v2"] = {"data": {"audio": WAV.hex()}, "extra_info": {"usage_characters": 5},
+                                     "base_resp": {"status_code": 0, "status_msg": "success"}}
+    assert brain_tts.get("这不就完了吗") == (WAV, True)
+    path, auth, _, body = minimax.seen[0]
+    req = json.loads(body)
+    assert path == "/v1/t2a_v2" and auth == "Bearer test-key"
+    assert req["voice_setting"]["voice_id"] == "Fengge0923120000" and req["audio_setting"]["format"] == "wav"
+    assert req["model"] == brain_tts.MM_MODEL and req["stream"] is False
+    assert brain_tts.get("这不就完了吗") == (WAV, True) and len(minimax.seen) == 1      # 第二次走缓存，不再花钱
+
+
+def test_minimax_error_falls_back_to_say_not_cached(brain_tts, minimax, monkeypatch):
+    open(brain_tts.VOICE_ID_FILE, "w").write("Fengge0923120000")
+    minimax.replies["/v1/t2a_v2"] = {"base_resp": {"status_code": 1008, "status_msg": "insufficient balance"}}
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), brain_tts.H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    monkeypatch.setattr(voice, "URL", f"http://127.0.0.1:{srv.server_address[1]}")
+    try:
+        assert voice.get("红灯是好事儿啊") == SAY                       # 欠费 → say 顶上，照样出声
+        assert not os.path.isfile(voice.path("红灯是好事儿啊"))          # 大脑和 ShellOS 两边都不缓存女声
+        assert voice.get("红灯是好事儿啊") == SAY and len(minimax.seen) == 1   # 30 s 内不再打 MiniMax
+    finally:
+        srv.shutdown()
+
+
+def test_say_when_minimax_not_set_up_or_unreachable(brain_tts, monkeypatch):
+    assert brain_tts.synth("这不就完了吗") == (SAY, True)                # 有 key 没复刻：say，可缓存
+    open(brain_tts.VOICE_ID_FILE, "w").write("Fengge0923120000")
+    assert brain_tts.synth("这不就完了吗") == (SAY, False)               # 配好了但连不上：say，不缓存
+    monkeypatch.delenv("MINIMAX_API_KEY")
+    assert brain_tts.synth("这不就完了吗") == (SAY, True)                # 没 key：say，可缓存
+
+
+def test_clone_uploads_ref_and_saves_voice_id_once(brain_tts, minimax):
+    open(brain_tts.REF_WAV, "wb").write(b"RIFFrefaudio")
+    minimax.replies["/v1/files/upload"] = {"file": {"file_id": 42}, "base_resp": {"status_code": 0}}
+    minimax.replies["/v1/voice_clone"] = {"base_resp": {"status_code": 0, "status_msg": "success"}}
+    brain_tts.clone()
+    (p1, auth, ct, body), (p2, _, _, body2) = minimax.seen
+    assert p1 == "/v1/files/upload" and auth == "Bearer test-key" and ct.startswith("multipart/form-data; boundary=")
+    assert b'name="purpose"\r\n\r\nvoice_clone\r\n' in body and b"RIFFrefaudio" in body
+    req, vid = json.loads(body2), open(brain_tts.VOICE_ID_FILE).read()
+    assert p2 == "/v1/voice_clone" and req["file_id"] == 42 and req["voice_id"] == vid
+    assert vid[0].isalpha() and len(vid) >= 8
+    with pytest.raises(SystemExit):
+        brain_tts.clone()                                                  # 复刻过就不再传、不再花钱
+    assert len(minimax.seen) == 2
+
+
+def test_clone_without_verification_saves_nothing(brain_tts, minimax):
+    open(brain_tts.REF_WAV, "wb").write(b"RIFFrefaudio")
+    minimax.replies["/v1/files/upload"] = {"file": {"file_id": 42}, "base_resp": {"status_code": 0}}
+    minimax.replies["/v1/voice_clone"] = {"base_resp": {"status_code": 2038, "status_msg": "no clone permission"}}
+    with pytest.raises(RuntimeError, match="2038"):
+        brain_tts.clone()
+    assert not os.path.isfile(brain_tts.VOICE_ID_FILE)

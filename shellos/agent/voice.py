@@ -50,9 +50,10 @@ def get(text, timeout=15.0):
                                      headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                data = r.read()
+                data, keep = r.read(), r.headers.get("Cache-Control") != "no-store"
         except Exception:  # noqa: BLE001  TTS 没开 / 断网 / 超时 / 502：不出声
             _down_t = time.time()
             return None
-        save(text, data)
+        if keep:                   # no-store = 克隆音色这次失败、退到 say 念的，下次还要再问
+            save(text, data)
         return data
