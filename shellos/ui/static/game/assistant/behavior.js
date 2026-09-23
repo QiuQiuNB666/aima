@@ -7,7 +7,7 @@
 //     排队 = 80% 以后最后一个等待段，红灯时她站到峰哥正前方半步、两臂微张挡着；绿灯那一下让到右边「到你了」；
 //     登顶 = /state.terrain.laps 加一 → 6 s 内站到峰哥右边、举左手击掌。
 //   台词（第 7 轮，key 见 lines.js）：起步 start；地标 mark（地名带「风」的念 wind）；进台阶 stairs、进下坡 down；普通红灯 red / rest 轮着说、
-//     放行 green；排队 queue、轮到 go；北坳 oxygen；登顶 summit；连续走 45 s 没说话 pace / follow 轮着说。除了互动那几句，两句之间至少 6 s。
+//     放行 green；排队 queue、轮到 go；北坳 oxygen；登顶 summit；连续走 45 s 没说话 pace / follow 轮着说；峰哥在路上停了 8 s 以上 wait（一次）。除了互动那几句，两句之间至少 6 s。
 //   返回 { s（她的连续步数）, lat（横向）, face（转身，弧度，+ = 向左转向峰哥）, point（指路 0..1）, act: { oxygen, guard, five }（0..1）,
 //     say（{key, text} 或 null）, dash }
 export const ASSIST = { LEAD: 0.5, LAT: -0.75, VMAX: 5, POINT_S: 2.6, GAP_S: 10, AHEAD: 2.2 };
@@ -29,7 +29,7 @@ const ramp = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a)));
 export function makeAssist(route) {
   const marks = landmarks(route), done = new Set(), Z = zones(route);
   let s = null, hold = null, lastSay = -99, lastLaps = null, lastPs = null, oxyT = 0, oxySaid = false, inQueue = false, summitT = -1;
-  let started = false, inQueueSaid = false, prevSeg = -1, prevWait = false, redN = 0, walkT = 0, paceN = 0, anySay = -99;
+  let started = false, stillT = 0, waitSaid = false, inQueueSaid = false, prevSeg = -1, prevWait = false, redN = 0, walkT = 0, paceN = 0, anySay = -99;
   const segAt = x => { const g = route.segs; let i = 0; while (i < g.length - 1 && x >= g[i].start + g[i].steps) i++; return i; };
   return {
     marks,
@@ -68,6 +68,8 @@ export function makeAssist(route) {
       if (!say && free && wait && !prevWait && !atCol && !atQ) say = { key: redN++ % 2 ? 'rest' : 'red' };
       if (!say && !preview && !wait && prevWait && !inQueue && summitT < 0) say = { key: 'green' };
       walkT = moved && !wait ? walkT + dt : 0;
+      stillT = !moved && started && !wait && summitT < 0 ? stillT + dt : 0;          // 峰哥在路上站着不走（不是红灯）
+      if (!say && free && stillT > 8 && !waitSaid) { waitSaid = true; say = { key: 'wait' }; } else if (moved) waitSaid = false;
       if (!say && free && walkT > 45) { say = { key: paceN++ % 2 ? 'follow' : 'pace' }; walkT = 0; }
       prevSeg = si; prevWait = wait;
       if (!preview && !hold && !say && !wait && summitT < 0 && t - lastSay > ASSIST.GAP_S) {

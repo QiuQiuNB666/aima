@@ -42,6 +42,7 @@ export async function makeAssistant(scene) {
     animate(dt, t, d) { av.animate(dt, t, d); sway(d); },
     point: pointer(av),
     act: actor(av),
+    idle: idler(av),
     headWorld: (out = tmp) => av.headWorld(out),
     stance: () => false, update(dt) { swing(dt); }, burst() {}, resetTrail() {},
     set visible(v) { av.group.visible = v; }, get visible() { return av.group.visible; },
@@ -153,4 +154,32 @@ function makeBottle(av) {
   g.traverse(o => { o.frustumCulled = false; });
   w.attach(g); g.visible = false;
   return g;
+}
+
+// ---- 第 8 轮：待机小动作——站着（不在走、不在指路 / 互动）超过 1.2 s，每 4–7 s 随机来一个，各约 2.2 s、渐入渐出：
+//   hair 右手往后脑理头发、watch 抬左手看表（低头）、look 回头看峰哥（他在她左后方：头和胸口往左转） ----
+export const IDLE = ['hair', 'watch', 'look'];
+function idler(av) {
+  const L = av.bones['Skeleton_arm_joint_L__4_'], R = av.bones['Skeleton_arm_joint_R'], H = av.bones['Skeleton_neck_joint_2'], C = av.bones['torso_joint_3'];
+  const ax = new THREE.Vector3(), qb = new THREE.Quaternion(), q = new THREE.Quaternion(), D = Math.PI / 180;
+  const rot = (b, x, y, z, deg) => {
+    if (!b || !deg) return;
+    b.parent.updateWorldMatrix(true, false); b.updateWorldMatrix(false, false);
+    ax.set(x, y, z).applyQuaternion(av.group.getWorldQuaternion(qb)).applyQuaternion(b.getWorldQuaternion(qb).invert()).normalize();
+    b.quaternion.multiply(q.setFromAxisAngle(ax, deg * D));
+  };
+  const force = new URLSearchParams(location.search).get('npcidle');   // 预览 &npcidle=hair|watch|look：一直摆这个（截图用）
+  let still = 0, cur = null, t0 = 0, next = 2 + Math.random() * 2, k = 0;
+  return (t, dt, standing) => {
+    still = standing ? still + dt : 0;
+    if (force) { cur = force; t0 = t - 1; }
+    else if (!standing) { cur = null; next = 1.2; }
+    else if (!cur && still > next) { cur = IDLE[k++ % IDLE.length]; t0 = t; }
+    if (!cur) return;
+    const el = t - t0, w = force ? 1 : Math.min(1, el / 0.35) * Math.min(1, Math.max(0, (2.2 - el) / 0.35));
+    if (!force && el > 2.2) { cur = null; still = 0; next = 4 + Math.random() * 3; return; }
+    if (cur === 'hair') { rot(R, 0, 0, 1, 150 * w); rot(R, 1, 0, 0, -35 * w); rot(H, 0, 0, 1, -6 * w); }
+    else if (cur === 'watch') { rot(L, 0, 0, 1, 55 * w); rot(L, 1, 0, 0, -28 * w); rot(H, 0, 0, 1, -18 * w); }
+    else if (cur === 'look') { rot(C, 0, 1, 0, 22 * w); rot(H, 0, 1, 0, 48 * w); }
+  };
 }
