@@ -21,7 +21,8 @@ export const 角色名 = Q.get('npcname') || '捷风';
 export const LOOK = { leg: '#27344c', body: '#2f7fe0', head: '#f2f6fb', rim: '#bfeeff', rimK: 0.55, self: 0.28, headScale: 0.86, exo: false, pointK: 0.35 };
 export const WIND = '#9ff3ff';            // 拖尾 / 风刃颜色
 const MODEL = Q.get('npcmodel') || '/models/jett/scene.gltf';
-const STL = Q.get('npcstl') || '/models/jett/jett.stl';
+// 9/23 热修：展位 M2 上 STL 雕像渲染成满屏黑块（开发机正常），默认先关；?npcstl=1 打开，?npcstl=<url> 换文件。J 线修好后改回默认开
+const STL = !Q.has('npcstl') || Q.get('npcstl') === '0' ? '0' : Q.get('npcstl') === '1' ? '/models/jett/jett.stl' : Q.get('npcstl');
 // STL 雕像分区（高度按身高的比例；前后按头部中心沿前进方向 +X 的偏移，单位 = 头宽）。在浏览器里对着截图调的
 // （yaw 0 = 这个 STL 本来就面朝 +X；站姿、双臂下垂、没有底座）
 export const STATUE = { yaw: 0, hair: '#eef3f8', skin: '#f0c5a4', coat: '#2f7fe0', leg: '#27344c', boot: '#1a2230', gloveC: '#1f2733',
