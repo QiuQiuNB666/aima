@@ -259,7 +259,7 @@ export async function dressFengge(av, look = {}) {
       p.y += 26 * t * t; p.z -= 22 * t * t * back;
       return [p.x, p.y, p.z, u * 13, t * 1.8];
     }, true);
-    add(mergeGeometries([cg, bg]), beanieMat, 'fenggeBeanie');
+    if (outfit.beanie !== false) add(mergeGeometries([cg, bg]), beanieMat, 'fenggeBeanie');   // 有的穿搭换帽子（泰山遮阳帽）
     // ③ 头发：帽子底下两侧 + 后脑，从脸侧（φ = ±62°）绕到后面；越往下越往外蓬（照片里两边头发撑出脸外约 70 px），发尾长短不齐
     const hairLayer = (len, k0, flare, du) => grid(xc, xr, (u, t) => {  // 两层：里层长、外层短一点更蓬，发尾错开才有厚度
       const phi = P0 + (2 * Math.PI - 2 * P0) * u, side = Math.abs(Math.sin(phi)), front = ss(P0 + 0.5, P0, Math.min(phi, 2 * Math.PI - phi));
@@ -281,27 +281,67 @@ export async function dressFengge(av, look = {}) {
 
   // ④ 围脖（照片里的黑色抓绒围脖）：脖子一圈，下面埋进衣领，上沿到胡子下面；挂在脖子骨上，转头不带着它转
   const nk = av.group.worldToLocal(neck.getWorldPosition(new THREE.Vector3()));
-  const gaiter = tune(mk({ color: L.gaiter, map: knit }), U, key('gaiter'), L.rimK, 0.1);
-  // [高度（相对脖子骨）, 半径, 前后中心]：底下堆在肩上、盖住 CesiumMan 的脖口（直径约 17 cm、中心偏后 4 cm），往上收到脖子粗细，上沿翻一圈
-  const gP = [[-0.1, 0.108, -0.036], [-0.065, 0.1, -0.03], [-0.035, 0.08, -0.012], [0, 0.066, 0.004], [0.025, 0.064, 0.01], [0.044, 0.069, 0.012], [0.054, 0.065, 0.012], [0.06, 0.05, 0.01]];
-  const { g: gg } = grid(40, gP.length - 1, (u, t) => {
-    const j = Math.round(t * (gP.length - 1)), [h, r0, cx] = gP[j], a = u * 2 * Math.PI, fr = Math.cos(a);
-    const r = r0 * (1 + (j > 0 && j < gP.length - 1 ? 0.035 * Math.sin(7 * a + j * 1.9) : 0));   // 堆起来的褶
-    return [nk.x + cx + fr * r, nk.y + h - (h > 0.04 ? 0.02 * Math.max(0, fr) : 0), nk.z + Math.sin(a) * r, u * 14, t * 3];
-  }, true);
-  const gm = new THREE.Mesh(gg, gaiter); gm.name = 'fenggeGaiter'; gm.frustumCulled = false;
-  av.group.add(gm); neck.attach(gm);
+  if (outfit.gaiter !== false) {                                // 短袖 / T 恤的穿搭不戴围脖，脖子露肤色（body 的脖子段）
+    const gaiter = tune(mk({ color: L.gaiter, map: knit }), U, key('gaiter'), L.rimK, 0.1);
+    // [高度（相对脖子骨）, 半径, 前后中心]：底下堆在肩上、盖住 CesiumMan 的脖口（直径约 17 cm、中心偏后 4 cm），往上收到脖子粗细，上沿翻一圈
+    const gP = [[-0.1, 0.108, -0.036], [-0.065, 0.1, -0.03], [-0.035, 0.08, -0.012], [0, 0.066, 0.004], [0.025, 0.064, 0.01], [0.044, 0.069, 0.012], [0.054, 0.065, 0.012], [0.06, 0.05, 0.01]];
+    const { g: gg } = grid(40, gP.length - 1, (u, t) => {
+      const j = Math.round(t * (gP.length - 1)), [h, r0, cx] = gP[j], a = u * 2 * Math.PI, fr = Math.cos(a);
+      const r = r0 * (1 + (j > 0 && j < gP.length - 1 ? 0.035 * Math.sin(7 * a + j * 1.9) : 0));   // 堆起来的褶
+      return [nk.x + cx + fr * r, nk.y + h - (h > 0.04 ? 0.02 * Math.max(0, fr) : 0), nk.z + Math.sin(a) * r, u * 14, t * 3];
+    }, true);
+    const gm = new THREE.Mesh(gg, gaiter); gm.name = 'fenggeGaiter'; gm.frustumCulled = false;
+    av.group.add(gm); neck.attach(gm);
+  }
 
   // 给主题挂头灯用（头骨局部坐标）：帽檐翻边正前方
   const lamp = head.worldToLocal(H.localToWorld(headAt(edge(0) + 34, 0, new THREE.Vector3(), 1.16, false)));
   av.group.userData.fengge = { lamp };
   av.fengge = true;
+  // 穿搭的配件（护目镜 / 氧气面罩 / 冰爪 / 安全带 / 背包 / 遮阳帽 / 头灯 …）：静止姿态下按骨骼摆好再挂上去
+  if (outfit.extras) outfit.extras({ THREE, av, outer: av.group, B: av.bones, J: body.J, body, H, headAt, edge, L, nk,
+    tune: (m, key, rimK = L.rimK, glow = 0.15) => tune(m, U, key, rimK, glow),
+    attach: (o, bone) => { av.group.add(o); (av.bones[bone] || av.group).attach(o); return o; } });
   // 手（hand.js）：自己的指骨，挂腕骨；身体的袖口收在腕骨上，手根往外 1 cm。登顶动作要用手，所以先建手、再包登顶、最后每帧收尾 apply
   HANDS = makeHands(av, { skin: L.glove, shift: 0.01, tune: m => tune(m, U, 'hand', L.rimK, 0.18) });
+  armClearance(av);                                          // 手别插进髋部外骨骼（A2 的动作之后、登顶 / 伸手之前）
   summitGesture(av, head, SMILE, HANDS);
   const a2 = av.animate;
   if (a2) av.animate = function (dt, t, d) { a2.call(this, dt, t, d); HANDS.apply(Math.min(dt, 0.1)); };
   return true;
+}
+
+// 手别插进髋部外骨骼（9/23 夜球球看第 1 轮提的）：A2 的摆臂平面正好穿过髋侧电机（离中线 0.15–0.22 m）。
+//   ① 两条上臂在 A2 的姿态上再往外张 ABD（绕化身前后轴）；② 兜底：每帧量手心（腕往前 7 cm），落进髋部模块的前后 / 上下范围、离中线又不到 ZMIN，
+//   就把上臂再往外转到刚好出来（按手心到肩的竖直距离换成角度）。?clear=0 关掉（截图对比用）。登顶 / 伸手的 IK 在这之后，会覆盖右臂。
+const ABD = 11, ZMIN = 0.245, MOD = { x: 0.14, y: 0.13 };   // 外张角（°）；手心离中线至少多远（米）；髋部模块前后 / 上下半径（含手厚）
+function armClearance(av) {
+  if (!av.animate || new URLSearchParams(location.search).get('clear') === '0') return;
+  const B = av.bones, outer = av.group, V = () => new THREE.Vector3(), qP = new THREE.Quaternion(), qR = new THREE.Quaternion(), X = V().set(1, 0, 0);
+  const S = [['R', +1, 'Skeleton_arm_joint_R', 'Skeleton_arm_joint_R__2_', 'Skeleton_arm_joint_R__3_', 'leg_joint_R_1'],
+    ['L', -1, 'Skeleton_arm_joint_L__4_', 'Skeleton_arm_joint_L__3_', 'Skeleton_arm_joint_L__2_', 'leg_joint_L_1']].filter(r => B[r[2]] && B[r[3]] && B[r[4]] && B[r[5]]);
+  const loc = (b, o) => outer.worldToLocal(b.getWorldPosition(o));
+  const out = (bone, deg) => {                              // 绕化身前后轴往外转（右 = +Z 侧 → 负角）
+    qP.identity(); for (let p = bone.parent; p && p !== outer; p = p.parent) qP.premultiply(p.quaternion);
+    bone.quaternion.premultiply(qR.copy(qP).invert().multiply(new THREE.Quaternion().setFromAxisAngle(X, deg * Math.PI / 180)).multiply(qP));
+    bone.updateMatrixWorld(true);
+  };
+  const sh = V(), el = V(), wr = V(), hand = V(), hip = V();
+  const orig = av.animate;
+  av.animate = function (dt, t, d) {
+    orig.call(this, dt, t, d);
+    outer.updateMatrixWorld(true);
+    for (const [, sg, an, en, wn, hn] of S) {
+      out(B[an], -sg * ABD);
+      loc(B[an], sh); loc(B[en], el); loc(B[wn], wr); loc(B[hn], hip);
+      hand.copy(wr).addScaledVector(wr.clone().sub(el).normalize(), 0.07);
+      const zo = hand.z * sg;                                // 手心离中线（往外为正）
+      if (Math.abs(hand.x - hip.x) < MOD.x && Math.abs(hand.y - hip.y - 0.02) < MOD.y && zo < ZMIN) {
+        const dy = Math.max(0.1, sh.y - hand.y), need = Math.atan2(ZMIN - zo, dy) * 180 / Math.PI;
+        out(B[an], -sg * Math.min(25, need));
+      }
+    }
+  };
 }
 
 // ⑤ 登顶「这是个好事儿啊」：包一层 A2 的 animate（先原样跑，再按登顶程度 k 叠加），只管三样：
