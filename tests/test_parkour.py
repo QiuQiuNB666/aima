@@ -32,9 +32,9 @@ out.squat = slides;
 function play(auto, secs, cadence) {
   const lv = makeLevel(3), S = makeRun(lv), kinds = new Set(); let t = 0;
   while (t < secs && !S.over) {
-    const th = nextThreat(S, lv, 5), inp = { v: speedFor(cadence, true), jump: false, slide: false, lane: 0 };
+    const th = nextThreat(S, lv, 5), inp = { v: speedFor(cadence, true), cad: cadence, jump: false, slide: false, lane: 0 };
     if (auto && th) {
-      if (th.what === 'jump' && th.dx < 1.5 + S.speed * 0.12) inp.jump = true;
+      if (th.what === 'jump' && th.dx < 3.2) inp.jump = true;                // 第 8 轮：跳按路程参数化，起跳窗口是固定距离（离障碍 2.3–5.7 m）
       if (th.what === 'slide' && th.dx < 2) inp.slide = true;
       if (th.what === 'turn' && th.dx < 6) inp.turn = th.o.d;
       if (th.what === 'lane') { const free = [0, 1, 2].filter(l => !th.o.lanes.includes(l)); inp.lane = Math.sign(free.sort((a, b) => Math.abs(a - S.lane) - Math.abs(b - S.lane))[0] - S.lane); }
