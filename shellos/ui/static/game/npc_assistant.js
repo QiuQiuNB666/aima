@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { loadAvatar } from './avatar.js';
 import { buildAssistantBody } from './assistant/body.js';
 import { outfitFor } from './assistant/outfits.js';
+import { buildHead } from './assistant/head.js';
 
 const Q = new URLSearchParams(location.search);
 // ↓↓ 名字占位，球球 / anni 定了改这里；也可以临时 ?npcname=xxx
@@ -28,26 +29,14 @@ export async function makeAssistant(scene) {
   let cm = null; av.group.traverse(o => { if (o.isSkinnedMesh && !cm) cm = o; });
   const body = buildAssistantBody(av, outfitFor(), tune);
   if (cm) cm.visible = false;                                  // CesiumMan 原网格（方块小人 + 头盔）藏掉
-  placeholderHead(av);
+  const head = buildHead(av);                                  // 手绘低多边形脸 + 深棕头发 + 高马尾（head.ponytail 第 4 轮甩动）
   av.group.scale.setScalar(SCALE);
   scene.add(av.group);
   const tmp = new THREE.Vector3();
   return {
-    av, group: av.group, name: 名字, body, pose: av.pose, animate: av.animate, statue: false, model: false,
+    av, group: av.group, name: 名字, body, head, pose: av.pose, animate: av.animate, statue: false, model: false,
     headWorld: (out = tmp) => av.headWorld(out),
     stance: () => false, update() {}, burst() {}, resetTrail() {},
     set visible(v) { av.group.visible = v; }, get visible() { return av.group.visible; },
   };
-}
-
-// 第 1 轮先放一个占位头（肤色椭球 + 深色发帽），第 2 轮换成手绘低多边形脸 + 高马尾
-function placeholderHead(av) {
-  const head = av.bones['Skeleton_neck_joint_2']; if (!head) return;
-  av.group.updateMatrixWorld(true);
-  const c = head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.01, 0.1, 0));
-  const skin = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1), new THREE.MeshLambertMaterial({ color: '#f0cdb6', flatShading: true, emissive: '#f0cdb6', emissiveIntensity: 0.2 }));
-  skin.scale.set(0.95, 1.12, 0.88); skin.position.copy(c);
-  const hair = new THREE.Mesh(new THREE.IcosahedronGeometry(0.106, 1), new THREE.MeshLambertMaterial({ color: '#2a2220', flatShading: true }));
-  hair.scale.set(0.98, 1.1, 0.95); hair.position.copy(c).add(new THREE.Vector3(-0.018, 0.02, 0));
-  for (const m of [skin, hair]) { m.frustumCulled = false; head.attach(m); }
 }
