@@ -7,15 +7,18 @@
 //   最后 20% 里的红灯 = 排队。「一句话造山」生成的 snow_summit 世界照样能用。
 // 路线只有 28 个单位长，大本营一眼能看到顶：岩石台阶 / 铝梯 / 排队的人 / 觇标「走到才露面」（抖动溶解，离地标 ~8 个单位开始显出来）。
 // ?fx=low：雪粒 / 经幡 / 排队人数减半、不要模糊层、地面网格粗一档（展位机器吃紧时用）。
-// 子模块：snow_summit/sky.js（天、群峰、远处北壁、云海）、snow.js（雪粒）、props.js（道具几何）、hypoxia.js（缺氧）。
+// 互动（只动画面和声音）：走过经幡，近处的旗被一阵猛风抽得乱飞、啪啪响；排队段前面的人一个个往上挪，轮到你时最前面那个往右让一步；
+//   北坳吸氧：化身旁边弹出氧气面罩图标、嘶——一口、呼出白气（缺氧暗角也松一点）；登顶时觇标上卷着的红旗展开。?fx=low 不要白气。
+// 子模块：snow_summit/sky.js（天、群峰、远处北壁、云海）、snow.js（雪粒）、props.js（道具几何）、hypoxia.js（缺氧）；音效 / 头顶图标用 cliff_path/interact.js。
 import * as THREE from 'three';
 import { STEP, ROAD_W } from '../path.js';
-import { SEG, WHO } from '../style.js';
+import { SEG, WHO, UI } from '../style.js';
 import { stairNoses } from './cliff_path/props.js';
 import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
-import { prayerFlags, tentGeo, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable } from './snow_summit/props.js';
+import { prayerFlags, tentGeo, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, climberGeos, rockGeo, revealable, beaconFlag } from './snow_summit/props.js';
+import { sfx as play, popIcon } from './cliff_path/interact.js';
 
 const LOW = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fx') === 'low';
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -301,10 +304,12 @@ export function build(scene, ctx) {
 
   // ---------- 顶峰：红色测量觇标 + 经幡；雪檐 ----------
   const bcnS = N + 3.0, bcn = route.at(bcnS, -0.85), bcnPos = bcn.pos.clone().setY(route.heightAt(N));
-  let summitFlags = null;
+  let summitFlags = null, BF = null;
   {
     const m = new THREE.Mesh(util.merged(beaconParts()), revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#2a0806' }), revTop));
     m.position.copy(bcnPos); m.rotation.y = -bcn.heading; m.name = 'surveyBeacon'; scene.add(m); hideTop.push(m);
+    BF = beaconFlag(); BF.mesh.position.copy(bcnPos).setY(bcnPos.y + 1.64); BF.mesh.rotation.y = Math.atan2(-windDir.z, windDir.x);   // 顺着西风往下风展开
+    scene.add(BF.mesh); hideTop.push(BF.mesh);
     // 经幡从觇标顶往前方 / 右侧拉到雪里（按路线方向摆，不按世界角度）；经过化身、影子登顶站位 0.7 以内的绳不要
     const top = bcnPos.clone().setY(bcnPos.y + 1.7), lines = [];
     const spots = [route.at(N + 1.2, 0.35).pos, route.at(N + 1.4, -0.5).pos], near = (a, b) => {
@@ -338,7 +343,8 @@ export function build(scene, ctx) {
     scene.add(sm, gm); hideTop.push(sm, gm);
     const q0 = Z.queue.start;
     people = { sm, gm, n, s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
-      red: k => q0 + 1.3 + k * 1.3, go: k => N + 4 + k * 1.1, sig: M.signals.find(g => g.seg.start === q0) };
+      red: k => q0 + 1.3 + k * 1.3, go: k => N + 4 + k * 1.1, sig: M.signals.find(g => g.seg.start === q0), wt: 0, aside: false, asideS: 0 };
+    people.cl = people.lat.slice();                                          // 当前横向位置（让路时往右挪）
   }
 
   // ---------- 文字（大本营石） ----------
@@ -360,6 +366,7 @@ export function build(scene, ctx) {
 
   ctx.theme.summitCard = 'left';                                              // 化身 + 觇标在画面正中，登顶卡放左下
   S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, sfx, anchors: camAnchors(Z, N),
+    I: buildInteract(scene, ctx, { flagLines, BF, windDir }),
     a0: world.alt ? +world.alt[0] : 0, a1: world.alt ? +world.alt[1] : 0, revRock, revTop, revLow, hideRock, hideTop, hideLow,
     rockS: Z.rocks.length ? Z.rocks[0].start : N, topS: Z.queue ? Z.queue.start : N - 4 };
   rigFor(0, rig, false);
@@ -445,18 +452,25 @@ export function update(dt, st) {
   for (const m of S.hideLow) show(m, S.revLow.value > 0.001);
   // 缺氧：按海拔（world.alt 插值），登顶那几秒松一口气
   const alt = S.a0 + (S.a1 - S.a0) * route.heightAt(st.s) / route.hmax;
-  S.hyp.update(Math.pow(smooth(5300, 8849, alt), 1.1) * (1 - 0.25 * sk), st.t || 0);
+  const oxy = interact(dt, st);                                                     // 互动；北坳吸上氧，缺氧暗角松一点
+  S.hyp.update(Math.pow(smooth(5300, 8849, alt), 1.1) * (1 - 0.25 * sk) * (1 - 0.45 * oxy), st.t || 0);
   // 排队的人：红灯时站成一串（梯子上 + 坡上）；放行 / 登顶后往上走，翻过顶峰就不见了（登顶画面干净）；
   //   始终在化身前面；挡在镜头和化身之间（正面镜头）或贴着镜头的藏起来
   const P = S.people;
   if (P) {
-    const go = st.summit || (P.sig && P.sig.state === 'green'), A = _A;
+    const go = st.summit || (P.sig && P.sig.state === 'green'), A = _A, q0 = Z.queue.start;
     _head.copy(st.avatar || _c).y += 1.1;
+    if (st.s < q0 - 2 || st.summit) { P.wt = 0; P.aside = false; }                      // 新一圈 / 登顶：重新排好
+    if (!go && st.s > q0 - 0.5 && st.s < q0 + 1) P.wt += dt;                             // 站在队尾等：前面的人从上往下一个个往上挪（每人 2 小步）
+    if (go && !P.aside && !st.summit && st.s > q0 - 0.5 && st.s < q0 + 1.5) { P.aside = true; P.asideS = P.s[0]; }   // 轮到你：最前面那个人往右让一步
     for (let k = 0; k < P.n; k++) {
-      const floor = st.s + 1.1 + k * 1.2, want = Math.max(go ? P.go(k) : P.red(k), floor);
-      // 往前走限速（慢慢挪上梯子）；但永远在化身前面（硬约束，走得快的人不会穿过去）；不往回走：新一圈直接回到排队位置
-      P.s[k] = st.preview || want < P.s[k] - 0.5 ? want : Math.max(floor, P.s[k] + Math.min(dt * 1.2, want - P.s[k]));
-      route.at(P.s[k], P.lat[k], A);
+      const aside = k === 0 && P.aside, hop = Math.max(0, Math.min(2, Math.floor((P.wt - 0.15 - (P.n - 1 - k) * 0.3) / 1.3) + 1));
+      const floor = aside ? -1e9 : st.s + 1.1 + k * 1.2, want = aside ? P.asideS : Math.max(go ? P.go(k) : P.red(k) + 0.55 * hop, floor);
+      // 往前走限速（慢慢挪上梯子）；但永远在化身前面（硬约束，走得快的人不会穿过去）；不往回走：新一圈直接回到排队位置；让路的人站住不动
+      P.s[k] = st.preview || (want < P.s[k] - 0.5 && !aside) ? want : Math.max(floor, P.s[k] + Math.min(dt * 1.2, want - P.s[k]));
+      const lt = aside ? -1.3 : P.lat[k];
+      P.cl[k] = st.preview ? lt : P.cl[k] + Math.sign(lt - P.cl[k]) * Math.min(Math.abs(lt - P.cl[k]), dt * 2.2);
+      route.at(P.s[k], P.cl[k], A);
       const y = route.heightAt(P.s[k]), lean = 0.12 + 0.03 * Math.sin((st.t || 0) * 1.7 + k);
       _q.setFromEuler(_e.set(0, -A.heading, -lean, 'YXZ'));
       _c.copy(A.pos).setY(y);
@@ -468,4 +482,66 @@ export function update(dt, st) {
     }
     P.sm.instanceMatrix.needsUpdate = P.gm.instanceMatrix.needsUpdate = true;
   }
+}
+
+// ---------- 互动（只动画面和声音，不碰控制） ----------
+function buildInteract(scene, ctx, { flagLines, BF, windDir }) {
+  const icon = popIcon(scene, g => {                                            // 氧气面罩：白色罩子 + 橙色阀门和管子 + O₂
+    g.translate(128, 96); g.lineJoin = 'round'; g.lineCap = 'round';
+    g.fillStyle = 'rgba(255,255,255,.14)'; g.strokeStyle = '#ffffff'; g.lineWidth = 8;
+    g.beginPath(); g.moveTo(-44, -38); g.quadraticCurveTo(0, -64, 44, -38); g.lineTo(32, 28); g.quadraticCurveTo(0, 50, -32, 28); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = UI.warn; g.beginPath(); g.arc(0, 2, 16, 0, 6.283); g.fill();
+    g.strokeStyle = UI.warn; g.lineWidth = 7; g.beginPath(); g.moveTo(0, 20); g.quadraticCurveTo(8, 62, 62, 58); g.stroke();
+    g.fillStyle = '#ffffff'; g.font = `800 34px ${UI.font}`; g.textAlign = 'center'; g.fillText('O₂', 74, -34);
+  }, '吸氧');
+  let puffs = null;
+  if (!LOW) {                                                                   // 呼出来的白气（?fx=low 不要）
+    const tex = ctx.util.canvasTexture(64, 64, (g, w) => {
+      const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+      r.addColorStop(0, 'rgba(255,255,255,.9)'); r.addColorStop(0.5, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(0, 0, w, w);
+    });
+    puffs = Array.from({ length: 6 }, () => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }));
+      sp.name = 'breath'; sp.renderOrder = 5; scene.add(sp); return { sp, p0: new THREE.Vector3(), age: 9 };
+    });
+  }
+  return { lines: flagLines.map(l => [l.a, l.b]), BF, wind: windDir.clone().normalize(), icon, puffs, pi: 0,
+    gT: 99, lastLine: -1, oxyT: 0, oxy: 0, bT: 0, puffAt: 0, unf: 0, wasSummit: false };
+}
+const UP = new THREE.Vector3(0, 1, 0), _p = new THREE.Vector3();
+// 返回吸氧程度 0..1（给缺氧暗角）
+function interact(dt, st) {
+  const I = S.I, { Z, route } = S, s = st.s, t = st.t || 0, av = st.avatar;
+  // 经幡：走到任一串经幡 2.6 以内 → 一阵猛风（0.15 s 起、约 2 s 落），近处的旗乱飞、啪啪响；预览里走近了就一直吹（静态也看得见）
+  let near = -1;
+  if (av && !st.summit) { _p.copy(av).y += 1.4; for (let i = 0; i < I.lines.length; i++) if (segDist(_p, I.lines[i][0], I.lines[i][1]) < 2.6) { near = i; break; } }
+  if (near >= 0 && near !== I.lastLine && I.gT > 1.2) { I.gT = 0; play('flutter', 1); }
+  I.lastLine = near; I.gT += dt;
+  const gw = st.summit ? 0 : st.preview ? (near >= 0 ? 1 : 0) : I.gT < 0.15 ? I.gT / 0.15 : Math.exp(-(I.gT - 0.15) * 1.5);
+  if (av) for (const f of S.flags) f.uGust.value.set(av.x, av.y, av.z, gw);
+  // 北坳吸氧：站定 0.3 s → 面罩图标弹出；1.9 s 一口：嘶——吸，0.95 s 后呼出一团白气
+  const col = Z.col, atCol = !!col && !!st.terrain && st.terrain.segment === 'wait' && s > col.start - 0.6 && s < col.start + 1;
+  I.oxyT = atCol ? I.oxyT + dt : 0;
+  const onO2 = atCol && I.oxyT > 0.3;
+  I.icon.on(onO2);
+  if (av) I.icon.update(dt, _p.copy(av).addScaledVector(route.at(s).left, 1.05).setY(av.y + 1.6));   // 化身左边胸口高（头顶是 HUD 的站定面板）
+  I.oxy += ((onO2 ? 1 : 0) - I.oxy) * Math.min(1, dt * 2);
+  if (onO2) {
+    if ((I.bT -= dt) <= 0) { play('hiss', 0.8); I.bT = 1.9; I.puffAt = 0.95; }
+    if (I.puffAt > 0 && (I.puffAt -= dt) <= 0 && I.puffs && av) { const P = I.puffs[I.pi++ % I.puffs.length]; P.age = 0; P.p0.copy(av).addScaledVector(route.at(s).dir, 0.22).y += 1.58; }
+  } else I.bT = 0;
+  if (I.puffs) for (const P of I.puffs) {
+    P.age += dt; const u = P.age / 1.6;
+    P.sp.material.opacity = u < 1 ? 0.6 * (1 - u) * Math.min(1, P.age * 8) : 0;
+    P.sp.position.copy(P.p0).addScaledVector(I.wind, 0.5 * P.age).addScaledVector(UP, 0.25 * P.age); P.sp.scale.setScalar(0.14 + 0.55 * Math.min(u, 1));
+  }
+  // 登顶：觇标上卷着的红旗展开（啪啦一声）
+  if (I.BF) {
+    if (st.summit && !I.wasSummit) play('flutter', 1.3);
+    I.wasSummit = !!st.summit;
+    I.unf += ((st.summit ? 1 : 0) - I.unf) * Math.min(1, dt * (st.summit ? 1.8 : 6));
+    I.BF.set(I.unf, t);
+  }
+  return I.oxy;
 }

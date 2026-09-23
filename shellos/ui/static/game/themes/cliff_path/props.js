@@ -1,7 +1,7 @@
 // 华山的道具：铁链（链环 + 铁桩 + 同心锁 + 红布条）、华山松、玉泉院山门、长空栈道的铁架和保险链、南峰极顶石。
 // 全部 instanced / merged：每类 1 次绘制。
 import * as THREE from 'three';
-import { ROAD_W } from '../../path.js';
+import { STEP, ROAD_W } from '../../path.js';
 
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -43,8 +43,28 @@ export function stairNoses(ctx, color, w = 0.06) {
   return nose;
 }
 
+// 铁链晃：化身走过时近处的链子（和挂的锁、布条）左右荡几下。sway = { uSway: xyz 化身 + w 劲头, uT, uWindK 山风 }，
+//   每个实例带 aSpan（在两桩之间的位置 0..1）：桩边不动、跨中荡得最大。只改顶点着色器（不透明，不多一次绘制）
+export function swayUniforms() { return { uSway: { value: new THREE.Vector4(0, -1e4, 0, 0) }, uT: { value: 0 }, uWindK: { value: 0 } }; }
+function swayable(mat, U, key) {
+  mat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = 'attribute float aSpan; uniform vec4 uSway; uniform float uT, uWindK;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+      vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+      vec3 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+      vec2 dv = ip.xz - uSway.xz; float dd = length(dv);
+      float w = (uSway.w * smoothstep(3.4, 0.6, dd) + uWindK) * sin(3.14159 * aSpan), ph = uT * 5.5 - dd * 1.8 + ip.x * 0.7 + ip.z * 0.5;
+      wp.xz += dv / max(dd, 0.001) * w * 0.1 * sin(ph);
+      wp.y += w * 0.03 * cos(ph * 1.3);
+      vec4 mvPosition = viewMatrix * wp;
+      gl_Position = projectionMatrix * mvPosition;`);
+  };
+  mat.customProgramCacheKey = () => key;
+  return mat;
+}
+
 // 铁链：沿路 ranges=[[s0,s1],…] 两侧（sides）lat 处，每 every 步一根铁桩，桩间链子下垂；链上随机挂同心锁、红布条
-export function chains(ctx, ranges, { lat = 1.45, sides = [1, -1], every = 1, h = 0.85, sag = 0.1, locks = 0.5 } = {}) {
+export function chains(ctx, ranges, { lat = 1.45, sides = [1, -1], every = 1, h = 0.85, sag = 0.1, locks = 0.5, sway = null } = {}) {
   const { route, util } = ctx, R = ctx.rand, posts = [], links = [], lockI = [], ribbons = [];
   const LINK = 0.075;
   for (const [s0, s1] of ranges) for (const side of sides) {
@@ -59,23 +79,24 @@ export function chains(ctx, ranges, { lat = 1.45, sides = [1, -1], every = 1, h 
           const q0 = prev.clone().lerp(p, f0).addScaledVector(Y, sagAt(f0)), q1 = prev.clone().lerp(p, f1).addScaledVector(Y, sagAt(f1));
           const dir = q1.clone().sub(q0).normalize(), q = new THREE.Quaternion().setFromUnitVectors(X, dir);
           if (k % 2) q.multiply(new THREE.Quaternion().setFromAxisAngle(X, Math.PI / 2));     // 链环一横一竖
-          links.push({ p: q0.clone().lerp(q1, 0.5), q });
+          links.push({ p: q0.clone().lerp(q1, 0.5), q, f: (k + 0.5) / n });
           if (k % 3 === 1 && R() < locks) {
             const lp = q0.clone().lerp(q1, 0.5).addScaledVector(Y, -0.06);
-            if (R() < 0.6) lockI.push({ p: lp, ry: -a.heading + (R() - 0.5), color: R() < 0.55 ? '#d8a93a' : R() < 0.7 ? '#c63127' : '#b8bcc4' });
-            else ribbons.push({ p: lp.addScaledVector(Y, 0.02), ry: -a.heading + (R() - 0.5) * 0.8, s: [1, 0.7 + R() * 0.6, 1] });
+            if (R() < 0.6) lockI.push({ p: lp, ry: -a.heading + (R() - 0.5), color: R() < 0.55 ? '#d8a93a' : R() < 0.7 ? '#c63127' : '#b8bcc4', f: (k + 0.5) / n });
+            else ribbons.push({ p: lp.addScaledVector(Y, 0.02), ry: -a.heading + (R() - 0.5) * 0.8, s: [1, 0.7 + R() * 0.6, 1], f: (k + 0.5) / n });
           }
         }
       }
       prev = p;
     }
   }
-  const iron = new THREE.MeshLambertMaterial({ color: '#2d2a28' });
+  const iron = new THREE.MeshLambertMaterial({ color: '#2d2a28' }), sw = (m, key) => sway ? swayable(m, sway, key) : m;
+  const hang = (m, items) => { if (sway) m.geometry.setAttribute('aSpan', new THREE.InstancedBufferAttribute(Float32Array.from({ length: Math.max(1, items.length) }, (_, i) => items[i] ? items[i].f : 0), 1)); return m; };
   const out = [
     util.instanced(new THREE.CylinderGeometry(0.03, 0.035, h + 0.3, 6), iron, posts),
-    util.instanced(new THREE.TorusGeometry(0.03, 0.008, 4, 8).scale(1.3, 0.8, 1), iron, links),
-    util.instanced(new THREE.BoxGeometry(0.06, 0.07, 0.025), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#221400' }), lockI),
-    util.instanced(new THREE.PlaneGeometry(0.06, 0.3).translate(0, -0.15, 0), new THREE.MeshLambertMaterial({ color: '#c8231b', side: THREE.DoubleSide, emissive: '#3a0604' }), ribbons),
+    hang(util.instanced(new THREE.TorusGeometry(0.03, 0.008, 4, 8).scale(1.3, 0.8, 1), sw(new THREE.MeshLambertMaterial({ color: '#2d2a28' }), 'swayLink'), links), links),
+    hang(util.instanced(new THREE.BoxGeometry(0.06, 0.07, 0.025), sw(new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#221400' }), 'swayLock'), lockI), lockI),
+    hang(util.instanced(new THREE.PlaneGeometry(0.06, 0.3).translate(0, -0.15, 0), sw(new THREE.MeshLambertMaterial({ color: '#c8231b', side: THREE.DoubleSide, emissive: '#3a0604' }), 'swayRibbon'), ribbons), ribbons),
   ];
   out.forEach(m => { m.name = 'chains'; });
   return out;
@@ -122,7 +143,7 @@ export function gateParts(W = 2.4, H = 3.7) {
 }
 
 // 长空栈道的铁架：每 0.5 单位一根从崖壁（lat 右侧 wallLat）横伸出来托木板的铁杆 + 斜撑；崖壁上一条保险铁链（游客扣安全锁的那根）
-export function plankIron(ctx, s0, s1, { wallLat = -1.3, reach = 0.8, chainH = 1.05 } = {}) {
+export function plankIron(ctx, s0, s1, { wallLat = -1.3, reach = 0.8, chainH = 1.05, sway = null } = {}) {
   const { route, util } = ctx, bars = [], braces = [];
   const seg = (a, b, out, t = 1) => { const v = b.clone().sub(a); out.push({ p: a.clone().lerp(b, 0.5), q: new THREE.Quaternion().setFromUnitVectors(X, v.clone().normalize()), s: [v.length(), t, t] }); };
   for (let s = s0; s <= s1 + 1e-6; s += 1) {
@@ -134,10 +155,33 @@ export function plankIron(ctx, s0, s1, { wallLat = -1.3, reach = 0.8, chainH = 1
   const out = [
     util.instanced(new THREE.BoxGeometry(1, 0.05, 0.05), iron, bars),
     util.instanced(new THREE.BoxGeometry(1, 0.035, 0.035), iron, braces),
-    ...chains(ctx, [[s0 - 0.5, s1 + 0.5]], { lat: -wallLat + 0.05, sides: [-1], every: 1, h: chainH, sag: 0.06, locks: 0.2 }),
+    ...chains(ctx, [[s0 - 0.5, s1 + 0.5]], { lat: -wallLat + 0.05, sides: [-1], every: 1, h: chainH, sag: 0.06, locks: 0.2, sway }),
   ];
   out.forEach(m => { m.name = 'plankIron'; });
   return out;
+}
+
+// 栈道木板：一块块横铺的板（沿路 0.1、横向 l..r、厚 0.045，板缝 0.06 看得见底下的云）。踩上去那几块往下沉：
+//   update(footV, kick) — footV = 化身沿路距离（s × STEP），kick 0..1 = 刚落脚那一下多沉一点。板顶和路面齐平
+export function plankBoards(ctx, v0, v1, { l = 0.75, r = -1.2, period = 0.16, board = 0.1 } = {}) {
+  const { route, util } = ctx, R = ctx.rand, items = [], vs = [], lo = new THREE.Color('#5c402a'), hi = new THREE.Color('#85613f');
+  for (let v = v0 + board / 2; v < v1; v += period) {
+    const s = v / STEP, a = route.at(s, (l + r) / 2);
+    items.push({ p: a.pos.clone().setY(route.heightAt(s) - 0.0225), ry: -a.heading, color: '#' + lo.clone().lerp(hi, 0.2 + 0.6 * R()).getHexString() });
+    vs.push(v);
+  }
+  const U = { uFoot: { value: -1e4 }, uDip: { value: 0 } };
+  const mat = new THREE.MeshLambertMaterial({ color: '#ffffff' });
+  mat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = 'attribute float aV; uniform float uFoot, uDip;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { float x = (aV - uFoot) / 0.22; transformed.y -= uDip * exp(-x * x); }`);
+  };
+  mat.customProgramCacheKey = () => 'plankDip';
+  const m = util.instanced(new THREE.BoxGeometry(board, 0.045, l - r), mat, items);
+  m.geometry.setAttribute('aV', new THREE.InstancedBufferAttribute(Float32Array.from(vs), 1));
+  m.name = 'plankBoards';
+  return { mesh: m, update(footV, kick) { U.uFoot.value = footV; U.uDip.value = 0.028 + 0.03 * kick; } };
 }
 
 // 安全带：挂在保险链上的橙色扁带环（扣安全锁那一步的提示）

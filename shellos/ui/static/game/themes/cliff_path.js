@@ -5,19 +5,22 @@
 //   栈道前那段平路 = 金锁关。「一句话造山」生成的 cliff_path 世界也能画（华山专有的刻字只在名字带「华山」时刻，别的山刻自己的路段名）。
 // 路线只有 ~28 个单位长：峡缝里的高崖走过就溶掉（登顶回头不会看见比顶峰还高的墙），山上的东西走近了才露面。
 // 正面镜头（V / ?cam=front）：栈道和苍龙岭上镜头挪到悬崖那一侧、压低往下看，拍出脚下的深谷。
-// 子模块：cliff_path/sky.js（天、云海、秦岭）、rock.js（绝壁、巨石、刻字）、props.js（铁链、松、山门、栈道铁架）。
+// 互动（只动画面和声音）：扣安全锁「咔嗒」+ 头顶锁扣图标 + 一根安全绳从腰上连到保险链、跟着走完栈道；走过铁链近处的链荡几下、叮当响；
+//   栈道木板踩上去那几块往下沉、吱一声；上苍龙岭起风，云海翻涌、风线掠过、所有链轻轻晃。?fx=low 不要风线和云海的扰动。
+// 子模块：cliff_path/sky.js（天、云海、秦岭）、rock.js（绝壁、巨石、刻字）、props.js（铁链、松、山门、栈道铁架、木板）、interact.js（音效、头顶图标）。
 import * as THREE from 'three';
 import { STEP, ROAD_W } from '../path.js';
 import { SEG, WHO } from '../style.js';
 import { buildSky } from './cliff_path/sky.js';
 import { cliffWall, boulderGeo, carving, graniteColor } from './cliff_path/rock.js';
-import { chains, pineGeo, gateParts, plankIron, harnessParts, revealable, show, stairNoses } from './cliff_path/props.js';
+import { chains, pineGeo, gateParts, plankIron, harnessParts, revealable, show, stairNoses, swayUniforms, plankBoards } from './cliff_path/props.js';
+import { sfx as play, popIcon } from './cliff_path/interact.js';
 
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
 const HW = ROAD_W / 2;
 const C = { zenith: '#2f6fc0', hz: '#c9dcee', below: '#e4ebf2', sun: '#fff1d6', fog: '#cbd9e8', ridge1: '#7f8f9e', ridge2: '#a3b2c2', ridge3: '#c3cfdc', cloudLit: '#ffffff', cloudShade: '#c7d2de' };
-const PLANK = { l: 0.75, r: -1.2, board: 0.16, gap: 0.07 };    // 栈道木板：路面横向保留 lat −1.2（贴崖）…+0.75（化身 +0.35、影子 −0.5 都在板上），左边挖空
+const PLANK = { l: 0.75, r: -1.2 };    // 栈道木板横向 lat −1.2（贴崖）…+0.75（化身 +0.35、影子 −0.5 都在板上），左边是空的
 
 let S = null;
 
@@ -70,19 +73,13 @@ export function pathMaterials(ctx) {
   const { util, kit, route } = ctx, Z = zonesOf(route);
   ctx.theme.stairsRiser = 0.52;
   const road = new THREE.MeshLambertMaterial({ color: '#b1aa9f', map: slabTexture(util, kit) });
-  // 栈道：这一段路面换成横铺的木板，板外和板缝挖空（alphaTest 式 discard，不透明、不和化身抢排序）
+  // 栈道这一段路面挖空，换成一块块木板（props.plankBoards，踩上去会沉）
   const U = { uP0: { value: Z.plank ? Z.plank.start * STEP - 0.05 : -1e9 }, uP1: { value: Z.plank ? Z.end(Z.plank) * STEP + 0.05 : -1e9 } };
   road.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = 'varying vec2 vRd;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vRd = uv;');
     sh.fragmentShader = `varying vec2 vRd; uniform float uP0, uP1;\n` + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
-      if (vRd.y > uP0 && vRd.y < uP1) {
-        if (vRd.x > ${PLANK.l.toFixed(2)} || vRd.x < ${PLANK.r.toFixed(2)}) discard;
-        float bi = floor(vRd.y / ${PLANK.board.toFixed(2)}), bf = fract(vRd.y / ${PLANK.board.toFixed(2)});
-        if (bf < ${(PLANK.gap / PLANK.board).toFixed(3)}) discard;                       // 板缝：往下看得见深谷
-        float h = fract(sin(bi * 12.9898) * 43758.5453), grain = 0.5 + 0.5 * sin(vRd.x * 38.0 + h * 20.0 + sin(vRd.x * 7.0) * 2.0);
-        diffuseColor.rgb = mix(vec3(0.36, 0.25, 0.16), vec3(0.52, 0.38, 0.25), 0.35 + 0.4 * h) * (0.88 + 0.14 * grain) * (bf > 0.93 ? 0.75 : 1.0);
-      }`);
+      if (vRd.y > uP0 && vRd.y < uP1) discard;`);
   };
   road.customProgramCacheKey = () => 'cliffRoad';
   return { road, stairs: new THREE.MeshLambertMaterial({ color: '#ffffff', map: stepTexture(util, kit) }) };
@@ -218,26 +215,29 @@ export function build(scene, ctx) {
   }
 
   // ---------- 栈道：右侧高崖（上高 7、下插 14，略前倾）、铁架托板、崖上保险链；尽头崖上「全真崖」；扣安全锁处挂安全带 ----------
+  const SW = swayUniforms();
+  let PB = null, hm = null;
   if (Z.plank) {
     const s0 = Z.plank.start - 1.5, s1 = Z.end(Z.plank) + 1.2;
+    PB = plankBoards(ctx, Z.plank.start * STEP - 0.05, Z.end(Z.plank) * STEP + 0.05, { l: PLANK.l, r: PLANK.r }); scene.add(PB.mesh);
     const wall = cliffWall(ctx, { side: -1, s0, s1, lat: 1.3, top: 5, base: -14, lean: 0.5, seed: 31, rows: 34, taper: 1 });
     add(new THREE.Mesh(wall, rmat('plank')), 'plank').name = 'plankCliff';
-    for (const m of plankIron(ctx, Z.plank.start, Z.end(Z.plank), { wallLat: -1.3 })) add(m, 'up');
+    for (const m of plankIron(ctx, Z.plank.start, Z.end(Z.plank), { wallLat: -1.3, sway: SW })) add(m, 'up');
     const edge = cliffWall(ctx, { side: 1, s0: Z.plank.start - 5.5, s1: Z.plank.start + 0.4, lat: 1.3, top: 0.05, base: -13, seed: 37, rows: 20, taper: 1 });   // 南天门外：路左沿下面就是直落的崖面
     add(new THREE.Mesh(edge, rockMat), null).name = 'voidEdge';
     const e = Z.end(Z.plank) - 0.6, a = route.at(e);
     if (HS) textsPlank.push(carving('全真崖', a.pos.clone().addScaledVector(a.left, -1.2).setY(route.heightAt(e) + 2.4), a.left.clone(), { h: 1.1 }));
     if (Z.gate) {
-      const b = route.at(Z.gate.start + 0.2, -1.2), hm = new THREE.Mesh(util.merged(harnessParts()), vc);
-      hm.position.copy(b.pos).setY(route.heightAt(Z.gate.start) + 1.05); hm.rotation.y = -b.heading; hm.name = 'harness'; add(hm, 'up');
+      const b = route.at(Z.gate.start + 0.2, -1.2); hm = new THREE.Mesh(util.merged(harnessParts()), vc);
+      hm.position.copy(b.pos).setY(route.heightAt(Z.gate.start) + 1.05); hm.rotation.y = -b.heading; hm.name = 'harness'; scene.add(hm);   // 扣上以后它就「在身上」了：update 里藏
     }
   }
 
-  // ---------- 铁链：所有上台阶两侧；金锁关那段挂满同心锁 ----------
+  // ---------- 铁链：所有上台阶两侧；金锁关那段挂满同心锁（化身走过近处的链会荡） ----------
   {
-    for (const m of chains(ctx, Z.slots.map(g => [g.start - 0.5, Z.end(g) + 0.5]), { lat: 1.45, locks: 0.25 })) add(m, 'slot');   // 峡缝的链跟峡缝一起：进缝就有，走过才溶
-    for (const m of chains(ctx, Z.ridges.map(g => [g.start - 0.5, Z.end(g) + 0.5]), { lat: 1.3, locks: 0.35 })) add(m, 'up');   // 苍龙岭：链桩立在两侧崖面顶上
-    if (Z.locks) for (const m of chains(ctx, [[Z.locks.start - 0.5, Z.end(Z.locks) + 0.5]], { lat: 1.45, locks: 1, sag: 0.14 })) add(m, 'up');
+    for (const m of chains(ctx, Z.slots.map(g => [g.start - 0.5, Z.end(g) + 0.5]), { lat: 1.45, locks: 0.25, sway: SW })) add(m, 'slot');   // 峡缝的链跟峡缝一起：进缝就有，走过才溶
+    for (const m of chains(ctx, Z.ridges.map(g => [g.start - 0.5, Z.end(g) + 0.5]), { lat: 1.3, locks: 0.35, sway: SW })) add(m, 'up');   // 苍龙岭：链桩立在两侧崖面顶上
+    if (Z.locks) for (const m of chains(ctx, [[Z.locks.start - 0.5, Z.end(Z.locks) + 0.5]], { lat: 1.45, locks: 1, sag: 0.14, sway: SW })) add(m, 'up');
   }
 
   // ---------- 华山松：崖头、北峰、苍龙岭两侧低处、南峰顶；按树冠大小留距离：树冠不进路右 1.4（影子那条道）、路左 3（镜头那侧）以内 ----------
@@ -285,7 +285,7 @@ export function build(scene, ctx) {
   // ---------- 镜头 ----------
   Object.assign(ctx.camRig.summit, { radius: 4.3, height: 1.7, lookY: 1.25, speed: 0.2, hold: 1.2, face: route.at(N - 3.6, -2.2).pos.setY(route.heightAt(N) + 1.2) });
 
-  S = { ctx, sky, route, Z, rev, groups, anchors: camAnchors(Z, N), valleyEnd, slotEnd: Z.slotEnd ?? valleyEnd, stoneS, sfx };
+  S = { ctx, sky, route, Z, rev, groups, anchors: camAnchors(Z, N), valleyEnd, slotEnd: Z.slotEnd ?? valleyEnd, stoneS, sfx, I: buildInteract(scene, ctx, Z, { SW, PB, hm }) };
   rigFor(0, ctx.camRig, false);
   update(0, { t: 0, s: 0, summit: false, preview: ctx.preview, camera: ctx.camera, terrain: null });
 }
@@ -337,8 +337,8 @@ export function rigFor(s, r, summit) {
 export function update(dt, st) {
   if (!S) return;
   const { rev, groups, Z, route } = S, N = route.N, s = st.s;
-  S.sky.update(st.t || 0);
   S.sfx.update(dt, st);
+  S.sky.update(st.t || 0, interact(dt, st));
   rev.slot.value = st.summit ? 0 : 1 - smooth(S.slotEnd - 0.5, S.slotEnd + 1.5, s);        // 峡缝 / 峪壁：一出缝就溶（镜头落后 8 步还在缝里，不溶会挡住化身）
   rev.stone.value = S.stoneS === null ? 0 : rev.slot.value * (1 - smooth(S.stoneS + 1.5, S.stoneS + 3.5, s));
   rev.up.value = st.summit ? 1 : smooth(S.slotEnd - 6, S.slotEnd - 1, s);                  // 山上的东西：出了峡缝才露面
@@ -347,4 +347,104 @@ export function update(dt, st) {
     show(m, rev[k].value > 0.001);
     if (m.castShadow || m.userData.cs) { m.userData.cs = true; m.castShadow = rev[k].value > 0.99; }   // 光影线第一帧给开的投影：溶到一半不投（深度图不认 dither）
   }
+}
+
+// ---------- 互动（只动画面和声音，不碰控制） ----------
+const NT = 10;                                                                  // 安全绳分几段
+function buildInteract(scene, ctx, Z, { SW, PB, hm }) {
+  const { route, kit } = ctx, N = route.N, R = ctx.rand;
+  // 安全绳：橙色扁带从腰上连到崖壁保险链，链上一只锁扣；平时缩成点（在绘制列表里，扣上那一下不卡）
+  const rope = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.022, 0.022, 1, 5), new THREE.MeshLambertMaterial({ color: '#f07a1a', emissive: '#3a1400' }), NT);
+  rope.name = 'tether'; rope.frustumCulled = false; scene.add(rope);
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.013, 5, 12).scale(1, 1.5, 1), new THREE.MeshLambertMaterial({ color: '#c9ccd2', emissive: '#202020' }));
+  hook.name = 'tetherHook'; hook.frustumCulled = false; scene.add(hook);
+  const lockIcon = popIcon(scene, g => {                                        // 锁扣：橙色 D 形扣 + 白色锁门合上
+    g.translate(128, 98); g.rotate(-0.45); g.lineCap = 'round';
+    g.strokeStyle = '#f07a1a'; g.lineWidth = 16; g.beginPath(); g.roundRect(-32, -64, 64, 128, 32); g.stroke();
+    g.strokeStyle = '#161a22'; g.lineWidth = 22; g.beginPath(); g.moveTo(32, -30); g.lineTo(32, 30); g.stroke();
+    g.strokeStyle = '#ffffff'; g.lineWidth = 10; g.beginPath(); g.moveTo(32, -34); g.lineTo(32, 34); g.stroke();
+  }, '咔嗒！扣好了');
+  const chainR = [...Z.slots, ...Z.ridges, ...(Z.locks ? [Z.locks] : []), ...(Z.plank ? [Z.plank] : [])].map(g => [g.start - 0.5, Z.end(g) + 0.5]);
+  // 苍龙岭的风：横着吹过山脊（从右往左，迎着镜头那侧掠过去）；风线 ?fx=low 不要
+  const r0 = Z.ridges.length ? Z.ridges[0].start : null, r1 = Z.ridges.length ? Z.end(Z.ridges[Z.ridges.length - 1]) : null;
+  const wa = route.at(r0 !== null ? (r0 + r1) / 2 : N / 2), wind = wa.left.clone().addScaledVector(wa.dir, -0.3).normalize();
+  let streaks = null;
+  if (!kit.LOW && r0 !== null) {
+    streaks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.016, 0.016), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false }), 28);
+    streaks.name = 'windStreaks'; streaks.frustumCulled = false; streaks.renderOrder = 4; scene.add(streaks);
+  }
+  const sk = Array.from({ length: 28 }, () => ({ p: R(), v: 0.5 + R() * 0.5, a: (R() - 0.5) * 14, h: R() * 3.4 - 0.4, l: 0.6 + R() * 0.9 }));
+  return { SW, PB, hm, rope, hook, lockIcon, chainR, r0, r1, wind, streaks, sk, plankEnd: Z.plank ? Z.end(Z.plank) : -1e9,
+    lastS: null, energy: 0, clinkT: 0, stepK: null, kick: 0, clip: 0, gateT: 0, teth: 0, tied: false, windT: 0 };
+}
+
+const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3(), _sc = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0), XA = new THREE.Vector3(1, 0, 0), TINY = new THREE.Vector3(1e-6, 1e-6, 1e-6);
+// 返回云海翻涌的程度（0..1，给 sky.update）
+function interact(dt, st) {
+  const I = S.I, { Z, route } = S, s = st.s, t = st.t || 0, av = st.avatar;
+  // 苍龙岭起风：上了岭一阵一阵地刮；一进岭呼地一声，之后每 5.5 s 一阵
+  const rz = I.r0 === null || st.summit ? 0 : smooth(I.r0 - 0.5, I.r0 + 1.5, s) * (1 - smooth(I.r1 + 1, I.r1 + 4, s));
+  const churn = rz * (0.65 + 0.35 * Math.max(0, Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1)));
+  if (rz > 0.3 && t > I.windT) { play('wind', 0.9); I.windT = t + 5.5; } else if (rz < 0.1) I.windT = 0;
+  if (!av) return churn;
+  // 铁链：化身走动的劲头（沿路速度）→ 近处的链荡；预览里常开（静止也看得见）
+  const v = I.lastS === null ? 0 : Math.abs(s - I.lastS) / Math.max(dt, 1e-3); I.lastS = s;
+  const want = st.summit ? 0 : st.preview ? 1 : Math.min(1, v / 1.2);
+  I.energy += (want - I.energy) * Math.min(1, dt * (want > I.energy ? 5 : 1.3));
+  I.SW.uSway.value.set(av.x, av.y, av.z, I.energy); I.SW.uT.value = t % 1000; I.SW.uWindK.value = 0.35 * churn;
+  if (I.energy > 0.4 && t > I.clinkT && I.chainR.some(([a, b]) => s > a && s < b)) { play('clink', 0.6 * I.energy); I.clinkT = t + 0.45 + Math.random() * 0.6; }
+  // 栈道木板：每落一步，脚下那几块沉一下、吱一声
+  if (I.PB) {
+    const on = !st.summit && s > Z.plank.start - 0.3 && s < I.plankEnd + 0.3, k = Math.floor(s);
+    if (on && I.stepK !== null && k !== I.stepK) { I.kick = 1; play('creak', 0.7); }
+    I.stepK = k; I.kick = Math.max(0, I.kick - dt * 3.5);
+    I.PB.update(on ? s * STEP + 0.08 : -1e4, st.preview ? 0.6 : I.kick);
+  }
+  // 扣安全锁：南天门站定 0.35 s →「咔嗒」+ 头顶锁扣图标 + 安全绳从腰上伸到保险链；走完栈道解开收回
+  if (Z.gate) {
+    const g0 = Z.gate.start, atGate = !!st.terrain && st.terrain.segment === 'wait' && s > g0 - 0.6 && s < g0 + 1;
+    if (s < g0 - 2 || st.summit) { I.clip = 0; I.gateT = 0; }                  // 新一圈 / 登顶：重来
+    I.gateT = atGate ? I.gateT + dt : 0;
+    if (!I.clip && !st.summit && (I.gateT > 0.35 || s > g0 + 0.6 && s < I.plankEnd)) { I.clip = t || 1e-3; if (I.gateT > 0) play('click'); }   // 预览直接跳到栈道上：直接是扣好的，不响
+    const tied = !!I.clip && !st.summit && s < I.plankEnd + 0.6;
+    if (I.tied && !tied && !st.summit) play('click', 0.5);
+    I.tied = tied; I.teth += ((tied ? 1 : 0) - I.teth) * Math.min(1, dt * 6);
+    I.lockIcon.on(!!I.clip && s < g0 + 1.5 && (atGate || t - I.clip < 2));
+    I.lockIcon.update(dt, _a.copy(av).addScaledVector(route.at(s).left, 1.5).setY(av.y + 1.15));  // 化身左边（悬崖那侧、镜头这侧）腰高：头顶那块位置是 HUD 的站定面板
+    if (I.hm) show(I.hm, S.rev.up.value > 0.001 && !I.clip);
+    tether(I, route, s, av);
+  }
+  if (I.streaks) windStreaks(I, route, s, av, churn, dt);
+  return churn;
+}
+function tether(I, route, s, av) {
+  const f = I.teth;
+  if (f < 0.01) {
+    for (let i = 0; i < NT; i++) I.rope.setMatrixAt(i, _m4.compose(av, _q.identity(), TINY));
+    I.rope.instanceMatrix.needsUpdate = true; I.hook.scale.copy(TINY); return;
+  }
+  const a = route.at(s), sb = s + 0.45;
+  _a.copy(av).addScaledVector(a.left, -0.16).setY(av.y + 0.95);                   // 腰右侧（崖那侧）
+  _b.copy(route.at(sb, -1.35).pos).setY(route.heightAt(sb) + 1.02);               // 保险链上、稍前
+  const P = (u, out) => out.copy(_a).lerp(_b, u).addScaledVector(UP, -0.28 * 4 * u * (1 - u));   // 扁带垂下去一点
+  for (let i = 0; i < NT; i++) {
+    P(f * i / NT, _c); P(f * (i + 1) / NT, _d);
+    const len = _c.distanceTo(_d);
+    _q.setFromUnitVectors(UP, _e.subVectors(_d, _c).normalize());
+    I.rope.setMatrixAt(i, _m4.compose(_c.lerp(_d, 0.5), _q, _sc.set(1, len, 1)));
+  }
+  I.rope.instanceMatrix.needsUpdate = true;
+  P(f, I.hook.position); I.hook.rotation.set(0, -a.heading, 0); I.hook.scale.setScalar(f > 0.9 ? 1 : 1e-6);
+}
+function windStreaks(I, route, s, av, churn, dt) {
+  const D = route.at(s).dir, m = I.streaks;
+  _q.setFromUnitVectors(XA, I.wind);
+  I.sk.forEach((k, i) => {
+    k.p = (k.p + dt * k.v * 0.9) % 1;
+    const vis = churn > 0.05 ? Math.min(1, churn * 1.4) * Math.sin(Math.PI * k.p) : 0;
+    _c.copy(av).addScaledVector(I.wind, k.p * 16 - 8).addScaledVector(D, k.a).addScaledVector(UP, k.h + 1);
+    m.setMatrixAt(i, _m4.compose(_c, _q, vis > 0.01 ? _sc.set(k.l * vis * 1.4, 1, 1) : TINY));
+  });
+  m.instanceMatrix.needsUpdate = true;
 }
