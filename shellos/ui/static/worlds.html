@@ -78,6 +78,8 @@ h2 small{font-weight:600;letter-spacing:0;color:var(--mute);margin-left:.6rem}
 .strip .card.pk .note{display:block;font-size:.8rem;color:var(--dim)}
 .strip .card.pk .note kbd{font:inherit;font-weight:800;padding:0 .4rem;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg)}
 .go{position:fixed;right:2rem;bottom:1.4rem;padding:.9rem 1.6rem;font:inherit;font-size:1.3rem;font-weight:900;border-radius:var(--r);border:0;background:var(--acc);color:#000;cursor:pointer;display:none;box-shadow:0 .5rem 2rem rgba(0,0,0,.55),0 0 0 .25rem rgba(180,140,255,.25);z-index:2}
+@media (max-width:1500px){.sky{height:5.5rem}.card.feat .tag.r{font-size:2rem}}
+@media (max-width:1200px){html{font-size:12px}header,.mk,.keys,h2,.grid,.strip{padding-left:1rem;padding-right:1rem}}
 @media (max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.strip{grid-template-columns:auto minmax(0,1fr)}.strip .grid{flex-direction:column}}
 @media (max-width:700px){html{font-size:13px}.grid{grid-template-columns:1fr}.card.feat{grid-column:auto}.card.feat .body{display:flex}.card.feat .story{display:none}header{flex-wrap:wrap}.mk{grid-template-columns:1fr auto}#mkst{grid-column:1/-1}}
 </style></head><body>
@@ -148,7 +150,7 @@ function pick(d,w){cards.forEach(c=>c.el.classList.remove('sel'));d.classList.ad
 async function go(){if(!chosen)return;try{await fetch('/ctl',{method:'POST',body:JSON.stringify({name:'terrain'})});await fetch('/terrain',{method:'POST',body:JSON.stringify({preset:chosen})})}catch(e){}location.href='/game'}
 $go.onclick=go;
 async function load(pick_){
-  const ws=await fetch('/worlds.json').then(r=>r.json());
+  let ws;try{ws=await fetch('/worlds.json').then(r=>r.json())}catch(e){document.getElementById('main').innerHTML='<div class="empty bad" style="grid-column:1/-1"><b>没连上 ShellOS</b><span>先在 MacBook 上起 shellos.main（--sim 也行），再刷新这页</span></div>';return}
   let cur=null;try{cur=(await (await fetch('/state')).json()).terrain}catch(e){}
   ws.forEach(w=>{if(w.best!=null)REC[w.id]={best:w.best,who:w.ghost_who}});   // ShellOS 内存为准；没有的（重启过）才用浏览器里的 fg_records
   if(cur&&cur.best!=null)REC[cur.preset]={...(REC[cur.preset]||{}),best:Math.min(cur.best,(REC[cur.preset]||{}).best??1e9),who:(REC[cur.preset]||{}).who||cur.ghost_who};

@@ -52,7 +52,12 @@ main>.col{display:flex;flex-direction:column;gap:var(--gap);min-height:0;min-wid
 #events div span{color:var(--mute);font-variant-numeric:tabular-nums;font-size:.75rem;margin-right:.3rem}
 /* 中列：腿上的力 + 地形 */
 #forcePanel{flex:1}
-#forcePanel .lanes{flex:1;display:grid;grid-template-rows:1fr 1fr;gap:.5rem;min-height:0}
+#forcePanel .lanes{flex:1;display:grid;grid-template-rows:1fr 1fr;gap:.5rem;min-height:0;position:relative}
+#forcePanel .lanes::after{content:attr(data-note);position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:1.3rem;font-weight:900;letter-spacing:.1em;color:var(--dim);background:rgba(7,9,17,.72);border-radius:var(--r2);border:1px dashed var(--line2)}
+#forcePanel .lanes[data-note]::after{display:flex}
+#forcePanel .lanes.bad::after{color:var(--bad);border-color:rgba(255,77,79,.5)}
+body.offline main,body.offline footer.ops{opacity:.45;filter:saturate(.4)}
+body.offline main{pointer-events:none}
 .ln{display:grid;grid-template-columns:2.4rem minmax(0,1fr) 7.5rem;gap:.6rem;align-items:stretch;min-height:0}
 .ln .ll{font-size:1rem;font-weight:800;color:var(--dim);display:flex;align-items:center;justify-content:center;border-radius:var(--r2);background:var(--panel2)}
 .ln .cv{position:relative;border-radius:var(--r2);background:rgba(255,255,255,.03);overflow:hidden;min-height:0}
@@ -118,10 +123,12 @@ footer.ops>*{min-width:0;min-height:0}
 .holdb{font-size:1.3rem;font-weight:900;user-select:none;-webkit-user-select:none;touch-action:none;position:relative;border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;line-height:1.15}
 .holdb .k{float:none;margin:0;font-size:.7rem}
 #hold{grid-area:hold;color:var(--ok);background:rgba(61,220,132,.08);border:1px solid rgba(61,220,132,.45)}
-#hold.on{background:var(--ok);color:#000;box-shadow:0 0 0 .25rem rgba(61,220,132,.35),0 0 1.6rem rgba(61,220,132,.45);transform:scale(.985)}
+#hold.on{background:var(--ok);color:#000;box-shadow:0 0 0 .25rem rgba(61,220,132,.35),0 0 1.6rem rgba(61,220,132,.45);transform:scale(.985);animation:holdRing 1s ease-in-out infinite}
+@keyframes holdRing{50%{box-shadow:0 0 0 .5rem rgba(61,220,132,.18),0 0 2.4rem rgba(61,220,132,.6)}}
 #simbox{grid-area:sim;display:grid;grid-template-rows:1fr auto;gap:.35rem}
 #walk{color:var(--acc);background:var(--acc-dim);border:1px solid rgba(180,140,255,.5);font-size:1.15rem}
-#walk.on{background:var(--acc);color:#000;box-shadow:0 0 0 .25rem rgba(180,140,255,.3);transform:scale(.985)}
+#walk.on{background:var(--acc);color:#000;box-shadow:0 0 0 .25rem rgba(180,140,255,.3);transform:scale(.985);animation:walkRing 1s ease-in-out infinite}
+@keyframes walkRing{50%{box-shadow:0 0 0 .5rem rgba(180,140,255,.15)}}
 .cadrow{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--dim)}
 .cadrow input{flex:1}
 #cadv{width:2rem;text-align:right;font-variant-numeric:tabular-nums;color:var(--fg);font-weight:800}
@@ -221,7 +228,7 @@ details.dbg>.dbody{position:fixed;left:1rem;right:1rem;top:3.6rem;z-index:8;disp
 </div>
 <div class="col">
  <div class="dp" id="forcePanel"><div class="pt">腿上的力 <span class="chip" id="fKind"></span><span class="x"><span class="sent">发出 <span class="l" id="tl">0.00</span> / <span class="r" id="tr">0.00</span> Nm · 软限 <span id="cap"></span> · 死人开关 <span id="dm"></span></span></span></div>
-  <div class="lanes">
+  <div class="lanes" id="lanes">
    <div class="ln"><div class="ll">左<br>腿</div><div class="cv"><canvas class="spark" id="fl"></canvas></div><div class="lv"><div class="num" id="flv">0.0<small>Nm</small></div><div class="sk">近 1.5 s 峰值</div></div></div>
    <div class="ln"><div class="ll">右<br>腿</div><div class="cv"><canvas class="spark" id="fr"></canvas></div><div class="lv"><div class="num" id="frv">0.0<small>Nm</small></div><div class="sk">近 1.5 s 峰值</div></div></div>
   </div>
@@ -422,6 +429,8 @@ function drawTop(s){
  else if(st==='ARMED'){txt='已上膛：按住手柄 R2 或「按住 → 助力」才有力';cls='warn'}
  else{txt=s.safety.reason||'连接中';cls='warn'}
  sum.textContent=txt;sum.className=cls;
+ const ln=$('lanes');if(dead){ln.dataset.note='外骨骼没数据';ln.className='lanes bad'}else if(st==='DISARMED'){ln.dataset.note='急停中 · 腿上没力';ln.className='lanes bad'}else if(st!=='ACTIVE'){ln.dataset.note='没出力：按住 R2 / 按住 → 助力';ln.className='lanes'}else{delete ln.dataset.note;ln.className='lanes'}
+ document.body.classList.remove('offline');
  $('hwho').textContent=(s.memory&&s.memory.wearer)||s.wearer||'–';$('htime').textContent=D?D.fmtTime(T?T.elapsed:0):'0:00';
 }
 let evSig='';
@@ -457,7 +466,7 @@ async function tick(){
    :'<div class="empty"><b>蜂群还没说话</b><span>评委开口、造山、换人时，教练 / 地形导演 / 记忆员 / 安全员会在这里逐条商量</span></div>'}
   const es=s.events.length+'|'+(s.events.length?s.events[s.events.length-1].t+s.events[s.events.length-1].text:'');
   if(es!==evSig){evSig=es;$('events').innerHTML=s.events.slice().reverse().map(e=>`<div><span>${esc(e.t)}</span>${esc(e.text)}</div>`).join('')}
- }catch(e){$('st').textContent='断开';$('st').className='state DISARMED';$('hsum').textContent='连不上 ShellOS：进程没起来或端口不对';$('hsum').className='bad';light('lExo','bad','外骨骼 · 断开');console.error(e)}
+ }catch(e){$('st').textContent='断开';$('st').className='state DISARMED';$('hsum').textContent='连不上 ShellOS：进程没起来或端口不对';$('hsum').className='bad';light('lExo','bad','外骨骼 · 断开');document.body.classList.add('offline');const ln=$('lanes');ln.dataset.note='连不上 ShellOS';ln.className='lanes bad';console.error(e)}
 }
 setInterval(tick,100);
 </script>
