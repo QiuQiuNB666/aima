@@ -1,4 +1,4 @@
-// J 线：追兵 NPC（造型 / 特效在 npc_jifeng.js）。只读 /state（引擎轮询好的 S），不发任何请求到控制接口——追上只有画面和台词，腿上的力一点不变。
+// J 线：追兵 NPC「捷风」（造型 / 特效 / 模型加载在 npc_jifeng.js）。只读 /state（引擎轮询好的 S），不发任何请求到控制接口——追上只有画面和台词，腿上的力一点不变。
 // 行为：落后玩家 gap 步（连续值）。红灯时说一句「站好，我也不动」、绿灯说「가자」。玩家在走：gap 每秒变 (步频 − CAD0) / CAD_K 步——走慢了她逼近（冲刺：前倾 + 拖尾 + 风刃 + 喊一句），
 //   走快了被甩开；站着不走（不是红灯）她慢慢贴上来；**红灯路段她也站定**，gap 冻住、不冲刺、不喊（别逼人闯红灯）。
 //   gap ≤ CAUGHT = 追上（贴在身后，喊「追上你了」）；gap ≥ LOST = 被甩开（藏起来，屏幕下缘留个名字牌）。
@@ -119,7 +119,9 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
     const wantLean = ending === 'shaken' ? 0.5 : dash * 0.28;
     lean += (wantLean - lean) * (1 - Math.exp(-dt * 5));
     npc.group.rotation.set(0, yaw, -lean);
-    if (ending === 'shaken') npc.pose(30 + 4 * Math.sin(t * 5), 30 + 4 * Math.sin(t * 5 + 1));   // 撑膝喘气
+    const stand = walkV < 0.05 && (ending === 'caught' || (!ending && state === 'caught'));   // 追上后站定 / 登顶抓到：播模型自带的格斗站姿（有的话）
+    if (npc.stance(stand)) { /* 自带动画在摆 */ }
+    else if (ending === 'shaken') npc.pose(30 + 4 * Math.sin(t * 5), 30 + 4 * Math.sin(t * 5 + 1));   // 撑膝喘气
     else if (walkV < 0.05) npc.pose(-4, 6);
     else npc.pose(amp * Math.sin(phase), amp * Math.sin(phase + Math.PI));
 

@@ -1,4 +1,4 @@
-"""疾风真人录音 → 游戏台词。配音演员本人当面同意、现场新录（台词单 docs/提交/疾风录音台词单.md）；不碰任何游戏素材。
+"""捷风真人录音 → 游戏台词。配音演员本人当面同意、现场新录（台词单 docs/提交/捷风录音台词单.md）；不碰任何游戏素材。
 
   python3 brain/npc_intake.py                 # 处理 data/voice/npc_raw/ 里的全部录音
   python3 brain/npc_intake.py --use 09 <wav>  # 手动指定某句用哪一段（自动挑的不满意时，从 data/voice/npc_takes/ 里挑）

@@ -18,12 +18,12 @@ DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data
 BACKOFF_S = 20.0
 _down_t = -1e9
 _open = urllib.request.build_opener(urllib.request.ProxyHandler({})).open    # 不走系统代理（MacBook 的 Shadowrocket 会截走 127.0.0.1）
-# J 线追兵 NPC「疾风」：MiniMax 系统预设音色（官方系统音色列表里的，不复刻任何真人、不用游戏音频），台词原创、白名单——/voice/npc.wav 只念这几句。
+# J 线追兵 NPC「捷风」：MiniMax 系统预设音色（官方系统音色列表里的，不复刻任何真人、不用游戏音频），台词原创、白名单——/voice/npc.wav 只念这几句。
 # NPC_LINES 和 static/game/npc.js 的 LINES 保持一致（tests/test_voice.py 会对一遍）。
 # 声音优先级：① 配音演员本人当面同意、现场新录的真人录音（data/voice/npc/real/，brain/npc_intake.py 切好放进去）；
 #   ② 用本人新录的参考音频快速复刻的音色（data/voice/npc_voice_id，brain/tts.py --clone-npc）；③ 下面的系统预设候选音色。
 # 预设音色 = 一份 voice_setting（voice_id + 语速 / 音高 / 情绪）；强制用某个候选：SHELLOS_NPC_VOICE=<候选名>，再跑 brain/tts.py --npc。
-# 顺序 = 录音台词单 docs/提交/疾风录音台词单.md 的编号 01–11（npc_intake.py 按编号对文件）。
+# 顺序 = 录音台词单 docs/提交/捷风录音台词单.md 的编号 01–11（npc_intake.py 按编号对文件）。
 NPC_LINES = ("가자！你先跑三秒。", "就这？빨리빨리！", "逮到了，慢死了。", "哟，跑挺快嘛。", "又是我先到，拜。", "啧，算你走运。",
              "喂！我还没热身呢。", "回头看看？我在这儿。", "红灯。站好，我也不动。", "绿灯了，가자！", "山顶风大，站稳了。")
 NPC_AUDITION = (NPC_LINES[0], NPC_LINES[1], NPC_LINES[2], NPC_LINES[5])   # 试听用的 4 句（brain/tts.py --npc-candidates）
