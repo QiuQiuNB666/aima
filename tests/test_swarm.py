@@ -85,3 +85,28 @@ def test_terrain_force_ttl_expires(tmp_path):
     assert a.ctl.force is None
     d.action("/terrain/force", {"kind": "down"})
     assert d._force_exp == 0.0 and a.ctl.force == "down"
+
+
+def test_fengge_talks_on_new_segment_with_global_gap(tmp_path):
+    """峰哥多讲话：走进新路段会点评；但所有事件之间至少隔 7 s（登顶 / 造山 / 评委改参除外）。"""
+    import time
+    from shellos.agent import fengge as FG
+    a = app(tmp_path)
+    t = a.ctl
+    a.story_tick()                                            # 基线
+    first_change = next(i for i in range(1, t.total) if t.route[t.seg_index(i)[0]]["label"] != t.route[t.seg_index(0)[0]]["label"])
+    t.pos = first_change
+    a.story_tick()
+    for _ in range(50):
+        if a.fengge.last["event"]:
+            break
+        time.sleep(0.02)
+    assert a.fengge.last["event"] in ("seg", "red")
+    seg_label = t.route[t.seg_index(t.pos)[0]]["label"]
+    assert a.fengge.last["event"] == "red" or seg_label in a.fengge.last["text"] or a.fengge.last["source"] == "canned"
+    before = a.fengge._any
+    a.fengge.speak("idle", {"label": "x"})                     # 7 s 内：被全局间隔挡掉
+    assert a.fengge._any == before
+    a.fengge.speak("feedback", {"quote": "太陡了"})             # 优先事件不受限
+    assert a.fengge._any > before
+    assert FG._fill("你说「{quote}」", {"quote": "太陡了"}) == "你说「太陡了」" and FG._fill("{nope}", {}) == "{nope}"

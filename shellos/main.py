@@ -226,24 +226,50 @@ class App:
         it = self.store.add(self.wearer, self.ctl_key(), r["trigger"], delta, quote, r["confidence"], r["source"])
         self.applied.append(it["id"])
         self.say("教练", f"经验卡 #{it['id']} 生效 → 现在 {out}", "生效")
+        self.fengge.speak("feedback", {"quote": quote})
         return it
 
     def story_tick(self):
-        """0.5 s 一次（主循环打印处）：登顶 / 进红灯 → 峰哥解说。只看状态变化，不碰力矩。"""
+        """0.5 s 一次（主循环打印处）：登顶 / 红灯 / 进新路段 / 跑起来 / 站着不动 / 和影子换位 → 峰哥解说。只看状态变化，不碰力矩。
+        间隔由 Commentator 管（同类事件 + 全局 7 s），这里只负责发现「发生了什么」。"""
         t = self.ctl
         if self.ctl_key() != "terrain":
             return
+        now = time.monotonic()
+        st = self.gait.state
         seg = t.segment_at(t.pos)
-        prev_w, prev_laps, prev_seg = self._story
-        self._story = (t.preset, t.laps, seg)
-        if prev_w != t.preset:
+        label = t.route[t.seg_index(t.pos)[0]]["label"]
+        gp = t.status().get("ghost_pos") if t.ghost else None
+        rel = None if gp is None or t.lap_t0 is None else (1 if t.pos > gp else -1 if t.pos < gp else 0)
+        prev = self._story
+        self._story = (t.preset, t.laps, seg, label, rel if rel else (prev[4] if len(prev) > 4 else None))
+        if prev[0] != t.preset:
+            self._idle_t = now
             return
+        prev_laps, prev_seg, prev_label, prev_rel = prev[1], prev[2], (prev[3] if len(prev) > 3 else label), (prev[4] if len(prev) > 4 else None)
+        name = t.world["name"]
         if t.laps > prev_laps and t.last_lap is not None:
-            self.fengge.speak("summit", {"world": t.world["name"], "lap_s": round(t.last_lap, 1),
+            self.fengge.speak("summit", {"world": name, "lap_s": round(t.last_lap, 1),
                                          "best_s": round(t.best, 1) if t.best is not None else None,
                                          "new_record": t.best == t.last_lap, "laps": t.laps, "who": self.wearer})
-        elif seg == "wait" and prev_seg != "wait":
-            self.fengge.speak("red", t.route[t.seg_index(t.pos)[0]]["label"])
+            return
+        if seg == "wait" and prev_seg != "wait":
+            self.fengge.speak("red", label)
+            return
+        if label != prev_label and t.pos > 0:
+            kind = {"up": "上坡", "down": "下坡", "stairs_up": "上台阶", "stairs_down": "下台阶", "flat": "平路"}.get(seg, seg)
+            self.fengge.speak("seg", {"world": name, "label": label, "kind": kind})
+            return
+        if rel and prev_rel and rel != prev_rel:
+            self.fengge.speak("ghost", f"{'超过了' if rel > 0 else '被超过了'}影子（上一位 {t.ghost_who or '登山者'}），在{name}的「{label}」")
+            return
+        if st.moving:
+            self._idle_t = now
+            if st.cadence > 150:
+                self.fengge.speak("fast", {"world": name, "cadence": round(st.cadence)})
+        elif t.pos > 0 and seg != "wait" and now - getattr(self, "_idle_t", now) > 8.0:
+            self.fengge.speak("idle", {"world": name, "label": label, "seconds": round(now - self._idle_t)})
+            self._idle_t = now
 
     def make_world(self, text):
         """一句话造一座山：地形导演（大模型：Claude 或 MiniMax）出草稿，安全员裁剪，马上切过去。"""
