@@ -149,7 +149,7 @@ async function main() {
 
   // ---------- 每帧 ----------
   const P = new THREE.Vector3(), camP = new THREE.Vector3(), look = new THREE.Vector3(), dir = new THREE.Vector3(1, 0, 0), jfP = new THREE.Vector3();
-  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8, sideY = run.y, clock = DEMO ? 0 : last / 1000;
+  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, clock = DEMO ? 0 : last / 1000;
   const HINT = { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！' };
   function frame(dtFix) {
     if (!MANUAL) requestAnimationFrame(() => frame());
@@ -188,11 +188,18 @@ async function main() {
     P.set(run.x, run.y, run.z);
     av.group.position.copy(P);
     const slide = run.slideT > 0;
-    tilt += ((slide ? 1.05 : run.air ? -0.12 : 0) - tilt) * (1 - Math.exp(-dtR * 14));
+    // 根节点：滑铲后仰 0.6 rad（绕脚转，再把人往下放 0.3，屁股贴着地；腿怎么摆在 runner.js），腾空微前倾
+    tilt += ((slide ? 0.6 : run.air ? -0.12 : 0) - tilt) * (1 - Math.exp(-dtR * 14));
     av.group.rotation.set(0, 0, tilt);
-    if (slide) av.group.position.y += 0.1;
+    av.group.position.y -= 0.5 * Math.max(0, tilt);
     av.group.visible = !(run.invuln > 0 && Math.floor(t * 12) % 2);
-    if (runner) runner.set({ v: run.speed });
+    if (runner) {                                   // 前方马上要跳（楼缝 / 矮障碍）：0.35 s 内开始预判下沉，到边上蹲到 1
+      if (gy !== null && !run.air) lastG = gy;       // 离地高度按起跳那栋楼算（空中飞过楼缝时脚下没地）
+      const th = run.started && !run.air ? nextThreat(run, level, 8) : null;
+      const ttc = th && th.what === 'jump' ? th.dx / Math.max(run.speed, 1) : 9;
+      runner.set({ v: run.speed, air: run.air, vy: run.vy, h: run.y - lastG, pre: Math.max(0, Math.min(1, (0.35 - ttc) / 0.3)), slide });
+      av.group.position.y += runner.rootDy;
+    }
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
 
     // 捷风：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
@@ -211,6 +218,7 @@ async function main() {
 
     // 镜头：身后偏上；跳的时候不跟满，落地有顿挫；撞了抖
     camY += ((gy ?? run.y) - camY) * (1 - Math.exp(-dtR * 4));
+    const dip = runner ? runner.comp * runner.RUN.CAM_DIP : 0;   // 落地那一下镜头跟着沉
     const fov = 60 + Math.min(10, run.speed * 0.6);
     if (CAM !== 'side' && Math.abs(camera.fov - fov) > 0.2) { camera.fov += (fov - camera.fov) * 0.1; camera.updateProjectionMatrix(); }
     shake = Math.max(0, shake - dtR); flash = Math.max(0, flash - dtR * 2.5);
@@ -220,9 +228,9 @@ async function main() {
       camera.position.set(run.x + 0.2, sideY + 0.95, run.z + 3.0); look.set(run.x + 0.2, sideY + 0.8, run.z);
       if (camera.fov !== 38) { camera.fov = 38; camera.updateProjectionMatrix(); }
     } else {
-      camP.set(run.x - 4.3, Math.max(camY, run.y - 1) + 2.0 + (rand() - 0.5) * sh, run.z * 0.55 + (rand() - 0.5) * sh);
+      camP.set(run.x - 4.3, Math.max(camY, run.y - 1) + 2.0 + dip + (rand() - 0.5) * sh, run.z * 0.55 + (rand() - 0.5) * sh);
       camera.position.lerp(camP, 1 - Math.exp(-dtR * 10));
-      look.set(run.x + 7, Math.max(camY, run.y - 0.5) + 1.0, run.z * 0.3);
+      look.set(run.x + 7, Math.max(camY, run.y - 0.5) + 1.0 + dip, run.z * 0.3);
     }
     camera.lookAt(look);
     moonL.position.set(run.x - 30, 60, -40); moonL.target.position.set(run.x, 0, 0);
