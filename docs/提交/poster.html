@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>峰哥亡命天涯 · 海报</title>
+<!--
+  A1 竖版海报（594 × 841 mm），文案来自 docs/提交/海报文案.md。
+  打印：Chrome 打开 → ⌘P → 目标「另存为 PDF」→ 纸张会自动取 A1（@page）→ 边距「无」→ 勾「背景图形」。
+  峰哥开关：地址加 ?fengge=0（或点屏幕右上角开关）= 备用标题版，峰哥的名字、照片、解说气泡、素材署名整体去掉。
+  峰哥本人当面同意之前，只打印 ?fengge=0 版。
+-->
+<style>
+:root{
+  --bg:#0a0b14; --bg2:#1a0b2e; --ink:#f4f5fb; --dim:#a9adc4; --line:rgba(255,255,255,.14);
+  --pink:#ff2e88; --cyan:#29e7ff; --yellow:#ffd000; --green:#3ddc84;
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#2a2c38}
+body{font-family:var(--font);color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.no-fg .fg{display:none!important}
+html:not(.no-fg) .alt{display:none!important}
+
+/* 屏幕预览：整张海报缩放到窗口宽；打印时不缩放 */
+.stage{padding:16px;display:flex;justify-content:center}
+.poster{width:594mm;height:841mm;flex:none;overflow:hidden;position:relative;
+  background:radial-gradient(120% 60% at 50% 0%,var(--bg2) 0%,var(--bg) 60%) ,var(--bg);
+  display:flex;flex-direction:column}
+
+/* 顶部 */
+.top{padding:26mm 40mm 0}
+.kicker{font-size:11mm;letter-spacing:1.2mm;color:var(--cyan);font-weight:700}
+h1{font-weight:900;line-height:1;margin-top:9mm;letter-spacing:3mm;white-space:nowrap}
+h1.fg{font-size:78mm}
+h1.alt{font-size:51mm;letter-spacing:1mm}
+.sub{font-size:21mm;font-weight:800;margin-top:11mm;line-height:1.25}
+.sub b{color:var(--yellow)}
+.sub2{font-size:12mm;color:var(--dim);margin-top:5mm;line-height:1.35}
+
+/* 主图 */
+.hero{position:relative;margin-top:14mm;height:312mm}
+.hero img.shot{width:100%;height:100%;object-fit:cover;object-position:50% 45%;display:block}
+.cap{font-size:7mm;color:var(--dim);padding:3mm 40mm 0}
+.hero .fade{position:absolute;inset:auto 0 0 0;height:22mm;background:linear-gradient(transparent,var(--bg))}
+.pulse{position:absolute;right:8mm;bottom:5mm;width:200mm;background:#fff;border-radius:5mm;padding:4mm 4mm 2mm;
+  box-shadow:0 4mm 12mm rgba(0,0,0,.45)}
+.pulse img{width:100%;display:block}
+.pulse p{color:#333;font-size:7mm;padding:1.5mm 2mm 0;font-weight:700}
+.feng{position:absolute;left:0;top:0;width:134mm;display:flex;flex-direction:column;align-items:center;padding:7mm 8mm 8mm;
+  background:rgba(10,11,20,.96);border-radius:0 0 8mm 0;box-shadow:2mm 2mm 10mm rgba(0,0,0,.5)}
+.feng .head{width:92mm;height:92mm;border-radius:50%;overflow:hidden;border:2.5mm solid var(--yellow);background:#0a0b14;flex:none}
+.feng .head img{width:190%;margin-left:-45%;margin-top:-6%;display:block}
+.bubble{background:#fff;color:#111;border-radius:6mm;padding:5mm 6mm;width:100%;position:relative;margin-top:8mm}
+.bubble:before{content:"";position:absolute;left:50%;top:-6mm;margin-left:-5mm;border:5mm solid transparent;border-bottom:6mm solid #fff;border-top:0}
+.bubble .q{font-size:10.5mm;font-weight:900;line-height:1.3}
+.bubble .who{font-size:6mm;color:#666;margin-top:2mm}
+
+/* 卖点 */
+.points{display:grid;grid-template-columns:1fr 1fr;gap:9mm 12mm;padding:10mm 40mm 0}
+.pt{border-left:3mm solid var(--c);padding:1mm 0 1mm 7mm}
+.pt h3{font-size:15mm;font-weight:900;color:var(--c)}
+.pt p{font-size:10mm;line-height:1.4;margin-top:2.5mm;color:var(--ink)}
+
+/* 蜂群 */
+.swarm{margin:13mm 40mm 0;border:0.6mm solid var(--line);border-radius:6mm;padding:8mm 10mm;background:rgba(255,255,255,.04)}
+.swarm .row{display:flex;align-items:center;justify-content:space-between;gap:4mm}
+.role{flex:1;text-align:center;border-radius:4mm;padding:4.5mm 2mm;background:rgba(255,255,255,.06)}
+.role b{display:block;font-size:13mm;font-weight:900}
+.role span{display:block;font-size:7.5mm;color:var(--dim);margin-top:1mm}
+.role.ai b{color:var(--cyan)} .role.code b{color:var(--ink)} .role.hard{background:rgba(255,46,136,.16);outline:0.6mm solid var(--pink)}
+.role.hard b{color:var(--pink)}
+.arr{font-size:10mm;color:var(--dim)}
+.swarm .tag{font-size:10mm;margin-top:6mm;line-height:1.4}
+.swarm .tag b{color:var(--yellow)}
+.swarm .tag small{display:block;font-size:7.5mm;color:var(--dim);margin-top:1.5mm}
+
+/* 底栏 */
+.foot{margin-top:auto;padding:0 40mm 26mm;display:flex;align-items:flex-end;gap:12mm}
+.foot .txt{flex:1;font-size:8.5mm;color:var(--dim);line-height:1.55}
+.foot .txt b{color:var(--ink)}
+.qr{flex:none;text-align:center}
+.qr .box{width:64mm;height:64mm;background:#fff;padding:4mm;border-radius:3mm}
+.qr svg{width:100%;height:100%;display:block}
+.qr p{font-size:7mm;color:var(--dim);margin-top:2.5mm}
+
+/* 屏幕上的开关，打印时隐藏 */
+.ctl{position:fixed;top:12px;right:12px;z-index:9;display:flex;gap:8px;align-items:center;font:14px/1.3 var(--font);
+  background:#111320;color:#fff;border:1px solid #3a3d52;border-radius:10px;padding:8px 12px;max-width:min(360px,calc(100vw - 24px))}
+.ctl button{font:inherit;background:#ffd000;color:#111;border:0;border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:700;flex:none}
+.ctl .warn{color:#ffb4c8}
+
+@page{size:594mm 841mm;margin:0}
+@media print{
+  html,body{background:none}
+  .stage{padding:0;display:block}
+  .poster{zoom:1!important}
+  .ctl{display:none}
+}
+</style>
+</head>
+<body>
+<div class="ctl" id="ctl">
+  <span><b id="mode"></b><br><span class="warn fg">峰哥本人同意后才能打印这一版</span><span class="alt">不含峰哥名字 / 照片</span></span>
+  <button id="flip" type="button">切换</button>
+</div>
+<div class="stage"><div class="poster" id="poster">
+
+  <div class="top">
+    <div class="kicker">EvoTavern 进化酒馆 · 深圳站 · 具身与穿戴硬件赛道</div>
+    <h1 class="fg">峰哥亡命天涯</h1>
+    <h1 class="alt">原地迈步，腿上爬山</h1>
+    <div class="sub"><span class="fg">原地迈步，腿上爬山；</span><b>说一句话，山就变。</b></div>
+    <div class="sub2">消费级髋外骨骼，按步态相位把坡和台阶「放」到你腿上。</div>
+  </div>
+
+  <div class="hero">
+    <img class="shot" src="截图/游戏-东京天桥-v2.jpg" alt="赛博东京·夜行：天桥台阶，化身与半透明影子并排">
+    <div class="fade"></div>
+    <div class="feng fg">
+      <div class="head"><img src="截图/fengge_front.png" alt="峰哥头（照片贴脸）"></div>
+      <div class="bubble"><div class="q">这是个好事儿啊，<br>腿酸说明你真爬了。</div><div class="who">峰哥解说 · 内置语录（口吻模仿）</div></div>
+    </div>
+    <div class="pulse"><img src="截图/脉冲-上台阶.png" alt="上台阶一周期的髋力矩：伸展 + 摆动期屈曲，梯形"><p>上台阶一步里的髋力矩：落脚推一下，抬腿帮一下（梯形脉冲，≤3 Nm）</p></div>
+  </div>
+  <div class="cap">游戏画面：赛博东京·夜行 · 天桥台阶，半透明的是上一位登山者（模拟外骨骼离线预览，9/23）</div>
+
+  <div class="points">
+    <div class="pt" style="--c:var(--cyan)"><h3>穿着就能走</h3><p>不靠平台、不靠地板，一台量产髋外骨骼</p></div>
+    <div class="pt" style="--c:var(--yellow)"><h3>腿上有力</h3><p>上坡推一下、台阶抬一下、红灯拉住你</p></div>
+    <div class="pt" style="--c:var(--green)"><h3>说一句，它就记住</h3><p>「太陡了」→ 当场变轻、存成经验卡，下一个人自动继承；删卡就回到原样</p></div>
+    <div class="pt" style="--c:var(--pink)"><h3>说一句，造一座山</h3><p>Claude 出路线，安全员（写死的代码）裁剪，马上能爬；登顶时<span class="fg">峰哥</span><span class="alt">解说员</span>来一句</p></div>
+  </div>
+
+  <div class="swarm">
+    <div class="row">
+      <div class="role ai"><b>教练</b><span>Claude</span></div><div class="arr">→</div>
+      <div class="role ai"><b>地形导演</b><span>Claude</span></div><div class="arr">→</div>
+      <div class="role code"><b>记忆员</b><span>代码</span></div><div class="arr">→</div>
+      <div class="role hard"><b>安全员</b><span>硬代码 · 不交给大模型</span></div>
+    </div>
+    <div class="tag"><b>大模型只出主意，安全员说了算。</b>断网也能玩：规则表 / 模板 / 内置语录兜底。
+      <small class="fg">四个角色叫「蜂群」——巧的是，峰哥当年合伙的公司就叫「蜂群文化」。</small></div>
+  </div>
+
+  <div class="foot">
+    <div class="txt">
+      <b>ShellOS</b> · Hypershell X MaxS（黑客松固件）· 软限 3 Nm · 松手即停<br>
+      EvoTavern 深圳站 · 具身与穿戴硬件赛道<br>
+      <span class="fg">峰哥素材来自 MIT 开源仓库（talk-to-fengge-live、feng-ge-skill），经本人同意展示</span>
+    </div>
+    <div class="qr"><div class="box"><svg viewBox="0 0 29 29" role="img" aria-label="二维码：github.com/QiuQiuNB666/aima"><path stroke="#000" d="M0 0.5h7m2 0h1m2 0h1m1 0h4m1 0h1m2 0h7m-29 1h1m5 0h1m1 0h2m1 0h1m1 0h2m3 0h1m1 0h1m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m3 0h1m3 0h2m4 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m1 0h1m3 0h1m1 0h4m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m2 0h1m2 0h1m3 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h3m3 0h1m-15 1h1m5 0h1m1 0h5m2 0h1m1 0h1m1 0h1m1 0h2m2 0h3m-27 1h2m1 0h1m3 0h1m2 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h2m1 0h2m-28 1h1m4 0h3m2 0h2m1 0h4m3 0h1m3 0h1m-25 1h2m3 0h1m2 0h3m2 0h1m2 0h1m4 0h1m3 0h1m-22 1h1m1 0h1m1 0h3m1 0h2m2 0h2m1 0h1m2 0h2m4 0h1m-28 1h2m4 0h1m2 0h1m1 0h1m2 0h4m1 0h1m1 0h3m2 0h2m-27 1h1m1 0h1m1 0h1m2 0h4m2 0h3m2 0h2m2 0h3m-26 1h2m2 0h1m3 0h1m1 0h1m4 0h1m1 0h2m3 0h2m1 0h1m1 0h1m-28 1h1m2 0h3m2 0h1m1 0h2m6 0h1m1 0h1m1 0h1m1 0h2m-27 1h1m1 0h1m2 0h1m3 0h2m2 0h4m1 0h2m2 0h3m1 0h3m-29 1h2m4 0h5m4 0h1m2 0h2m4 0h2m2 0h1m-29 1h1m2 0h1m1 0h1m2 0h2m3 0h1m4 0h1m1 0h1m1 0h1m-23 1h1m1 0h2m1 0h3m2 0h2m2 0h2m1 0h8m1 0h3m-21 1h1m1 0h1m1 0h1m1 0h2m4 0h1m3 0h2m-26 1h7m2 0h4m2 0h3m1 0h2m1 0h1m1 0h3m-27 1h1m5 0h1m2 0h1m4 0h3m1 0h3m3 0h1m2 0h2m-29 1h1m1 0h3m1 0h1m2 0h1m2 0h3m1 0h1m1 0h8m1 0h2m-29 1h1m1 0h3m1 0h1m2 0h2m3 0h2m3 0h3m3 0h2m1 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m3 0h3m1 0h1m1 0h9m-28 1h1m5 0h1m2 0h3m2 0h2m2 0h1m3 0h2m1 0h2m1 0h1m-29 1h7m1 0h3m1 0h1m1 0h6m2 0h3m1 0h1"/></svg></div><p>扫码看代码与技术说明<br>github.com/QiuQiuNB666/aima</p></div>
+  </div>
+
+</div></div>
+<script>
+(function(){
+  var q=new URLSearchParams(location.search), root=document.documentElement;
+  function set(on){ root.classList.toggle('no-fg',!on); document.getElementById('mode').textContent=on?'峰哥版':'备用版'; document.title=on?'峰哥亡命天涯 · 海报':'原地迈步，腿上爬山 · 海报'; }
+  var on=q.get('fengge')!=='0'; set(on);
+  document.getElementById('flip').onclick=function(){ on=!on; set(on); q.set('fengge',on?'1':'0'); history.replaceState(null,'','?'+q.toString()); };
+  var p=document.getElementById('poster');
+  function fit(){ p.style.zoom=Math.min(1,(window.innerWidth-32)/(594*96/25.4)); }   // 594 mm 在屏幕上约 2245 px
+  fit(); window.addEventListener('resize',fit);
+})();
+</script>
+</body>
+</html>
