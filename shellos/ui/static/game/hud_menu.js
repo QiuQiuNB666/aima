@@ -41,6 +41,7 @@ const CSS = `
 #umenu .tag{font-size:1.7rem;font-weight:700;margin:.5rem 0 1.6rem;color:#e6edf5}
 #umenu .world{font-size:1.3rem;color:var(--dim);margin-bottom:1.2rem}
 #umenu .world b{color:#fff}
+#umenu .world .feat{font-size:.85rem;font-weight:900;padding:.05rem .45rem;border-radius:.35rem;background:var(--who-fengge);color:#000;vertical-align:.1rem}
 #umenu .go{margin-top:1.4rem;font-size:1.3rem;font-weight:800}
 #umenu .go kbd{display:inline-block;font:inherit;padding:0 .5rem;border-radius:.35rem;background:var(--acc);color:#000;margin:0 .2rem}
 @keyframes uBreath{50%{opacity:.55}}
@@ -100,7 +101,7 @@ export function makeMenu(world, { preview, cut, poke }) {
     }).join('');
     if (s === 'title') {
       el.innerHTML = `<div class="dim"></div><div class="tt"><div class="logo${FG ? '' : ' alt'}">${TITLE}</div><div class="tag">穿上外骨骼 · 原地踏步 · 腿上爬山</div>
-        <div class="world">当前地图：<b>${esc(world.name)}</b>${world.subtitle ? ` · ${esc(world.subtitle)}` : ''}</div>${list}
+        <div class="world">当前地图：<b>${esc(world.name)}</b>${world.id === 'everest_north' ? ' <span class="feat">主打</span>' : ''}${world.subtitle ? ` · ${esc(world.subtitle)}` : ''}</div>${list}
         <div class="go">按 <kbd>Enter</kbd> 开始 · 或直接按住手柄 <kbd>R2</kbd></div></div>
         ${FG ? `<div class="pt"><div class="face"></div><div class="nm">峰哥</div><div class="say panel">「${LINES[sayI % LINES.length]}」</div></div>` : ''}
         <div class="steps">${[['按住 R2', '腿上才有力，松手立刻没力'], ['原地踏步', '屏幕里在爬山，坡和台阶打在腿上'], ['说一句「太陡了」', 'AI 蜂群改手感'], ['说一句话', 'AI 现场造一座山']]

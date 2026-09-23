@@ -42,6 +42,7 @@ body.u-ready #uready{display:block}
 #summit .sbig b{font-size:3.6rem;font-weight:900;color:#fff;margin:0 .4rem;font-variant-numeric:tabular-nums;vertical-align:-.3rem}
 #summit .sbig em{font-style:normal;font-size:1.3rem;font-weight:900;color:#000;background:var(--acc);border-radius:.4rem;padding:.05rem .5rem}
 #summit .sgh{font-size:1.6rem;font-weight:800;margin-top:.3rem}
+#summit .salt{font-size:1.7rem;font-weight:900;margin-left:.6rem;white-space:nowrap;letter-spacing:0;font-variant-numeric:tabular-nums}
 #summit .sck{font-size:1.35rem;margin-top:.35rem;color:var(--acc);font-weight:700}
 #summit .sfg{font-size:1.3rem;font-weight:700;margin-top:.45rem;padding:.35rem .7rem;border-radius:.6rem;border-left:.3rem solid var(--who-fengge);background:rgba(255,176,58,.08)}
 #summit .sfg:empty{display:none}
@@ -137,6 +138,7 @@ export function makeFlow(world, preview) {
       const lap = T.last_lap;
       document.getElementById('sTime').textContent = fmt(lap);
       document.getElementById('sSteps').textContent = ` · ${T.total} 步`;
+      if (world.alt && world.alt[1] !== world.alt[0]) document.getElementById('sName').insertAdjacentHTML('beforeend', `<small class="salt">${esc(world.alt[1])} ${esc(world.unit || 'm')}</small>`);   // 珠峰 = 8848.86 m
       const f = (lastS && lastS.fengge) || {};
       fgSig0 = `${f.t}|${f.event}|${f.text}`; fgWant = true; document.getElementById('sFg').innerHTML = '';
       if (lap != null && !preview) try {         // 攒给选山页的最佳成绩（只存在这台大屏的浏览器里）
