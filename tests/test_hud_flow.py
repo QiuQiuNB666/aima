@@ -1,5 +1,5 @@
 """大屏状态流 hud_flow.js 的 pickMode（node 跑；没装 node 就跳过）：
-扳机在门槛上抖（ACTIVE / ARMED 10 Hz 来回）时「游戏中 ↔ 按住 R2」不许跟着闪；松开 1.2 s 以上才切；急停立刻切；登顶压过待机。"""
+扳机在门槛上抖（ACTIVE / ARMED 10 Hz 来回）时「游戏中 ↔ 按住 R2」不许跟着闪；松开 1.2 s 以上才切；急停立刻切（压过开始界面）；登顶压过待机。"""
 from __future__ import annotations
 
 import json
@@ -30,6 +30,8 @@ out.estop = run([...Array(10).fill('ACTIVE'), 'DISARMED']).last;                
 out.summitIdle = pickMode('play', { state: 'ACTIVE', summit: true, idleFor: 99, notActiveFor: 0, idleS: 45 });
 out.idle = pickMode('play', { state: 'ARMED', summit: false, idleFor: 50, notActiveFor: 50, idleS: 45 });
 out.forced = pickMode('play', { forced: 'idle', state: 'DISARMED' });
+out.title = pickMode('ready', { state: 'ACTIVE', title: true, summit: false, idleFor: 0, notActiveFor: 0, idleS: 45 });
+out.titleEstop = pickMode('title', { state: 'DISARMED', title: true, summit: false, idleFor: 0, notActiveFor: 9, idleS: 45 });
 console.log(JSON.stringify(out));
 """
 
@@ -48,3 +50,5 @@ def test_pick_mode_no_flicker(tmp_path):
     assert o["summitIdle"] == "summit", o
     assert o["idle"] == "idle", o
     assert o["forced"] == "idle", o
+    assert o["title"] == "title", o                 # 开始界面开着：不进游戏中（导游也不抢镜头）
+    assert o["titleEstop"] == "ready", o            # 急停压过开始界面：红字「急停中」不能被盖住
