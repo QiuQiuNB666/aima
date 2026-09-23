@@ -210,9 +210,10 @@ export function stepFx(ctx, { dust = '#d8cbb4', flash = '#fff2c8', add = false, 
 // 一次性触发：edge(on) 在 on 从假变真的那一帧返回 true（同一圈只响一次；on 变回假再变真才再响）
 export function edge() { let was = false; return on => { const r = on && !was; was = !!on; return r; }; }
 
-// 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter')。?sfx=0 静音。
+// 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter')。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
+//   音量再乘 U 设置页的「捷风 / 音效音量」（window.__settings.get('vSfx')，0–100；设置页只管 <audio>，WebAudio 这里自己乘）。
 //   浏览器不让没交互过的页面出声：上下文挂起时等第一次按键 / 点击再恢复（空格走路就算）。音量都压低，峰哥说话时不抢
-const SFX_ON = new URLSearchParams(location.search).get('sfx') !== '0';
+const SFX_Q = new URLSearchParams(location.search), SFX_ON = SFX_Q.get('sfx') !== '0' && !SFX_Q.has('preview');
 let AC = null;
 function audio() {
   if (!SFX_ON) return null;
@@ -224,8 +225,9 @@ function audio() {
   return AC.state === 'running' ? AC : (AC.resume(), null);
 }
 export function sfx(name, vol = 1) {
-  const ac = audio(); if (!ac) return;
-  const t = ac.currentTime, out = ac.createGain(); out.gain.value = 0.22 * vol; out.connect(ac.destination);
+  const ac = audio(), k = window.__settings ? window.__settings.get('vSfx') / 100 : 1;
+  if (!ac || !(k > 0)) return;
+  const t = ac.currentTime, out = ac.createGain(); out.gain.value = 0.22 * vol * k; out.connect(ac.destination);
   const tone = (f, dur, g = 1, type = 'sine', t0 = 0) => {
     const o = ac.createOscillator(), e = ac.createGain(); o.type = type; o.frequency.value = f;
     e.gain.setValueAtTime(0, t + t0); e.gain.linearRampToValueAtTime(g, t + t0 + 0.005); e.gain.exponentialRampToValueAtTime(0.0001, t + t0 + dur);

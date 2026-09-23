@@ -80,7 +80,7 @@ async function main() {
           gait: { moving: false }, frame: { l: -26, r: 12 }, memory: null };
   } else {
     S = await waitForTerrain(bannerOnly);
-    world = S.terrain ? worlds.find(w => w.id === S.terrain.preset) : (worlds.find(w => w.id === 'tokyo_night') || worlds[0]);
+    world = S.terrain ? worlds.find(w => w.id === S.terrain.preset) : (worlds.find(w => w.id === 'everest_north') || worlds[0]);
     if (!world && S.terrain) world = { ...S.terrain.world, alt: [0, 0], route: routeFromStatus(S.terrain) };
     if (!world) { bannerOnly.banner('没有世界数据（/worlds.json）'); return; }
     if (!S.terrain) S = { ...S, terrain: null, _T: statusFor(world, 0, null, '') };   // 共驾开场：先摆默认世界，切回 terrain 时同一个世界接着走

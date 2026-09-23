@@ -27,7 +27,7 @@ def load_all() -> dict:
 
 
 WORLDS = load_all()
-DEFAULT = "tokyo_night"
+DEFAULT = "everest_north"   # 9/23 珠峰定为展位主打
 
 
 def get(world_id: str) -> dict:
