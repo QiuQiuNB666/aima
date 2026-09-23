@@ -73,13 +73,15 @@ function haloSprite(color) {                // 影子身后一团柔光（theme.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
+import { makeHipTrack, makeBody } from './anim.js';
 pointScaled = THREE.ShaderChunk.lights_fragment_begin.replace('getPointLightInfo( pointLight, geometryPosition, directLight );', '$&\n\t\tdirectLight.color *= uPointK;');
 
 export const MODEL_YAW = Math.PI / 2;      // 让模型正面朝局部 +X（路线前进方向），截图验过；错了改这里
 const d2r = Math.PI / 180, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1), qT = new THREE.Quaternion(), qA = new THREE.Quaternion();
+const qP = new THREE.Quaternion(), qR = new THREE.Quaternion(), qI = new THREE.Quaternion(), eu = new THREE.Euler();
 // 手臂 = rest·Rx(放下)·Rz(摆)（9/23 修复 G 在浏览器里量的）：局部 X 放下（左 +60、右 −60；70° 会插进躯干）；
 //   放下之后再绕局部 Z 才是前后摆，两臂同号即一前一后（Rz 放在 Rx 前面几乎不摆）。右臂静止偏后，加 −15° 补成左右对称。
-const ARM_DOWN = 60, ARM_SWING = 0.6, ARM_R_OFF = -15;
+const ARM_DOWN = 60, ARM_SWING = 0.6, ARM_R_OFF = -15, ARM_R_UP = 28;
 const KNEE0 = 9;                           // 膝盖常弯 9°：直腿像木桩（grid 审查）；抬脚高度只差 3 mm，不影响踩台阶
 let bufP = null;
 export const preloadAvatar = () => bufP || (bufP = fetch('/models/CesiumMan.glb').then(r => r.arrayBuffer()));   // 引擎开场就发请求，和主题 build 并行
@@ -178,25 +180,65 @@ export async function loadAvatar({ ghost = false, color = '#9fe8ff', opacity = 0
   });
   const J = n => bones[n] || null;
   const hipL = J('leg_joint_L_1'), hipR = J('leg_joint_R_1'), kneeL = J('leg_joint_L_2'), kneeR = J('leg_joint_R_2');
-  const rest = new Map();
   const armL = J('Skeleton_arm_joint_L__4_'), armR = J('Skeleton_arm_joint_R');
-  for (const b of [hipL, hipR, kneeL, kneeR, armL, armR]) if (b) rest.set(b, b.quaternion.clone());
+  // A2 动作用到的其余骨骼：骨盆 → 腰 → 胸 → (颈) → 头；踝；肘（左 L__3_、右 R__2_，9/23 A2 按骨骼世界坐标认的）
+  const pel = J('Skeleton_torso_joint_1'), spine = J('Skeleton_torso_joint_2'), chest = J('torso_joint_3'), head = J('Skeleton_neck_joint_2');
+  const ankL = J('leg_joint_L_3'), ankR = J('leg_joint_R_3'), elbL = J('Skeleton_arm_joint_L__3_'), elbR = J('Skeleton_arm_joint_R__2_');
+  const rest = new Map();
+  for (const b of [hipL, hipR, kneeL, kneeR, armL, armR, pel, spine, chest, head, ankL, ankR, elbL, elbR]) if (b) rest.set(b, b.quaternion.clone());
   const arm = (b, swing, down) => { if (b) b.quaternion.copy(rest.get(b)).multiply(qA.setFromAxisAngle(X, down * d2r)).multiply(qT.setFromAxisAngle(Z, swing * d2r)); };
   const set = (b, deg) => { if (b) b.quaternion.copy(rest.get(b)).multiply(qT.setFromAxisAngle(Y, deg * d2r)); };
-  const head = J('Skeleton_neck_joint_2');
+  // 绕化身自己的轴转（° ，右手系，化身局部：x = 前后轴（+ = 左侧抬起）、y = 竖直（+ = 左转）、z = 左右轴（+ = 前面往上 = 后仰 / 勾脚 / 屈肘））。
+  //   用父骨骼当前的朝向换算，所以不管父骨骼怎么摆，转的都是身体的轴。fromRest=false = 叠加在当前姿态上。父骨骼要先摆好（从上往下调）
+  const turn = (b, x, y, z, fromRest = true) => {
+    if (!b) return;
+    if (fromRest) b.quaternion.copy(rest.get(b));
+    qP.identity(); for (let p = b.parent; p && p !== outer; p = p.parent) qP.premultiply(p.quaternion);
+    qR.setFromEuler(eu.set(x * d2r, y * d2r, z * d2r, 'YZX'));
+    b.quaternion.premultiply(qI.copy(qP).invert().multiply(qR).multiply(qP));
+  };
   if (head) head.scale.setScalar(L.headScale);   // 头盔球原来约占身高 1/5.5，偏大
+  outer.updateMatrixWorld(true);
+  const W = b => b.getWorldPosition(new THREE.Vector3());
+  const body = makeBody({ L1: hipL && kneeL ? W(hipL).distanceTo(W(kneeL)) : 0.26, L2: kneeL && ankL ? W(kneeL).distanceTo(W(ankL)) : 0.27, calib: !ghost });
+  const track = makeHipTrack(), base = model.position.clone();
+  let lastS = null;
   const exo = L.exo === false ? { bars: [] } : dressExo(outer, model, J, L, gm);
   if (ghost && halo) { const h = haloSprite(color); outer.add(h); mats.push(h.material); }
   const tmp = new THREE.Vector3();
   return {
-    group: outer, bones, mats, exo,
-    // flex 度，正 = 前抬。膝没有传感器：屈髋时跟着弯，看起来像走路而不是踢腿
+    group: outer, bones, mats, exo, body,
+    // 旧接口（fengge.html 预览还在用）：flex 度，正 = 前抬；膝跟着屈髋弯
     pose(flexL, flexR) {
       const fl = Math.max(-35, Math.min(70, flexL)), fr = Math.max(-35, Math.min(70, flexR));
       set(hipL, -fl); set(hipR, -fr);
       set(kneeL, Math.max(0, fl) * 0.9 + KNEE0); set(kneeR, Math.max(0, fr) * 0.9 + KNEE0);
       const sw = (fr - fl) / 2 * ARM_SWING;       // 手臂和同侧腿反向摆
       arm(armL, sw, ARM_DOWN); arm(armR, sw + ARM_R_OFF, -ARM_DOWN);
+    },
+    // A2：每帧调一次（算法见 anim.js）。d = { state: /state（实机：自己跟踪 frame，10 Hz → 60 fps）, 或 fl, fr[, wl, wr]（直接给：影子 / 预览）,
+    //   kind: 当前路段, summit: 登顶中 }
+    animate(dt, t, d) {
+      let h = d;
+      if (d.state) {
+        const S = d.state, f = S.frame;
+        if (S !== lastS && f) track.push(t, S.t, -f.l, -f.r, f.ldps != null ? -f.ldps : null, f.rdps != null ? -f.rdps : null);
+        lastS = S; h = track.sample(t, dt);
+      }
+      const P = body.update(dt, t, { fl: h.fl, fr: h.fr, wl: h.wl, wr: h.wr, kind: d.kind, summit: d.summit });
+      const cl = v => Math.max(-40, Math.min(95, v));
+      model.position.set(base.x, base.y + P.bob, base.z + P.sway);
+      turn(pel, P.pelvis[0], P.pelvis[1], -P.pelvis[2]);
+      turn(spine, P.spine[0], P.spine[1], -P.spine[2]);
+      turn(chest, P.chest[0], P.chest[1], -P.chest[2]);
+      turn(head, P.head[0], P.head[1], -P.head[2]);
+      set(hipL, -cl(P.hipL)); turn(hipL, -P.pelvis[0], -P.pelvis[1], 0, false);   // 腿抵掉骨盆的转动：脚还在身体正下方、膝朝前
+      set(hipR, -cl(P.hipR)); turn(hipR, -P.pelvis[0], -P.pelvis[1], 0, false);
+      set(kneeL, P.kneeL); set(kneeR, P.kneeR);
+      turn(ankL, 0, 0, P.ankL); turn(ankR, 0, 0, P.ankR);
+      const c = P.cheer;                          // 登顶举手：右臂绑定姿态偏前，举起来要反过来补 +28°（A2 量的：两臂才对称成 V 字）；肘往头这边弯（绕前后轴），平时往前弯（绕左右轴）
+      arm(armL, P.armL[0], P.armL[1]); arm(armR, P.armR[0] + ARM_R_OFF + (ARM_R_UP - ARM_R_OFF) * c, -P.armR[1]);
+      turn(elbL, P.armL[2] * c, 0, P.armL[2] * (1 - c)); turn(elbR, -P.armR[2] * c, 0, P.armR[2] * (1 - c));
     },
     headWorld(out = tmp) { if (head) head.getWorldPosition(out); else outer.getWorldPosition(out).setY(outer.position.y + 1.4); return out; },
   };

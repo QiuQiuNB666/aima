@@ -212,13 +212,13 @@ async function main() {
     av.group.position.copy(A.pos);
     yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading, 1 - Math.exp(-dt * 6));
     av.group.rotation.y = yaw;
-    const [fl, fr] = PREVIEW ? flexFromFrame(S.frame) : hipAt(t);
-    av.pose(fl, fr);
+    const [fl, fr] = flexFromFrame(S.frame);   // A2：全身动作（anim.js）；实机把 S 交给化身自己跟踪髋角（外推 + one-euro，不再落后 130 ms）
+    av.animate(dt, t, { state: PREVIEW ? null : S, fl, fr, kind: A.kind, summit });
 
     const g = PREVIEW ? (ghost.visible ? { s: ghost.stepper.s, rel: '' } : null) : ghost.frame(dt, t, route.N);
-    if (PREVIEW && ghost.visible) gh.pose(-8, 22);
     if (g) {
       route.at(g.s, ghLat, G);
+      ghost.pose(dt, t, G.kind, summit, !!PREVIEW);
       gh.group.position.copy(G.pos);
       gyaw = gyaw === null ? -G.heading : lerpAng(gyaw, -G.heading, 1 - Math.exp(-dt * 6));
       gh.group.rotation.y = gyaw;
