@@ -201,6 +201,11 @@ def test_npc_route_whitelist_and_separate_cache(tts):
         assert tts == [(voice.NPC_VOICE, line)]
         assert os.path.isfile(voice.path(line, voice.NPC_VOICE)) and "npc" in voice.path(line, voice.NPC_VOICE)
         assert not os.path.isfile(voice.path(line))                          # 峰哥那份没被占
+        os.makedirs(os.path.dirname(voice.real_path(line)), exist_ok=True)
+        open(voice.real_path(line), "wb").write(b"RIFFreal")
+        with urlopen(base + urllib.parse.quote(line)) as r:
+            assert r.read() == b"RIFFreal"                                   # 真人录音优先，不再合成
+        assert len(tts) == 1
     finally:
         dash.httpd.shutdown()
 
@@ -222,3 +227,26 @@ def test_npc_voice_setting_passed_through(brain_tts, minimax, tts):
     a, b = voice.NPC_CANDIDATES["A_嚣张小姐"], dict(voice.NPC_CANDIDATES["A_嚣张小姐"], speed=1.1)
     assert voice.path("逮到了", a) != voice.path("逮到了", b)
     assert voice.get("逮到了", voice=a) == WAV and tts == [(a, "逮到了")]   # ShellOS → tts.py 走 HTTP 时字典也原样带过去
+
+
+def test_npc_intake_split_pick_last_and_normalize(monkeypatch, tmp_path):
+    """真人录音切句：两遍之间停 1 s 切成两段、用最后一遍；响度归一到 −18 dBFS 附近、峰值不超 −1 dBFS。"""
+    import math
+    from array import array
+    spec = importlib.util.spec_from_file_location("npc_intake", os.path.join(os.path.dirname(__file__), "..", "brain", "npc_intake.py"))
+    ni = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ni)
+    SR = ni.SR
+    tone = lambda s, amp: [int(amp * math.sin(2 * math.pi * 220 * i / SR)) for i in range(int(s * SR))]
+    quiet = lambda s: [0] * int(s * SR)
+    a = array("h", quiet(0.3) + tone(0.8, 3000) + quiet(0.3) + tone(0.4, 3000) + quiet(1.2) + tone(1.0, 9000) + quiet(0.5))
+    segs = ni.segments(a)
+    assert len(segs) == 2                                                    # 句内 0.3 s 停顿不切，两遍之间 1.2 s 切开
+    assert abs((segs[1][1] - segs[1][0]) / SR - (1.0 + 2 * ni.PAD_S)) < 0.05
+    n = ni.normalize(a[segs[1][0]:segs[1][1]])
+    assert abs(ni._db(n) - ni.TARGET_DB) < 1.5 and max(abs(v) for v in n) <= 0.9 * 32768
+    monkeypatch.setattr(voice, "DIR", str(tmp_path))
+    ni.use(9, n, "")
+    import wave
+    with wave.open(voice.real_path(voice.NPC_LINES[8])) as w:
+        assert (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (24000, 1, 2)

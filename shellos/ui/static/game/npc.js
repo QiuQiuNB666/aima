@@ -1,5 +1,5 @@
 // J 线：追兵 NPC（造型 / 特效在 npc_jifeng.js）。只读 /state（引擎轮询好的 S），不发任何请求到控制接口——追上只有画面和台词，腿上的力一点不变。
-// 行为：落后玩家 gap 步（连续值）。玩家在走：gap 每秒变 (步频 − CAD0) / CAD_K 步——走慢了她逼近（冲刺：前倾 + 拖尾 + 风刃 + 喊一句），
+// 行为：落后玩家 gap 步（连续值）。红灯时说一句「站好，我也不动」、绿灯说「가자」。玩家在走：gap 每秒变 (步频 − CAD0) / CAD_K 步——走慢了她逼近（冲刺：前倾 + 拖尾 + 风刃 + 喊一句），
 //   走快了被甩开；站着不走（不是红灯）她慢慢贴上来；**红灯路段她也站定**，gap 冻住、不冲刺、不喊（别逼人闯红灯）。
 //   gap ≤ CAUGHT = 追上（贴在身后，喊「追上你了」）；gap ≥ LOST = 被甩开（藏起来，屏幕下缘留个名字牌）。
 // 登顶：gap < END_GAP → 「抓到你了」，她冲上山顶站到玩家身边 + 风环；否则「被你甩掉了」，停在原地弯腰喘气。登顶卡收起后 gap 回到 START。
@@ -18,14 +18,17 @@ export const NPC = {
   SAY_GAP: 2.5,                                // 两句之间至少几秒（= 气泡停留时间，不叠）
 };
 // 台词：原创，短、快、带点嘲讽（风系刺客、嘴欠），夹通用韩语感叹词（가자 = 走、빨리 = 快）；不用任何游戏角色的原台词。
-// 改台词要同步 shellos/agent/voice.py 的 NPC_LINES（白名单，不在里面的不出声）。
+// 声音：配音演员本人当面同意、现场新录的真人录音优先（服务端 data/voice/npc/real/），没有的走合成。一个事件几句的随机挑一句。
+// 改台词要同步 shellos/agent/voice.py 的 NPC_LINES（白名单，不在里面的不出声），顺序 = 录音台词单编号。
 const LINES = {
-  start: '가자！你先跑三秒。',
-  dash: '就这？빨리빨리！',
-  caught: '逮到了，慢死了。',
-  lost: '哟，跑挺快嘛。',
-  endCaught: '又是我先到，拜。',
-  endShaken: '啧，算你走运。',
+  start: ['가자！你先跑三秒。'],
+  dash: ['就这？빨리빨리！'],
+  caught: ['逮到了，慢死了。', '回头看看？我在这儿。'],
+  lost: ['哟，跑挺快嘛。', '喂！我还没热身呢。'],
+  red: ['红灯。站好，我也不动。'],               // 红灯她也站定——这句是安全提示，不嘲讽
+  green: ['绿灯了，가자！'],
+  endCaught: ['又是我先到，拜。', '山顶风大，站稳了。'],
+  endShaken: ['啧，算你走运。'],
 };
 
 const CSS = `
@@ -44,11 +47,11 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
   const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = 角色名;
 
   let gap = preview && Q.has('npcgap') ? +Q.get('npcgap') : NPC.START;
-  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false;
+  let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false;
   const mute = preview || Q.get('voice') === '0';
   let audio = null;
   const say = (key, t) => {
-    const line = LINES[key] || key;
+    const L = LINES[key], line = L ? L[Math.floor(Math.random() * L.length)] : key;
     if (t - lastSay < NPC.SAY_GAP && !key.startsWith('end')) return false;
     lastSay = t; sayUntil = t + 2.5; bub.textContent = line; tag.classList.add('talk');
     if (mute) return true;
@@ -92,6 +95,8 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
       s = preview ? me.s - gap : endS;
     } else if (!preview && T) {
       if (!started && moving && !red) { started = true; say('start', t); }
+      if (started && red !== wasRed) say(red ? 'red' : 'green', t);        // 红灯一起停 / 绿灯一起走
+      wasRed = red;
       const rate = red || !started ? 0 : moving ? ((S.gait.cadence || NPC.CAD0) - NPC.CAD0) / NPC.CAD_K : -NPC.IDLE_CLOSE;
       gap = Math.max(NPC.CAUGHT, Math.min(NPC.LOST + 1, gap + rate * dtR));
       if (rate < -0.15 && gap > NPC.CAUGHT + 0.05) dash = Math.min(1, -rate * 2);

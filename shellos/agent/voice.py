@@ -20,8 +20,12 @@ _down_t = -1e9
 _open = urllib.request.build_opener(urllib.request.ProxyHandler({})).open    # 不走系统代理（MacBook 的 Shadowrocket 会截走 127.0.0.1）
 # J 线追兵 NPC「疾风」：MiniMax 系统预设音色（官方系统音色列表里的，不复刻任何真人、不用游戏音频），台词原创、白名单——/voice/npc.wav 只念这几句。
 # NPC_LINES 和 static/game/npc.js 的 LINES 保持一致（tests/test_voice.py 会对一遍）。
-# 音色 = 一份 voice_setting（voice_id + 语速 / 音高 / 情绪），候选见下；换音色：SHELLOS_NPC_VOICE=<候选名>，再跑 brain/tts.py --npc。
-NPC_LINES = ("가자！你先跑三秒。", "就这？빨리빨리！", "逮到了，慢死了。", "哟，跑挺快嘛。", "又是我先到，拜。", "啧，算你走运。")
+# 声音优先级：① 配音演员本人当面同意、现场新录的真人录音（data/voice/npc/real/，brain/npc_intake.py 切好放进去）；
+#   ② 用本人新录的参考音频快速复刻的音色（data/voice/npc_voice_id，brain/tts.py --clone-npc）；③ 下面的系统预设候选音色。
+# 预设音色 = 一份 voice_setting（voice_id + 语速 / 音高 / 情绪）；强制用某个候选：SHELLOS_NPC_VOICE=<候选名>，再跑 brain/tts.py --npc。
+# 顺序 = 录音台词单 docs/提交/疾风录音台词单.md 的编号 01–11（npc_intake.py 按编号对文件）。
+NPC_LINES = ("가자！你先跑三秒。", "就这？빨리빨리！", "逮到了，慢死了。", "哟，跑挺快嘛。", "又是我先到，拜。", "啧，算你走运。",
+             "喂！我还没热身呢。", "回头看看？我在这儿。", "红灯。站好，我也不动。", "绿灯了，가자！", "山顶风大，站稳了。")
 NPC_AUDITION = (NPC_LINES[0], NPC_LINES[1], NPC_LINES[2], NPC_LINES[5])   # 试听用的 4 句（brain/tts.py --npc-candidates）
 NPC_CANDIDATES = {   # 年轻、清亮、偏冷酷 / 痞帅；speed 1.1–1.3、pitch、emotion（speech-2.8-hd 支持 happy/sad/angry/fearful/disgusted/surprised/calm/fluent）
     "A_嚣张小姐": {"voice_id": "Arrogant_Miss", "speed": 1.2, "pitch": 1, "emotion": "happy"},                 # 官方描述：嚣张自信，展现优越感
@@ -30,7 +34,17 @@ NPC_CANDIDATES = {   # 年轻、清亮、偏冷酷 / 痞帅；speed 1.1–1.3、
     "D_俏皮萌妹": {"voice_id": "qiaopi_mengmei", "speed": 1.3, "pitch": -1, "emotion": "surprised"},           # 俏皮，音高压低一点去掉奶气
     "清脆少女": {"voice_id": "Chinese (Mandarin)_Crisp_Girl"},                                                 # 第一版，球球试听说一点都不像
 }
-NPC_VOICE = NPC_CANDIDATES[os.environ.get("SHELLOS_NPC_VOICE", "清脆少女")]
+NPC_CLONE_ID = os.path.join(DIR, "npc_voice_id")
+
+
+def _npc_voice():
+    name = os.environ.get("SHELLOS_NPC_VOICE")
+    if not name and os.path.isfile(NPC_CLONE_ID):
+        return {"voice_id": open(NPC_CLONE_ID).read().strip()}
+    return NPC_CANDIDATES[name or "清脆少女"]
+
+
+NPC_VOICE = _npc_voice()
 _lock = threading.Lock()   # ponytail: 全局锁，同一句两个页面同时要只合成一次；多句并发合成再换按文字加锁
 
 
@@ -43,6 +57,19 @@ def key(text, voice=""):
 def path(text, voice=""):
     """voice 空 = 峰哥（data/voice/）；给了预设音色（ID 或 voice_setting）= NPC（data/voice/npc/，不和峰哥的混）。"""
     return os.path.join(DIR, "npc", key(text, voice) + ".wav") if voice else os.path.join(DIR, key(text) + ".wav")
+
+
+def real_path(text):
+    """真人录音（NPC）：按文字存，和音色无关。"""
+    return os.path.join(DIR, "npc", "real", key(text) + ".wav")
+
+
+def real(text):
+    p = real_path(text)
+    if os.path.isfile(p):
+        with open(p, "rb") as f:
+            return f.read()
+    return None
 
 
 def save(text, data, voice=""):

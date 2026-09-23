@@ -3,6 +3,7 @@
   python3 brain/tts.py --clone      # 一次性：把 data/voice/ref/fengge_ref.wav 传给 MiniMax 快速复刻，voice_id 存 data/voice/minimax_voice_id
   python3 brain/tts.py --canned     # 把 shellos/agent/fengge.py 的兜底语录预生成进 data/voice/（断网也有声）
   python3 brain/tts.py --npc        # 把追兵 NPC 的台词（shellos/agent/voice.py NPC_LINES，预设音色）预生成进 data/voice/npc/
+  python3 brain/tts.py --clone-npc  # 疾风：用配音演员本人现场新录的参考音频（data/voice/ref/jifeng_ref.m4a，npc_intake.py 生成）快速复刻，9.9 元，球球确认后才跑
   python3 brain/tts.py --npc-candidates   # NPC 候选音色各念 4 句试听，存 data/voice/npc_candidates/<候选名>/，最后打一行 afplay 试听命令
   python3 brain/tts.py              # 起服务，127.0.0.1:8791
 
@@ -144,21 +145,24 @@ def get(text: str, voice_id=""):
     return data, keep
 
 
-def clone():
-    """上传参考音频 → 快速复刻。花钱：9.9 元/音色，首次用它合成时才扣（MiniMax 按量计费页）。"""
-    if _mm_voice_id():
-        sys.exit(f"已经复刻过：{_mm_voice_id()}（重来就删掉 {VOICE_ID_FILE}）")
+def clone(ref=None, id_file=None, prefix="Fengge"):
+    """上传参考音频 → 快速复刻。花钱：9.9 元/音色，首次用它合成时才扣（MiniMax 按量计费页）。缺省 = 峰哥；--clone-npc = 疾风。"""
+    id_file = id_file or VOICE_ID_FILE
+    if os.path.isfile(id_file):
+        sys.exit(f"已经复刻过：{open(id_file).read().strip()}（重来就删掉 {id_file}）")
     b = uuid.uuid4().hex
-    ref, ctype = (REF_M4A, "audio/mp4") if os.path.exists(REF_M4A) else (REF_WAV, "audio/wav")
+    if ref is None:
+        ref = REF_M4A if os.path.exists(REF_M4A) else REF_WAV
+    ctype = "audio/mp4" if ref.endswith(".m4a") else "audio/wav"
     body = (f"--{b}\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nvoice_clone\r\n"
             f"--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{os.path.basename(ref)}\"\r\n"
             f"Content-Type: {ctype}\r\n\r\n").encode() + open(ref, "rb").read() + f"\r\n--{b}--\r\n".encode()
     file_id = _mm("/v1/files/upload", body, "multipart/form-data; boundary=" + b, timeout=180)["file"]["file_id"]
-    vid = time.strftime("Fengge%m%d%H%M%S")          # 规则：8~256 位，字母开头，不能跟已有的重复
+    vid = time.strftime(prefix + "%m%d%H%M%S")       # 规则：8~256 位，字母开头，不能跟已有的重复
     _mm("/v1/voice_clone", json.dumps({"file_id": file_id, "voice_id": vid,
                                        "need_noise_reduction": True, "need_volume_normalization": True}).encode(), timeout=60)
-    os.makedirs(voice.DIR, exist_ok=True)
-    with open(VOICE_ID_FILE, "w") as f:
+    os.makedirs(os.path.dirname(id_file), exist_ok=True)
+    with open(id_file, "w") as f:
         f.write(vid)
     print("复刻好了", vid, "（7 天内不用会被 MiniMax 删掉）")
 
@@ -210,6 +214,9 @@ if __name__ == "__main__":
         for line in sorted({s for v in CANNED.values() for s in v}):
             _, keep = get(line)
             print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.key(line), line)
+        sys.exit(0)
+    if "--clone-npc" in sys.argv:                       # 配音演员本人当面同意、现场新录的参考音频；不是游戏素材
+        clone(os.path.join(voice.DIR, "ref", "jifeng_ref.m4a"), voice.NPC_CLONE_ID, "Jifeng")
         sys.exit(0)
     if "--npc-candidates" in sys.argv:                  # 预设音色，按字数计费：4 候选 × 4 句约 220 计费字符，一两毛钱
         MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0

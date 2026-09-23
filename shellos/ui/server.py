@@ -77,11 +77,11 @@ class Dashboard:
                         self.send_header("Cache-Control", "no-store")
                         self.end_headers()
                         return self.wfile.write(data)
-                    if p == "/voice/npc.wav":               # J 线追兵 NPC：只念白名单里的台词（预设音色）
+                    if p == "/voice/npc.wav":               # J 线追兵 NPC：只念白名单里的台词；真人录音优先，没有再合成
                         from urllib.parse import parse_qs, urlparse
                         from ..agent import voice
                         t = (parse_qs(urlparse(self.path).query).get("t") or [""])[0]
-                        data = voice.get(t, voice=voice.NPC_VOICE) if t in voice.NPC_LINES else None
+                        data = (voice.real(t) or voice.get(t, voice=voice.NPC_VOICE)) if t in voice.NPC_LINES else None
                         if not data:
                             self.send_response(204); self.end_headers(); return
                         self.send_response(200)
