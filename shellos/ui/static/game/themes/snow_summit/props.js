@@ -34,14 +34,17 @@ export function prayerFlags(ctx, lines, { spacing = 0.26, cap = 600, rev = null 
       flags.push({ p: m, ry: Math.atan2(-d.z, d.x), s: [1, 0.9 + 0.2 * ctx.rand(), 1], color: FLAG_COLS[(k + (L.shift || 0)) % 5] });
     }
   }
-  const U = { uT: { value: 0 }, uWind: { value: 1 } };
+  const U = { uT: { value: 0 }, uWind: { value: 1 }, uGust: { value: new THREE.Vector4(0, -1e4, 0, 0) } };   // uGust：xyz 化身、w 一阵猛风（化身走过，近处的旗被抽得乱飞）
   const mat = new THREE.MeshLambertMaterial({ color: '#ffffff', side: THREE.DoubleSide, emissive: '#303030' });
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = 'uniform float uT, uWind;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+    sh.vertexShader = 'uniform float uT, uWind; uniform vec4 uGust;\n' + sh.vertexShader.replace('#include <begin_vertex>',
       `#include <begin_vertex>
        { float hang = -transformed.y / 0.2; float ph = float(gl_InstanceID) * 1.37;
-         transformed.z += (sin(uT * 7.0 + ph) * 0.05 + 0.03) * hang * uWind; transformed.x += sin(uT * 5.3 + ph * 0.7) * 0.02 * hang * uWind; }`);
+         transformed.z += (sin(uT * 7.0 + ph) * 0.05 + 0.03) * hang * uWind; transformed.x += sin(uT * 5.3 + ph * 0.7) * 0.02 * hang * uWind;
+         vec3 ip = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+         float g = uGust.w * smoothstep(4.0, 1.0, distance(ip.xz, uGust.xz));
+         transformed.z += g * (sin(uT * 23.0 + ph) * 0.1 + 0.14) * hang; transformed.x += g * sin(uT * 17.0 + ph * 1.3) * 0.08 * hang; transformed.y += g * (0.1 + 0.04 * sin(uT * 19.0 + ph)) * hang; }`);   // 被风掀起来：往外、往上飞
     if (rev) { sh.uniforms.uRev = rev; sh.fragmentShader = DITHER + sh.fragmentShader.replace('void main() {', 'void main() {\n  dither();'); }
   };
   mat.customProgramCacheKey = () => rev ? 'snowFlagsRev' : 'snowFlags';
@@ -198,4 +201,22 @@ export function rockGeo(base, seed, tall = 1) {
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   return g;
+}
+
+// 觇标上的红旗：卷着（贴着立杆一条红）→ 登顶那一下展开、被风吹得一浪一浪。setUnfurl(0..1)、update(t)
+export function beaconFlag() {
+  const U = { uU: { value: 0 }, uT: { value: 0 } };
+  const mat = new THREE.MeshLambertMaterial({ color: '#d8261f', emissive: '#3a0604', side: THREE.DoubleSide });
+  mat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = 'uniform float uU, uT;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { float xf = transformed.x / 0.78;
+        transformed.x *= mix(0.07, 1.0, uU);
+        transformed.z += (sin(xf * 8.0 - uT * 9.0) * 0.08 + 0.03) * xf * uU;
+        transformed.y += sin(xf * 5.0 - uT * 7.0) * 0.025 * xf * uU - 0.05 * xf * xf * uU; }`);
+  };
+  mat.customProgramCacheKey = () => 'beaconFlag';
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.44, 16, 4).translate(0.39, 0, 0), mat);
+  m.name = 'beaconFlag';
+  return { mesh: m, set(u, t) { U.uU.value = u; U.uT.value = t % 1000; } };
 }

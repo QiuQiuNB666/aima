@@ -40,25 +40,35 @@ export function buildSky(scene, ctx, { sunDir, C }) {
     m.name = 'qinling';
   });
 
-  // 云海：两层低频噪声平面，远处整片不透明；风慢慢推着走
+  // 云海：两层低频噪声平面，远处整片不透明；风慢慢推着走。churn（苍龙岭起风）：流得快、扭起来、上层往上涌（?fx=low 不扭）
   const clouds = [];
   [[-4.2, 1.0, 0.022], [-2.9, 0.6, 0.034]].forEach(([y, op, sc], k) => {
-    const u = { t: { value: 0 }, op: { value: op }, sc: { value: sc }, wind: { value: new THREE.Vector2(0.012, 0.004).multiplyScalar(1 + k * 0.6) },
+    const u = { t: { value: 0 }, churn: { value: 0 }, op: { value: op }, sc: { value: sc }, wind: { value: new THREE.Vector2(0.012, 0.004).multiplyScalar(1 + k * 0.6) },
       lit: { value: new THREE.Color(C.cloudLit) }, shade: { value: new THREE.Color(C.cloudShade) }, haze: { value: new THREE.Color(C.hz) }, cam: { value: ctx.camera.position } };
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
-      uniforms: u, transparent: true, depthWrite: false, fog: false,
+      uniforms: u, transparent: true, depthWrite: false, fog: false, defines: kit.LOW ? { LOWFX: 1 } : {},
       vertexShader: 'varying vec3 wp; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); wp = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-      fragmentShader: `uniform float t, op, sc; uniform vec2 wind; uniform vec3 lit, shade, haze, cam; varying vec3 wp; ${NOISE}
-        void main(){ float d = fbm(wp.xz * sc + wind * t);
-          float a = smoothstep(0.26, 0.58, d) * op, dist = length(wp.xz - cam.xz);
-          vec3 c = mix(shade, lit, smoothstep(0.36, 0.72, d));
+      fragmentShader: `uniform float t, churn, op, sc; uniform vec2 wind; uniform vec3 lit, shade, haze, cam; varying vec3 wp; ${NOISE}
+        void main(){ vec2 q = wp.xz * sc + wind * t;
+          #ifndef LOWFX
+          if (churn > 0.001) q += churn * 2.2 * (vec2(fbm(q * 0.8 + t * 0.03), fbm(q * 0.8 + vec2(5.2, 1.3) - t * 0.025)) - 0.5);
+          #endif
+          float d = fbm(q);
+          float a = smoothstep(0.26 - 0.1 * churn, 0.58, d) * op, dist = length(wp.xz - cam.xz);
+          vec3 c = mix(shade, lit, smoothstep(0.36 - 0.08 * churn, 0.72, d));
           c = mix(c, haze, smoothstep(150., 440., dist));
           a = mix(a, op, smoothstep(60., 260., dist)); a *= 1. - smoothstep(440., 500., dist);
           gl_FragColor = vec4(c, a);
           #include <colorspace_fragment>
         }`,
     }));
-    m.position.set(c.x, y, c.z); m.name = 'cloudSea'; m.renderOrder = -1; m.frustumCulled = false; scene.add(m); clouds.push(u);
+    m.position.set(c.x, y, c.z); m.name = 'cloudSea'; m.renderOrder = -1; m.frustumCulled = false; scene.add(m); clouds.push({ u, m, y });
   });
-  return { update(t) { for (const u of clouds) u.t.value = t % 3600; } };
+  let flow = 0, last = null;
+  return {
+    update(t, churn = 0) {                                              // flow 按帧累加（起风时流速 ×3.5，不会因为倍率变了一下跳好远）
+      flow = (flow + Math.max(0, Math.min(0.1, last === null ? 0 : t - last)) * (1 + 2.5 * churn)) % 3600; last = t;
+      clouds.forEach(({ u, m, y }, k) => { u.t.value = flow; u.churn.value = churn; m.position.y = y + (k ? 1.3 : 0.5) * churn * (0.8 + 0.2 * Math.sin(t * 0.6 + k)); });
+    },
+  };
 }
