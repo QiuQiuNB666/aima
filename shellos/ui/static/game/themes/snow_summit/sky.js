@@ -217,12 +217,13 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
   //   fx=low 也要），离峰顶越远越大越淡、略往上翘；整条带子随时间起伏，每片自己慢慢转、一涨一缩（全按片序号哈希，确定性）。
   //   吃场景雾：风雪里看不见，登顶放晴后就在头顶从峰顶拖出去。
   const flag = (() => {
-    const N = ctx.route.N, top = ctx.route.at(N).pos.clone(), NB = 16, R = mulberry(5);
+    const N = ctx.route.N, aN = ctx.route.at(N), top = aN.pos.clone(), NB = 16, R = mulberry(5);
+    const down = aN.left.clone().setY(0).normalize(), across = aN.dir.clone().setY(0).normalize();   // 下风 = 顶峰处路的左侧（和入口 windDir 一致：西风从右往左），不是大本营朝向的左侧（路上有转弯）
     const ig = new THREE.InstancedBufferGeometry().copy(new THREE.IcosahedronGeometry(1, 0)), inst = new Float32Array(NB * 2);
     for (let i = 0; i < NB; i++) { inst[i * 2] = (i + 0.5) / NB; inst[i * 2 + 1] = R(); }
     ig.setAttribute('inst', new THREE.InstancedBufferAttribute(inst, 2)); ig.instanceCount = NB;
     const mat = new THREE.ShaderMaterial({
-      uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), t: { value: 0 }, op: { value: 1 }, top: { value: top }, down: { value: side }, across: { value: fwd }, sun: { value: sunDir },
+      uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), t: { value: 0 }, op: { value: 1 }, top: { value: top }, down: { value: down }, across: { value: across }, sun: { value: sunDir },
         lit: { value: new THREE.Color('#ffffff') }, shade: { value: new THREE.Color('#b8c6da') } },
       transparent: true, depthWrite: false, fog: true,
       vertexShader: `attribute vec2 inst; uniform float t; uniform vec3 top, down, across; varying vec3 wp; varying float vFade;
@@ -267,6 +268,7 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
       }
       ctx.camera.getWorldDirection(_cd);
       glare.material.opacity = 0.6 * smooth(0.6, 0.95, _cd.dot(sunDir)) * k.halo * k.sun * (0.5 + 0.5 * alt) * clear;   // 逆光：越高空气越薄，光越硬；最多 0.6 × 贴图 0.5
+      glare.visible = !LOW && glare.material.opacity > 0.01;                // 没朝太阳看就整个不画（大精灵的填充不白花）；?fx=low 不要
       layers.forEach((L, i) => { L.U.haze.value = Math.max(sq, Math.min(1, k.haze * (0.55 + 0.25 * i))); L.U.hazeC.value.copy(U.hz.value); L.U.lift.value = -k.sink * (0.5 + 0.24 * i); });
       ev.u.op.value = k.everest * clear; ev.u.hazeC.value.copy(k.hz); ev.m.visible = ev.u.op.value > 0.01;
       banner.material.opacity = ev.u.op.value * 0.9; banner.visible = ev.m.visible;
