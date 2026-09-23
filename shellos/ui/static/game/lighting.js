@@ -251,7 +251,7 @@ export function makeLighting(renderer, scene, camera, theme) {
       if (k === 'shadow') setShadow(+v); else if (k === 'exp') gu.toneMappingExposure.value = +v;
       else if (k === 'rays') rays.enabled = !!v && !!sunGlow; else bloom.enabled = !!v;
     },
-    passes: { bloom, rays, out },
+    passes: { bloom, rays, out, sceneRT },   // sceneRT：调试时读回场景像素查 NaN（__lighting.passes.sceneRT）
   };
   window.__lighting = L;
   return L;
