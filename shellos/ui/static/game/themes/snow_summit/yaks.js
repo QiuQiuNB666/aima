@@ -15,12 +15,12 @@ const PACKS = ['#c8322a', '#e0a93a', '#3f6fb0', '#2f8f4e', '#e8781c', '#8a5a9a',
 export function buildYaks(ctx, { Z, hAt, onYield }) {
   const { route, scene, kit } = ctx, R = ctx.rand, gl = Z.glacier;
   if (!gl) return null;
-  const n = 7, s0 = gl.start + gl.steps * 0.5, geo = yakGeo(kit), M = yakMaterials();
+  const n = 7, s0 = gl.start + gl.steps * 0.5, geos = [0, 1, 2].map(l => yakGeo(kit, l)), geo = geos[0], M = yakMaterials();   // LOD 三级：离镜头最近那头 < 14 全细节、< 30 中、再远粗
   const fur = new Float32Array(n * 3), pack = new Float32Array(n * 3), anim = new Float32Array(n * 4);
   for (let k = 0; k < n; k++) { fur.set(FURS[k % FURS.length], k * 3); const c = PACKS[(k * 3) % PACKS.length]; pack.set([c.r, c.g, c.b], k * 3); }
-  geo.setAttribute('aFur', new THREE.InstancedBufferAttribute(fur, 3));
-  geo.setAttribute('aPack', new THREE.InstancedBufferAttribute(pack, 3));
-  const aAnim = new THREE.InstancedBufferAttribute(anim, 4); geo.setAttribute('aAnim', aAnim);
+  const aFur = new THREE.InstancedBufferAttribute(fur, 3), aPack = new THREE.InstancedBufferAttribute(pack, 3), aAnim = new THREE.InstancedBufferAttribute(anim, 4);
+  for (const gg of geos) { gg.setAttribute('aFur', aFur); gg.setAttribute('aPack', aPack); gg.setAttribute('aAnim', aAnim); }
+  let lod = 0;
   const body = new THREE.InstancedMesh(geo, M.mat, n);
   body.customDepthMaterial = M.depth; body.name = 'yaks'; body.frustumCulled = false; scene.add(body);
   const herd = () => Array.from({ length: n }, (_, k) => ({ s: s0 + k * 1.6 + R() * 0.4, base: LAT + 0.25 * Math.sin(k * 2.1), cl: LAT + 0.25 * Math.sin(k * 2.1), ph: R() * 6, tp: R() * 6, flick: 0, bell: R() * 1.5, pitch: 0.88 + R() * 0.28,
@@ -75,6 +75,11 @@ export function buildYaks(ctx, { Z, hAt, onYield }) {
         anim.set([y.ph, y.walk, y.hyaw, y.tp], k * 4);
       });
       body.instanceMatrix.needsUpdate = true; aAnim.needsUpdate = true;
+      if (cam) {                                                                    // LOD：按离镜头最近那头算，带回差（不在边界上来回跳）
+        let dmin = 1e9; for (const y of yk) { route.at(y.s, y.cl, A); dmin = Math.min(dmin, cam.position.distanceTo(A.pos)); }
+        const want = dmin < (lod === 0 ? 15 : 13) ? 0 : dmin < (lod === 1 ? 32 : 28) ? 1 : 2;
+        if (want !== lod) { lod = want; body.geometry = geos[lod]; }
+      }
       body.castShadow = s < gl.start + gl.steps + 14;                                   // 过了冰川整群不投（省阴影那遍绘制）
     },
   };

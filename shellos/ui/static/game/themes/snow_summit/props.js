@@ -123,13 +123,15 @@ export const seracGeo = seed => rockGeo('#a9d0ea', seed, 1.35);
 
 // 固定绳：沿路 lat 处，每 every 步一根雪锥（铝杆）+ 绳子下垂；绳子颜色按段交替（红 / 蓝，常见的登山绳）
 // 路绳随风晃：sway = { uT, uWind（0–3）, uWD（下风方向）}；每段绳在两根雪锥之间按跨中最大往下风荡、上下轻弹（雪锥不动）
-export function fixedRope(ctx, ranges, { lat = 1.0, every = 2, h = 0.85, sway = null } = {}) {
+// ranges = [[s0, s1, { lat, h }?], …]：每段可以单独给横向位置 / 高度（刀脊上绳子贴着脊、横切时拉在岩壁那侧）
+export function fixedRope(ctx, ranges, { lat: lat0 = 1.0, every = 2, h: h0 = 0.85, sway = null } = {}) {
   const { route, util } = ctx, stakes = [], rope = [];
-  for (const [s0, s1] of ranges) {
+  for (const [s0, s1, o = {}] of ranges) {
     let prev = null, k = 0;
+    const lat = o.lat ?? lat0, h = o.h ?? h0;
     for (let s = s0; s <= s1 + 1e-6; s += every) {
       const a = route.at(s, lat), top = a.pos.clone().setY(route.heightAt(s) + h);
-      stakes.push({ p: a.pos.clone().setY(route.heightAt(s) + h / 2 - 0.1), ry: -a.heading });
+      stakes.push({ p: a.pos.clone().setY(route.heightAt(s) + h / 2 - 0.1), ry: -a.heading, s: [1, (h + 0.2) / (h0 + 0.2), 1] });
       if (prev) { const pts = sagPts(prev, top, 0.12, 6); const col = (k++ % 3) ? '#d7342b' : '#2f6fd6'; for (let j = 0; j < 6; j++) seg(pts[j], pts[j + 1], rope, { color: col, f: (j + 0.5) / 6 }); }
       prev = top;
     }
@@ -149,7 +151,7 @@ export function fixedRope(ctx, ranges, { lat = 1.0, every = 2, h = 0.85, sway = 
   }
   const rp = util.instanced(new THREE.CylinderGeometry(0.018, 0.018, 1, 4).rotateZ(Math.PI / 2), rm, rope);
   if (sway) rp.geometry.setAttribute('aSpan', new THREE.InstancedBufferAttribute(Float32Array.from({ length: Math.max(1, rope.length) }, (_, i) => rope[i] ? rope[i].f : 0), 1));
-  const out = [util.instanced(new THREE.BoxGeometry(0.035, h + 0.2, 0.035), new THREE.MeshLambertMaterial({ color: '#c8ced6', emissive: '#222831' }), stakes), rp];
+  const out = [util.instanced(new THREE.BoxGeometry(0.035, h0 + 0.2, 0.035), new THREE.MeshLambertMaterial({ color: '#c8ced6', emissive: '#222831' }), stakes), rp];
   out.forEach(m => { m.name = 'fixedRope'; });
   return out;
 }

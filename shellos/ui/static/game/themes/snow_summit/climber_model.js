@@ -1,7 +1,7 @@
 // 排队的登山者（第二台阶）：鼓鼓的连体羽绒服（一道道充绒格）、安全带、冰爪靴；帽兜 + 毛领、雪镜、氧气面罩 + 管子通到背包、
 //   背包（顶上一卷防潮垫、侧面橙色氧气瓶）。整队一个 InstancedMesh = 1 次绘制；腿 / 胳膊 / 头在顶点着色器里按实例属性动：
 //   aAnim = (相位, 走, 搓手, 抬头)：走起来腿和胳膊交替摆；站着等的时候跺脚（左右脚轮流抬）、搓手（两手收到胸前来回搓）、抬头看梯子。
-//   羽绒服 / 背包颜色是实例属性（aSuit / aPack）。约 700 三角形 / 人。
+//   羽绒服 / 背包颜色是实例属性（aSuit / aPack）。LOD 三级：0 ≈ 700 / 1 ≈ 300 / 2 ≈ 120 三角形 / 人（climberGeo(lod)）。
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 import { colored, tube, at } from './geo.js';
@@ -24,38 +24,37 @@ function baffles(g, step, lo = 0.8) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); g.computeVertexNormals(); return g;
 }
 
-export function climberGeo() {
-  const G = [], add = (g, part = 0, mask = 0) => G.push(mark(g, part, mask));
+export function climberGeo(lod = 0) {
+  const G = [], add = (g, part = 0, mask = 0) => G.push(mark(g, part, mask)), L1 = lod >= 1, L2 = lod >= 2, rs = n => L2 ? Math.max(4, n >> 1) : L1 ? Math.max(4, Math.round(n * 0.7)) : n;
   // 腿（连体羽绒服下半，比上身暗一点）+ 靴 + 冰爪
   for (const [k, z] of [[1, 0.11], [2, -0.11]]) {
-    add(baffles(new THREE.CylinderGeometry(0.095, 0.078, 0.8, 8, 4).translate(0, 0.52, z), 0.1, 0.78), k, 1);
+    add(baffles(new THREE.CylinderGeometry(0.095, 0.078, 0.8, rs(8), L2 ? 1 : 4).translate(0, 0.52, z), 0.1, 0.78), k, 1);
     add(at(new THREE.BoxGeometry(0.28, 0.13, 0.13), 0.04, 0.075, z, '#1b1d22'), k, 0);
-    add(at(new THREE.BoxGeometry(0.29, 0.02, 0.12), 0.04, 0.005, z, '#8a8f96'), k, 0);
+    if (!L1) add(at(new THREE.BoxGeometry(0.29, 0.02, 0.12), 0.04, 0.005, z, '#8a8f96'), k, 0);
   }
   // 身子：鼓鼓的羽绒服（充绒格）、安全带 + 锁扣
-  add(baffles(new THREE.CapsuleGeometry(0.205, 0.42, 4, 12).scale(1, 1, 0.86).translate(0, 1.2, 0), 0.1), 0, 1);
-  add(at(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 12, 1, true).scale(1, 1, 0.86), 0, 0.95, 0, '#2b2b2b'), 0, 0);
-  add(at(new THREE.TorusGeometry(0.03, 0.009, 4, 8), 0.19, 0.93, 0, '#c9ccd2'), 0, 0);
+  add(baffles(new THREE.CapsuleGeometry(0.205, 0.42, L2 ? 2 : 4, rs(12)).scale(1, 1, 0.86).translate(0, 1.2, 0), 0.1), 0, 1);
+  if (!L2) add(at(new THREE.CylinderGeometry(0.2, 0.2, 0.05, rs(12), 1, true).scale(1, 1, 0.86), 0, 0.95, 0, '#2b2b2b'), 0, 0);
+  if (!L1) add(at(new THREE.TorusGeometry(0.03, 0.009, 4, 8), 0.19, 0.93, 0, '#c9ccd2'), 0, 0);
   // 胳膊（肩 → 手套）
   for (const [k, sd] of [[3, 1], [4, -1]]) {
-    add(baffles(new THREE.CapsuleGeometry(0.07, 0.36, 2, 7).translate(0.04, 1.18, sd * 0.27), 0.09, 0.84), k, 1);
-    add(at(new THREE.SphereGeometry(0.068, 8, 6).scale(1.1, 1, 0.9), 0.08, 0.95, sd * 0.27, '#15171a'), k, 0);
+    add(baffles(new THREE.CapsuleGeometry(0.07, 0.36, L2 ? 1 : 2, rs(7)).translate(0.04, 1.18, sd * 0.27), 0.09, 0.84), k, 1);
+    add(at(new THREE.SphereGeometry(0.068, rs(8), L2 ? 3 : 6).scale(1.1, 1, 0.9), 0.08, 0.95, sd * 0.27, '#15171a'), k, 0);
   }
   // 头：帽兜（羽绒服色）+ 毛领、雪镜（橙色镜片 + 黑带）、氧气面罩 + 调节阀、管子
-  add(at(new THREE.SphereGeometry(0.15, 12, 8), 0.0, 1.63, 0, '#c8c8c8'), 5, 1);
-  add(at(new THREE.TorusGeometry(0.11, 0.035, 5, 12).rotateY(Math.PI / 2), 0.1, 1.62, 0, '#d8d0c0'), 5, 0);
+  add(at(new THREE.SphereGeometry(0.15, rs(12), L2 ? 4 : 8), 0.0, 1.63, 0, '#c8c8c8'), 5, 1);
+  if (!L2) add(at(new THREE.TorusGeometry(0.11, 0.035, L1 ? 3 : 5, rs(12)).rotateY(Math.PI / 2), 0.1, 1.62, 0, '#d8d0c0'), 5, 0);
   add(at(new THREE.BoxGeometry(0.045, 0.065, 0.2), 0.145, 1.67, 0, '#e08a2a'), 5, 0);
   add(at(new THREE.BoxGeometry(0.03, 0.03, 0.29), 0.1, 1.67, 0, '#1b1d22'), 5, 0);
   add(at(new THREE.BoxGeometry(0.09, 0.1, 0.11), 0.165, 1.565, 0, '#2a2c30'), 5, 0);
-  add(at(new THREE.CylinderGeometry(0.025, 0.025, 0.05, 6).rotateZ(Math.PI / 2), 0.22, 1.55, 0, '#9a9a9a'), 5, 0);
-  add(tube(V(0.17, 1.52, -0.03), V(0.02, 1.4, -0.2), 0.016, '#3a3c40', 5), 5, 0);
-  add(tube(V(0.02, 1.4, -0.2), V(-0.24, 1.44, -0.14), 0.016, '#3a3c40', 5), 5, 0);
+  if (!L1) add(at(new THREE.CylinderGeometry(0.025, 0.025, 0.05, 6).rotateZ(Math.PI / 2), 0.22, 1.55, 0, '#9a9a9a'), 5, 0);
+  if (!L1) { add(tube(V(0.17, 1.52, -0.03), V(0.02, 1.4, -0.2), 0.016, '#3a3c40', 5), 5, 0); add(tube(V(0.02, 1.4, -0.2), V(-0.24, 1.44, -0.14), 0.016, '#3a3c40', 5), 5, 0); }
   // 背包（白底 × aPack）+ 顶盖、防潮垫卷、橙色氧气瓶 + 阀
   add(at(new THREE.BoxGeometry(0.26, 0.5, 0.34), -0.27, 1.2, 0, '#f0f0f0'), 0, 2);
-  add(at(new THREE.BoxGeometry(0.28, 0.1, 0.35), -0.27, 1.46, 0, '#a0a0a0'), 0, 2);
-  add(at(new THREE.CylinderGeometry(0.075, 0.075, 0.38, 8).rotateX(Math.PI / 2), -0.28, 1.56, 0, '#e0c040'), 0, 0);
-  add(at(new THREE.CylinderGeometry(0.062, 0.062, 0.46, 8), -0.33, 1.26, -0.2, '#e8781c'), 0, 0);
-  add(at(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 6), -0.33, 1.52, -0.2, '#9a9a9a'), 0, 0);
+  if (!L2) add(at(new THREE.BoxGeometry(0.28, 0.1, 0.35), -0.27, 1.46, 0, '#a0a0a0'), 0, 2);
+  if (!L1) add(at(new THREE.CylinderGeometry(0.075, 0.075, 0.38, 8).rotateX(Math.PI / 2), -0.28, 1.56, 0, '#e0c040'), 0, 0);
+  add(at(new THREE.CylinderGeometry(0.062, 0.062, 0.46, rs(8)), -0.33, 1.26, -0.2, '#e8781c'), 0, 0);
+  if (!L1) add(at(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 6), -0.33, 1.52, -0.2, '#9a9a9a'), 0, 0);
   return mergeGeometries(G);
 }
 
