@@ -129,6 +129,7 @@ export function buildCity(scene, ctx, E) {
       if (hud(p, ax, h / 2 + 0.2)) return 0;
     }
     signs.push({ text, p: p.clone(), ry, h, color, vertical, bg: '#0c0612', border: color, glow: 1, weight: 900 });
+    (E.facade ||= []).push({ p: p.clone(), w, h });                           // 占掉的楼面（models.js 贴招牌时避开）
     halos.add(c.copy(p).addScaledVector(axisZ(ry, nz), -0.04), axisX(ry, nx).multiplyScalar(w * 1.1 + 0.35), tmp.copy(UP).multiplyScalar(h * 0.62 + 0.3), color);
     streak(p.x, p.z, color, Math.min(0.65, Math.max(0.35, w * 0.5)), 4 + Math.min(1.5, h * 0.4));
     return w;
