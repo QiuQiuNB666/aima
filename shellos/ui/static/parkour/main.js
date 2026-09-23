@@ -8,9 +8,11 @@ import * as THREE from 'three';
 import { loadAvatar, preloadAvatar } from '/game/avatar.js';
 import { dressFengge } from '/game/fengge.js';
 import { makeJifeng } from '/game/npc_jifeng.js';
-import { LANE, TUNE, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
+import { PALETTE, applyCssVars } from '/game/style.js';
+import { TUNE, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
 
+applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
 const Q = new URLSearchParams(location.search);
 const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : 0, MUTE = Q.get('voice') === '0';
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
@@ -130,7 +132,7 @@ async function main() {
 
   // ---------- 每帧 ----------
   const P = new THREE.Vector3(), camP = new THREE.Vector3(), look = new THREE.Vector3(), dir = new THREE.Vector3(1, 0, 0), jfP = new THREE.Vector3();
-  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0;
+  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8;
   const HINT = { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！' };
   function frame() {
     requestAnimationFrame(frame);
@@ -149,8 +151,8 @@ async function main() {
     if (run.over && t - overAt > 3 && pend.jump) newRun();   // 穿着外骨骼按不了回车：高抬腿再来一局
     for (const ev of run.events.splice(0)) {
       if (ev === 'start') { document.body.classList.remove('title'); say('start'); }
-      if (['low', 'high', 'block', 'fall', 'wall', 'caught'].includes(ev)) { shake = 0.5; flash = 1; $('hitWhy').textContent = { low: '撞上空调外机', high: '被晾衣杆拦住', block: '撞上水箱', fall: '掉下楼缝', wall: '撞上楼沿', caught: '被疾风追上' }[ev]; if (ev === 'caught') { say('caught'); jf.burst(); } }
-      if (ev === 'over') { overAt = t; $('goT').textContent = $('hitWhy').textContent === '被疾风追上' ? '被疾风抓住了' : '峰哥倒下了'; const b = best.get(), d = Math.floor(run.dist); if (d > b) best.set(d); $('goDist').textContent = d; $('goBest').textContent = Math.max(b, d); $('goNew').style.display = d > b ? 'block' : 'none'; document.body.classList.add('over'); }
+      if (['low', 'high', 'block', 'fall', 'wall', 'caught'].includes(ev)) { shake = 0.5; flash = 1; $('hitWhy').textContent = { low: '撞上空调外机', high: '被晾衣杆拦住', block: '撞上水箱', fall: '掉下楼缝', wall: '撞上楼沿', caught: '被捷风追上' }[ev]; if (ev === 'caught') { say('caught'); jf.burst(); } }
+      if (ev === 'over') { overAt = t; $('goT').textContent = $('hitWhy').textContent === '被捷风追上' ? '被捷风抓住了' : '峰哥倒下了'; const b = best.get(), d = Math.floor(run.dist); if (d > b) best.set(d); $('goDist').textContent = d; $('goBest').textContent = Math.max(b, d); $('goNew').style.display = d > b ? 'block' : 'none'; document.body.classList.add('over'); }
     }
     if (run.jfGap > 14 && jfSaid !== 'lost' && run.started) say('lost');
     else if (run.jfGap < 4 && jfSaid !== 'dash' && jfSaid !== 'caught' && run.started && !run.over) say('dash');
@@ -173,13 +175,18 @@ async function main() {
     av.group.visible = !(run.invuln > 0 && Math.floor(t * 12) % 2);
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
 
-    // 疾风：在身后 jfGap 米；近了才进镜头
-    const jx = run.x - run.jfGap, jy = level.ground(jx) ?? run.y;
-    jfP.set(jx, jy, run.jfV > 0 ? -LANE * 0.9 : run.z - 0.9);
-    jf.group.position.copy(jfP); jf.group.rotation.set(0, 0, run.jfV > 0 ? -0.25 : 0);
+    // 捷风：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
+    //   jfGap ≤ 1.8（离镜头 ≥ 2.5）才现身；再远只留右上角距离条。STL 雕像四肢不能动：和登山游戏一样风系飘行（npc.js）
+    const jx = run.x - run.jfGap, jy = level.ground(jx) ?? run.y, camZ = run.z * 0.55, chasing = run.jfV > 0;
+    jfZ += ((camZ <= 0 ? camZ + 1.8 : camZ - 1.8) - jfZ) * (1 - Math.exp(-dtR * 4));
+    jfP.set(jx, jy, jfZ);
+    jf.group.position.copy(jfP);
     jfPhase += dtR * Math.PI * Math.max(1.5, (run.jfV || 6) / 2.2);
-    if (run.jfV > 0 || !run.started) { const amp = run.jfV > 0 ? 38 : 0; jf.pose(amp * Math.sin(jfPhase), amp * Math.sin(jfPhase + Math.PI)); } else jf.pose(-4, 6);
-    jf.visible = run.jfGap < 3.2;                  // 再远就贴到镜头上了（镜头在身后 4.3），只留右上角的距离条
+    const jfLean = jf.statue ? (chasing ? 0.13 + (run.jfGap < 5 ? 0.32 : 0) : 0.03) : chasing ? 0.25 : 0;
+    jf.group.rotation.set(0, 0, -jfLean);
+    if (jf.statue) { jf.group.position.y += chasing ? 0.1 + 0.05 * Math.sin(jfPhase * 2) : 0.07 + 0.03 * Math.sin(t * 2.2); jf.group.scale.y = 1 + 0.012 * Math.sin(t * 1.8); }
+    if (chasing) jf.pose(38 * Math.sin(jfPhase), 38 * Math.sin(jfPhase + Math.PI)); else jf.pose(-4, 6);
+    jf.visible = run.jfGap <= 1.8;
     jf.update(dtR, jfP, dir, run.jfGap < 5 ? 1 : 0.3);
 
     // 镜头：身后偏上；跳的时候不跟满，落地有顿挫；撞了抖
