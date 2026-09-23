@@ -62,6 +62,22 @@ class Dashboard:
                     return self._file(os.path.join(os.path.dirname(__file__), "static", "game.html"), "text/html; charset=utf-8")
                 if self.path.startswith(("/vendor/", "/models/", "/body3d.js", "/game/")):
                     return self._static(self.path.split("?")[0])
+                if self.path.startswith("/voice/"):     # 峰哥语音：只念当前这句解说，不收任意文字
+                    p = self.path.split("?")[0]
+                    if p == "/voice/voice.js":
+                        return self._file(os.path.join(os.path.dirname(__file__), "static", "voice.js"), "application/javascript")
+                    if p == "/voice/last.wav":
+                        from ..agent import voice
+                        data = voice.get(dash.app.fengge.last.get("text", ""))
+                        if not data:
+                            self.send_response(204); self.end_headers(); return
+                        self.send_response(200)
+                        self.send_header("Content-Type", "audio/wav")
+                        self.send_header("Content-Length", str(len(data)))
+                        self.send_header("Cache-Control", "no-store")
+                        self.end_headers()
+                        return self.wfile.write(data)
+                    self.send_response(404); self.end_headers(); return
                 if self.path.startswith("/shots/"):
                     return self._file(os.path.join(dash.app.glasses.shots_dir, os.path.basename(self.path.split("?")[0])), "image/jpeg")
                 self.send_response(200)
