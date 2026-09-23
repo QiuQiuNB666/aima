@@ -131,7 +131,7 @@ export async function initGuide({ world, route, camera, me, getS }) {
     if (go) return;                              // 在走 / 按着 R2：先不讲（登顶那一步走完回到山脚时人还在迈步，停下来再讲）
     if (ready && now - readySince > READY_MS && preloaded) { if (mute || bus.unlocked()) play(); else bus.ask(); }   // 声音还没解锁：先别讲，提示按任意键
   }
-  setInterval(tick, 200);                      // 5 Hz 看 /state；body 的 class 一变（进 / 出「准备」、开菜单）马上再看一次，打断不等轮询
+  setInterval(tick, 100);                      // 10 Hz 看 /state（和引擎轮询一样快）；body 的 class 一变（进 / 出「准备」、开菜单）马上再看一次，打断不等轮询
   new MutationObserver(tick).observe(body, { attributes: true, attributeFilter: ['class'] });
   window.__guide = { play, stop, lines, log, state: () => st };
   return window.__guide;
