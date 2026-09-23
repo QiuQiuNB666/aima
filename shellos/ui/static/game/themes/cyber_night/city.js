@@ -8,7 +8,7 @@ const WIN_W = 6.4, WIN_H = 9.6;             // 窗格贴图一张 = 32 列 × 32
 const TOWER_K = 1.7;
 const GAP = [6.2, 19.8];                    // 斑马线路口 + 天桥下的大街：这一段不盖临街楼
 const SLOPE = [19.8, 28.2];                 // 坂道 + 巷子：低层商铺
-const SIGNS = ['渋谷', 'ラーメン', '薬', 'カラオケ', '自販機', '酒', '居酒屋', '焼鳥', '喫茶', '質', 'ホテル', '占い', '餃子', '寿司', '宇田川町', '珈琲', '雀荘', '本', 'BAR', '二十四時'];
+const SIGNS = ['渋谷', 'ラーメン', '薬', 'カラオケ', '電脳', '酒', '居酒屋', '焼鳥', '義体', '質', 'ホテル', 'ゴースト', '餃子', '寿司', '宇田川町', '珈琲', '雀荘', '光学迷彩', 'BAR', '二十四時'];   // 攻壳致敬：混进 電脳 / 義体 / ゴースト / 光学迷彩（单词、概念，不是原作画面）
 const BOX = ['焼鳥', 'おでん', '餃子', '酒'];
 let bxi = 0;
 const SHOP = ['中華そば', 'たばこ', '定食', 'やきとり', '古着', 'コインランドリー', '理容', '文具', 'おでん', '銭湯'];
@@ -102,7 +102,7 @@ export function buildCity(scene, ctx, E) {
   const tmesh = new THREE.Mesh(util.merged(tParts), twrMat); tmesh.name = 'skyline'; scene.add(tmesh);
 
   // ---- 竖排霓虹招牌（突き出し看板）：挂在临街楼正面，朝迎面走来的人 ----
-  const leftCols = [acc[0], acc[1], acc[2], '#ff8a2a', '#b46bff'], rightCols = [acc[0], acc[2], '#ff8a2a', '#ff4040', '#ffffff'];
+  const leftCols = [acc[0], acc[1], '#00ffc6', '#ff4fd8', '#b46bff'], rightCols = [acc[0], '#00ffc6', acc[1], '#ff2e88', '#e8f6ff'];   // 青绿 + 品红为主（攻壳致敬版的雨夜色），黄橙只留在个别大招牌
   let si = Math.floor(rand() * SIGNS.length);
   // 湿地面倒影条：从灯/招牌脚下斜着拉向「它在画面正中时镜头所在处」（镜头在 11 步前、路左 1.4）——
   //   倒影在画面上正好落在招牌正下方，一路拖进画面下三分之一。台阶上不铺（坂道的倒影不拖进天桥台阶）
@@ -327,7 +327,7 @@ export function buildCity(scene, ctx, E) {
   const ag = new THREE.BufferGeometry(); ag.setAttribute('position', new THREE.Float32BufferAttribute(towers.flat(), 3));
   aviMat = new THREE.PointsMaterial({ size: 1.6, map: radial, color: '#ff2030', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const avi = new THREE.Points(ag, aviMat); avi.name = 'aviation'; scene.add(avi);
-  E.signs = signs.length; E.vend = vend;   // 贩卖机位置给 interact.js（走近掉罐饮料）
+  E.signs = signs.length; E.vend = vend; E.near = near; E.rear = rear;   // 临街楼（gits.js 挂港式出挑招牌 / 空调外机）   // 贩卖机位置给 interact.js（走近掉罐饮料）
 }
 
 export function updateCity(dt) {

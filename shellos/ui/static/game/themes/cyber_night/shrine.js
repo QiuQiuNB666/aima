@@ -123,6 +123,7 @@ export function buildShrine(scene, ctx, E) {
     // 登顶定机位：镜头在化身背后、正对拝殿（环绕会从拝殿里穿过去）；鸟居框住化身，拝殿在后面亮着
     const [hx, hz] = at(0, 0);
     ctx.camRig.summit.face = new THREE.Vector3(hx, y + 1.5, hz); ctx.camRig.summit.speed = 0;
+    { const [fx, fz] = at(-2.7, 0); E.haiden = { x: fx, y, z: fz }; }         // 拝殿正面前方（gits.js 登顶「2029」浮在这里）
   }
 
   const lamMesh = new THREE.Mesh(util.merged(lam), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#0c0a0a' })); lamMesh.name = 'shrineProps';

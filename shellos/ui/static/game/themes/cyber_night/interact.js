@@ -1,5 +1,5 @@
 // 东京的场景互动（只看化身位置 st.s；只动画面和音效，不碰任何控制接口）：
-//   ① 走近自动贩卖机：机身正面一闪，「咚」地滚出一罐饮料（落地弹一下、滚到路边，2.5 s 后收掉）——2 次绘制
+//   ① 走近自动贩卖机：机身正面一闪，「咚」地滚出一罐「電脳メンテナンス液」（攻壳彩蛋；落地弹一下、滚到路边，上方浮一行品名，3 s 后收掉）——3 次绘制
 //   ② 路口等红灯的三个行人（撑伞）：化身走近时转过来挥手，走到跟前往外让一步——3 次绘制（身子 / 胳膊 / 伞）
 //   ③ 神社石阶的奉納提灯：化身走过哪一盏，哪一盏亮起来（没走到的是暗的）；回到山脚（下一圈）重新熄——0 次新增绘制
 //   ④ 湿街踩水花：stepFx({ wet: true })，见 cyber_night.js
@@ -13,16 +13,25 @@ export function buildInteract(scene, ctx, E) {
   const vend = (E.vend || []).filter(v => v.s < route.N - 2);
   const flashMat = new THREE.MeshBasicMaterial({ color: '#dff4ff', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
   const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 1.18), flashMat); flash.visible = false; flash.name = 'vendFlash'; scene.add(flash);
-  const can = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.46, 16).rotateZ(Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#e8283a', emissive: '#5a0a12' }));   // 比真罐大 2 倍多：3 米外看得清（吃光，不走泛光，免得颜色白成一团）
+  // 罐子：攻壳彩蛋「電脳メンテナンス液」——深青罐身、品红腰带、青字沿罐身长向（躺着的罐子上字是横的），绕一圈写两遍
+  const label = util.canvasTexture(256, 512, (g, w, h) => {
+    g.fillStyle = '#0d2a33'; g.fillRect(0, 0, w, h); g.fillStyle = '#ff2e88'; g.fillRect(0, h * 0.08, w, 22); g.fillRect(0, h * 0.88, w, 22);
+    g.save(); g.translate(w, 0); g.rotate(Math.PI / 2); g.font = `900 64px ${util.FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#5ff6ff';
+    for (const y of [w * 0.25, w * 0.75]) g.fillText('電脳メンテナンス液', h / 2, y); g.restore();
+  });
+  const can = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.46, 16).rotateZ(Math.PI / 2),   // 比真罐大 2 倍多：3 米外看得清
+    new THREE.MeshLambertMaterial({ map: label, emissiveMap: label, emissive: new THREE.Color('#ffffff').multiplyScalar(0.55) }));
   can.visible = false; can.name = 'vendCan'; scene.add(can);
+  const tagTex = util.textTexture('電脳メンテナンス液', { size: 72, weight: 900, color: '#5ff6ff', bg: '#07040c', border: '#ff2e88', glow: 0.6, pad: 0.25 });
+  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, depthWrite: false, toneMapped: false, transparent: true })); tag.scale.set(0.34 * tagTex.userData.aspect, 0.34, 1); tag.visible = false; tag.name = 'canTag'; scene.add(tag);
   const trig = vend.map(() => kit.edge()), cp = new THREE.Vector3(), cv = new THREE.Vector3();
-  let fT = 0, cT = 0, cy0 = 0, cols = ['#e8283a', '#2a6cff', '#f2c230', '#2fbf6a'], ci = 0;
+  let fT = 0, cT = 0, cy0 = 0;
   const drop = v => {
     const n = new THREE.Vector3(Math.sin(v.ry), 0, Math.cos(v.ry));            // 机身正面朝路
     flash.position.set(v.a.pos.x + n.x * 0.27, v.y0 + 0.64, v.a.pos.z + n.z * 0.27); flash.rotation.y = v.ry; flash.visible = true; fT = 0.6;
     cp.set(v.a.pos.x + n.x * 0.4, v.y0 + 0.3, v.a.pos.z + n.z * 0.4); cy0 = v.y0 + 0.15;
     cv.copy(n).multiplyScalar(1.6).add(new THREE.Vector3((R() - 0.5) * 0.4, 1.6, (R() - 0.5) * 0.4)); cT = 3.0;   // 抛高一点、滚远一点，停在路边多留一会
-    const cc = cols[ci++ % cols.length]; can.material.color.set(cc); can.material.emissive.set(cc).multiplyScalar(0.35); can.visible = true; can.rotation.set(0, v.ry + Math.PI / 2, 0);
+    can.visible = true; can.rotation.set(0, v.ry + Math.PI / 2, 0);
     kit.sfx('can');
   };
 
@@ -93,6 +102,7 @@ export function buildInteract(scene, ctx, E) {
         cT = Math.max(0, cT - dt); cv.y -= 9.8 * dt; cp.addScaledVector(cv, dt);
         if (cp.y < cy0) { cp.y = cy0; cv.y = Math.abs(cv.y) * 0.35; cv.x *= 0.7; cv.z *= 0.7; }
         can.position.copy(cp); can.rotation.x += dt * 8 * Math.hypot(cv.x, cv.z); can.visible = cT > 0;
+        tag.position.set(cp.x, cp.y + 0.55, cp.z); tag.material.opacity = Math.min(1, cT * 2) * Math.min(1, (3 - cT) * 4); tag.visible = cT > 0 && cT < 2.8;   // 罐子上方浮一行品名
       }
       if (peds.length) placePeds(dt, st);
       lanterns(dt, st);

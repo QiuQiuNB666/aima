@@ -211,7 +211,7 @@ export function stepFx(ctx, { dust = '#d8cbb4', flash = '#fff2c8', add = false, 
 export function edge() { let was = false; return on => { const r = on && !was; was = !!on; return r; }; }
 
 // 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter' | 'click' | 'clink' | 'creak' | 'wind' | 'hiss' | 'yakbell'
-//   | 'crunch' | 'ice' | 'rock' | 'rope' | 'ladder' | 'breath' | 'voice' | 'flap', vol, { pitch })；
+//   | 'crunch' | 'ice' | 'rock' | 'rope' | 'ladder' | 'breath' | 'voice' | 'flap' | 'taiko' | 'camo' | 'glitch', vol, { pitch })；
 //   持续音 sfxLoop('rotor' | 'wind' | 'stove') → { set(vol, rate) } 每帧调（rotor = E 线直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
 //   音量再乘 U 设置页的「捷风 / 音效音量」（window.__settings.get('vSfx')，0–100；设置页只管 <audio>，WebAudio 这里自己乘）。
 //   浏览器不让没交互过的页面出声：上下文挂起时等第一次按键 / 点击再恢复（空格走路就算）。音量都压低，峰哥说话时不抢
@@ -276,6 +276,13 @@ export function sfx(name, vol = 1, { pitch = 1 } = {}) {
     t0 += d + 0.04 + Math.random() * 0.12;
   }
   else if (name === 'flap') for (let k = 0, n = 2 + (Math.random() * 2 | 0); k < n; k++) noise(0.07, 700 + Math.random() * 500, 0.7, 1.1, k * (0.09 + Math.random() * 0.07), 'lowpass');   // 帐篷布被风抽两三下
+  // 东京攻壳致敬版：太鼓（正弦 110→45 Hz 快滑 + 皮面噪声，长尾）、光学迷彩（上扫的滤波噪声「嘶啦」）、故障字幕（环形调制的电子脑通信「嗞」）
+  else if (name === 'taiko') { const o = tone(110 * pitch, 1.3, 1.2, 'sine'); o.frequency.setValueAtTime(110 * pitch, t); o.frequency.exponentialRampToValueAtTime(45 * pitch, t + 0.14); noise(0.06, 900, 1, 0.9, 0, 'lowpass'); noise(0.02, 3000, 2, 0.3); }
+  else if (name === 'camo') { const bp = noise(0.7, 800, 3, 0.9, 0, 'bandpass', true); bp.frequency.setValueAtTime(800, t); bp.frequency.exponentialRampToValueAtTime(6000, t + 0.6); tone(1320, 0.5, 0.12, 'sine', 0.1); }
+  else if (name === 'glitch') {
+    const o = tone(1200 * pitch, 0.35, 0.5, 'square'), rm = ac.createOscillator(), rg = ac.createGain(); rm.frequency.value = 30; rg.gain.value = 600; rm.connect(rg); rg.connect(o.frequency); rm.start(t); rm.stop(t + 0.4);
+    for (let k = 0; k < 4; k++) noise(0.03, 2500 + Math.random() * 3000, 4, 0.7, k * 0.07 + Math.random() * 0.03);
+  }
 }
 // 持续音：sfxLoop(name) 返回 { set(vol 0..1, rate 0..1) }，每帧调；第一次真要响才搭线路（音量乘设置页音量，?sfx=0 / 预览不出声）。
 //   rotor = 低通噪声 × 桨叶拍频（「突突突」，E 线直升机），rate 降 → 拍频变慢；
