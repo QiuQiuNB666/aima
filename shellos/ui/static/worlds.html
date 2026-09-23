@@ -1,87 +1,134 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>峰哥亡命天涯</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>峰哥亡命天涯 · 选择地图</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-:root{--bg:#07080c;--fg:#eef2f6;--dim:#8a95a3;--line:#1d232c}
+/* U 线 9/23：和游戏页同一套样式（ART 美术范式 §7：系统字体、rem 字号层级、深色面板、霓虹紫强调色、路段色来自 style.js） */
+:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.86);--line:rgba(255,255,255,.12);--acc:#b48cff}
+html{font-size:clamp(13px,1.04vw,44px)}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,"PingFang SC","Hiragino Sans GB",sans-serif}
-header{padding:36px 40px 10px}
-header h1{margin:0;font-size:40px;letter-spacing:4px}
-header p{margin:6px 0 0;color:var(--dim);font-size:18px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:22px;padding:24px 40px}
-.card{border-radius:18px;overflow:hidden;background:#0e1117;border:1px solid var(--line);display:flex;flex-direction:column;cursor:pointer;transition:transform .15s,border-color .15s}
-.card:hover{transform:translateY(-3px);border-color:#3a4555}
-.card.sel{border-color:#fff;box-shadow:0 0 0 2px #fff inset}
-.sky{height:170px;position:relative}
+body{margin:0;background:radial-gradient(ellipse at 30% 0,#1a1238 0,#07080c 60%) fixed;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;line-height:1.45}
+header{display:flex;align-items:flex-end;gap:1.4rem;padding:1.6rem 2rem .4rem}
+header h1{margin:0;font-size:2.5rem;font-weight:900;letter-spacing:.12em;text-shadow:0 0 1.6rem var(--acc)}
+header p{margin:0 0 .35rem;color:var(--dim);font-size:1.3rem}
+.back{margin-left:auto;align-self:center;color:var(--fg);text-decoration:none;font-size:1rem;font-weight:700;padding:.5rem 1rem;border-radius:.7rem;background:var(--panel);border:1px solid var(--line)}
+.keys{padding:0 2rem;color:var(--dim);font-size:1rem}
+.keys kbd{display:inline-block;font:inherit;font-weight:800;padding:0 .45rem;margin:0 .15rem;border-radius:.35rem;border:1px solid rgba(255,255,255,.35);color:var(--fg)}
+.mk{display:flex;gap:.8rem;align-items:center;padding:.8rem 2rem 0}
+.mk input{flex:1;max-width:48rem;padding:.7rem 1rem;font:inherit;font-size:1.3rem;border-radius:.8rem;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+.mk input:focus{outline:none;border-color:var(--acc)}
+.mk button{padding:.7rem 1.4rem;font:inherit;font-size:1.3rem;font-weight:800;border-radius:.8rem;border:0;background:var(--acc);color:#000;cursor:pointer}
+.mk button:disabled{opacity:.5}#mkst{color:var(--dim);font-size:1rem}
+h2{padding:1rem 2rem 0;margin:0;font-size:1rem;color:var(--dim);letter-spacing:.2em;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(26rem,1fr));gap:1.1rem;padding:1rem 2rem}
+.card{border-radius:1rem;overflow:hidden;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
+.card:hover{border-color:rgba(255,255,255,.35)}
+.card.sel{border-color:var(--acc);box-shadow:0 0 0 .15rem var(--acc),0 .6rem 2rem rgba(180,140,255,.25);transform:translateY(-.2rem)}
+.card.gen{border-style:dashed}
+.sky{height:9rem;position:relative}
 .sky canvas{position:absolute;inset:0;width:100%;height:100%}
-.sky .alt{position:absolute;right:14px;top:10px;font-size:13px;color:#fff;background:rgba(0,0,0,.45);padding:2px 8px;border-radius:6px}
-.sky .num{position:absolute;left:14px;top:10px;font-size:13px;color:#fff;background:rgba(0,0,0,.45);padding:2px 8px;border-radius:6px;letter-spacing:2px}
-.body{padding:16px 20px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
-.name{font-size:26px;font-weight:700}
-.sub{color:var(--dim);font-size:14px}
-.story{font-size:15px}
-.mix{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:4px}
-.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
-.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-.note{font-size:12px;color:#6d7784;margin-top:auto}
-.summit{font-size:13px;color:#cfd6de}
-.mk{display:flex;gap:12px;align-items:center;padding:14px 40px 0}
-.mk input{flex:1;max-width:760px;padding:14px 18px;font-size:18px;border-radius:12px;border:1px solid #3a4555;background:#0e1117;color:var(--fg)}
-.mk button{padding:14px 26px;font-size:18px;font-weight:700;border-radius:12px;border:0;background:#d9b8ff;color:#000;cursor:pointer}
-.mk button:disabled{opacity:.5}#mkst{color:var(--dim);font-size:14px}
-.card.gen{border-color:#8e6bbf}
-h2{padding:10px 40px 0;margin:0;font-size:15px;color:var(--dim);letter-spacing:2px;font-weight:500}
-.go{position:fixed;right:32px;bottom:28px;padding:18px 30px;font-size:20px;font-weight:700;border-radius:14px;border:0;background:#fff;color:#000;cursor:pointer;display:none}
+.tag{position:absolute;top:.6rem;font-size:.85rem;font-weight:800;color:#fff;background:rgba(0,0,0,.55);padding:.1rem .55rem;border-radius:.4rem;letter-spacing:.1em}
+.tag.l{left:.7rem}.tag.r{right:.7rem}
+.body{padding:.8rem 1.1rem 1rem;display:flex;flex-direction:column;gap:.45rem;flex:1}
+.name{font-size:1.7rem;font-weight:900;line-height:1.2}
+.sub{color:var(--dim);font-size:1rem}
+.story{font-size:1rem}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-top:.2rem}
+.stats div{background:rgba(255,255,255,.04);border-radius:.5rem;padding:.35rem .5rem}
+.stats b{display:block;font-size:1.3rem;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.2}
+.stats span{font-size:.85rem;color:var(--dim)}
+.diff{font-size:.85rem;font-weight:900;padding:.05rem .5rem;border-radius:.35rem;margin-left:.5rem;vertical-align:.3rem;color:#000;background:var(--acc)}
+.diff.hard{background:#ff9f1a}
+.mix{display:flex;height:.45rem;border-radius:.25rem;overflow:hidden}
+.legend{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.85rem;color:var(--dim)}
+.legend i{display:inline-block;width:.6rem;height:.6rem;border-radius:.15rem;margin-right:.3rem}
+.rec{font-size:1rem;color:var(--fg)}.rec b{color:var(--acc)}
+.note{font-size:.85rem;color:var(--dim);margin-top:auto}
+.go{position:fixed;right:2rem;bottom:1.6rem;padding:.9rem 1.6rem;font:inherit;font-size:1.3rem;font-weight:900;border-radius:1rem;border:0;background:var(--acc);color:#000;cursor:pointer;display:none;box-shadow:0 .5rem 2rem rgba(0,0,0,.5)}
 </style></head><body>
-<header><h1>峰哥亡命天涯</h1><p>你在原地迈步，坡和台阶会变成腿上的力。上一位登山者会化作影子，和你并排爬。</p></header>
+<header><h1>选择地图</h1><p>你在原地迈步，坡和台阶会变成腿上的力；上一位登山者化作影子，和你并排爬。</p><a class="back" href="/game">← 回游戏（Esc）</a></header>
+<div class="keys"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 选山 · <kbd>Enter</kbd> 进入 · <kbd>/</kbd> 跳到造山框 · <kbd>Esc</kbd> 回游戏</div>
 <div class="mk"><input id="mk" placeholder="说一句话，现场造一座山：峰哥被追到泰山顶，一路狂奔上十八盘……"><button id="mkb">造山</button><span id="mkst"></span></div>
+<h2>名山</h2>
 <div class="grid" id="main"></div>
 <h2>训练场</h2>
 <div class="grid" id="train"></div>
 <button class="go" id="go">进入 →</button>
-<script>
-const KC={flat:'#556070',up:'#3ddc84',down:'#4fc3f7',stairs_up:'#ffd54f',stairs_down:'#ff8a65',wait:'#ff2e88'};
-const KN={flat:'平地',up:'上坡',down:'下坡',stairs_up:'上台阶',stairs_down:'下台阶',wait:'红灯停'};
+<script type="module">
+import { SEG, applyCssVars } from '/game/style.js';
+applyCssVars();
+const KN={flat:'平地',up:'上坡',down:'下坡',stairs_up:'上台阶',stairs_down:'下台阶',wait:'站定'};
 const RISE={flat:0,up:.08,down:-.08,stairs_up:.12,stairs_down:-.12,wait:0};
-let chosen=null;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>s==null?'—':s<60?`${s.toFixed(1)} s`:`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
+// 最佳成绩：游戏页每次登顶记进 localStorage（fg_records，同一台大屏）；当前世界再用 /state 的 best / ghost_who 补上（ShellOS 内存里的，只读）
+let REC={};try{REC=JSON.parse(localStorage.getItem('fg_records')||'{}')||{}}catch(e){}
+let cards=[],chosen=null;
 function drawSky(cv,w){
   const r=cv.getBoundingClientRect(),W=cv.width=r.width*devicePixelRatio,H=cv.height=r.height*devicePixelRatio,ctx=cv.getContext('2d');
   const t=w.theme,g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,t.sky[0]);g.addColorStop(1,t.sky[1]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  // 远山 / 城市剪影
   ctx.fillStyle=t.fog;ctx.globalAlpha=.55;ctx.beginPath();ctx.moveTo(0,H);
   if(t.style==='cyber_night'){for(let x=0;x<W;x+=W/22){const bh=H*(.25+.45*Math.abs(Math.sin(x*.013+1)));ctx.lineTo(x,H-bh);ctx.lineTo(x+W/26,H-bh)}}
   else{for(let x=0;x<=W;x+=4)ctx.lineTo(x,H*.55-Math.sin(x/W*6+1)*H*.08-Math.sin(x/W*17)*H*.03)}
   ctx.lineTo(W,H);ctx.fill();ctx.globalAlpha=1;
-  if(t.style==='cyber_night'){for(let i=0;i<26;i++){ctx.fillStyle=t.accent[i%3];ctx.globalAlpha=.8;ctx.fillRect((i*97%W),H*.3+(i*53%(H*.5)),W*.02,3*devicePixelRatio)}ctx.globalAlpha=1}
-  if(t.style==='night_to_dawn'){ctx.fillStyle='#fff';for(let i=0;i<40;i++){ctx.globalAlpha=.6;ctx.fillRect(i*131%W,i*71%(H*.5),2,2)}ctx.globalAlpha=1}
-  // 路线剖面
   let h=0;const pts=[];w.route.forEach(s=>{for(let k=0;k<s.steps;k++){pts.push([h,s.kind]);h+=RISE[s.kind]}});
   const hs=pts.map(p=>p[0]),mn=Math.min(...hs),mx=Math.max(...hs,mn+.01);
   const X=i=>W*.06+i/(pts.length-1)*W*.88,Y=v=>H*.92-(v-mn)/(mx-mn)*H*.62;
   ctx.lineWidth=5*devicePixelRatio;ctx.lineCap='round';
-  for(let i=0;i<pts.length-1;i++){ctx.strokeStyle=KC[pts[i][1]];ctx.beginPath();
+  for(let i=0;i<pts.length-1;i++){ctx.strokeStyle=SEG[pts[i][1]]||SEG.flat;ctx.beginPath();
     if(pts[i][1].startsWith('stairs')){ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}
     else{ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}ctx.stroke()}
   const e=pts.length-1;ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(X(e),Y(pts[e][0]));ctx.lineTo(X(e),Y(pts[e][0])-22*devicePixelRatio);ctx.lineTo(X(e)+14*devicePixelRatio,Y(pts[e][0])-16*devicePixelRatio);ctx.lineTo(X(e),Y(pts[e][0])-10*devicePixelRatio);ctx.fill();
 }
+// 难度：台阶占比 + 红灯 / 站定数 + 步数（按 route 现算，和游戏里的路段一样）
+function stat(w){
+  const n=w.route.reduce((a,s)=>a+s.steps,0)||1,st=w.route.filter(s=>s.kind.startsWith('stairs')).reduce((a,s)=>a+s.steps,0);
+  const waits=w.route.filter(s=>s.kind==='wait'),red=waits.some(s=>/红灯/.test(s.label));
+  const sh=st/n,hard=sh>=.35||n>=50,easy=sh<.15&&n<40&&!waits.length;
+  return {n,stairs:Math.round(sh*100),waits:waits.length,waitName:red?'红灯':'站定',diff:hard?'硬核':easy?'入门':'适中',hard};
+}
 function card(w,i){
-  const d=document.createElement('div');d.className='card'+(w.generated?' gen':'');
-  const mix=Object.entries(w.mix).map(([k,v])=>`<div style="flex:${v};background:${KC[k]}"></div>`).join('');
-  const leg=Object.entries(w.mix).map(([k,v])=>`<span><i style="background:${KC[k]}"></i>${KN[k]} ${v}</span>`).join('');
-  d.innerHTML=`<div class="sky"><canvas></canvas><div class="num">${w.training?'TRAINING':w.generated?(w.generated==='claude'?'AI 造':'现场造'):'0'+(i+1)}</div><div class="alt">${w.alt[0]} → ${w.alt[1]} ${w.unit}</div></div>
-   <div class="body"><div class="name">${w.name}</div><div class="sub">${w.subtitle}</div><div class="story">${w.story}</div>
-   <div class="mix">${mix}</div><div class="legend">${leg}<span>共 ${w.steps} 步</span></div>
-   ${w.summit.text?`<div class="summit">终点 · ${w.summit.name}：${w.summit.text}</div>`:''}
-   ${w.note?`<div class="note">${w.note}</div>`:''}</div>`;
-  d.onclick=()=>{document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));d.classList.add('sel');chosen=w.id;$go.style.display='block';$go.textContent='进入「'+w.name+'」 →'};
+  const d=document.createElement('div');d.className='card'+(w.generated?' gen':'');d.tabIndex=-1;
+  const S=stat(w),rec=REC[w.id]||{};
+  const mix=Object.entries(w.mix).map(([k,v])=>`<div style="flex:${v};background:${SEG[k]||SEG.flat}"></div>`).join('');
+  const leg=Object.entries(w.mix).map(([k,v])=>`<span><i style="background:${SEG[k]||SEG.flat}"></i>${k==='wait'?S.waitName:KN[k]||k} ${v}</span>`).join('');
+  d.innerHTML=`<div class="sky"><canvas></canvas><div class="tag l">${w.training?'训练场':w.generated?(w.generated==='claude'?'AI 造':'现场造'):'0'+(i+1)}</div><div class="tag r">${esc(w.alt[0])} → ${esc(w.alt[1])} ${esc(w.unit)}</div></div>
+   <div class="body"><div class="name">${esc(w.name)}<span class="diff${S.hard?' hard':''}">${S.diff}</span></div><div class="sub">${esc(w.subtitle)}</div>
+   <div class="stats"><div><b>${S.n}</b><span>步</span></div><div><b>${S.stairs}%</b><span>台阶</span></div><div><b>${S.waits}</b><span>${S.waitName}</span></div><div><b>${esc(Math.round(w.alt[1]-w.alt[0]))}</b><span>爬升 ${esc(w.unit)}</span></div></div>
+   <div class="mix">${mix}</div><div class="legend">${leg}</div>
+   <div class="rec" data-rec>${rec.best!=null?`最佳 <b>${fmt(rec.best)}</b>${rec.who?` · 影子：${esc(rec.who)}`:''}`:'还没人登顶过——第一个爬上去的人会变成影子'}</div>
+   ${w.story?`<div class="story">${esc(w.story)}</div>`:''}
+   ${w.note?`<div class="note">${esc(w.note)}</div>`:''}</div>`;
+  d.onclick=()=>pick(d,w);d.ondblclick=()=>{pick(d,w);go()};
   requestAnimationFrame(()=>drawSky(d.querySelector('canvas'),w));return d;
 }
 const $go=document.getElementById('go');
-$go.onclick=async()=>{if(!chosen)return;try{await fetch('/ctl',{method:'POST',body:JSON.stringify({name:'terrain'})});await fetch('/terrain',{method:'POST',body:JSON.stringify({preset:chosen})})}catch(e){}location.href='/game'};
-function load(pick){return fetch('/worlds.json').then(r=>r.json()).then(ws=>{let n=0;
+function pick(d,w){cards.forEach(c=>c.el.classList.remove('sel'));d.classList.add('sel');chosen=w.id;$go.style.display='block';$go.textContent='进入「'+w.name+'」 →（Enter）';d.scrollIntoView({block:'nearest',behavior:'smooth'})}
+async function go(){if(!chosen)return;try{await fetch('/ctl',{method:'POST',body:JSON.stringify({name:'terrain'})});await fetch('/terrain',{method:'POST',body:JSON.stringify({preset:chosen})})}catch(e){}location.href='/game'}
+$go.onclick=go;
+async function load(pick_){
+  const ws=await fetch('/worlds.json').then(r=>r.json());
+  let cur=null;try{cur=(await (await fetch('/state')).json()).terrain}catch(e){}
+  if(cur&&cur.best!=null)REC[cur.preset]={...(REC[cur.preset]||{}),best:Math.min(cur.best,(REC[cur.preset]||{}).best??1e9),who:(REC[cur.preset]||{}).who||cur.ghost_who};
+  let n=0;cards=[];
   document.getElementById('main').innerHTML='';document.getElementById('train').innerHTML='';
-  ws.forEach(w=>{const c=card(w,w.training?0:n++);(w.training?document.getElementById('train'):document.getElementById('main')).appendChild(c);if(w.id===pick){c.click();c.scrollIntoView({block:'center'})}})})}
+  ws.forEach(w=>{const c=card(w,w.training?0:n++);cards.push({el:c,w});(w.training?document.getElementById('train'):document.getElementById('main')).appendChild(c)});
+  const want=pick_||(cur&&cur.preset),hit=cards.find(c=>c.w.id===want)||cards[0];if(hit)pick(hit.el,hit.w);
+}
 load();
+// 键盘：方向键按屏幕位置在卡片之间走（两个网格一起算），Enter 进入，/ 跳到造山框，Esc 回游戏。造山框里打字时不抢键
+addEventListener('keydown',e=>{
+  if(document.activeElement===$mk){if(e.key==='Escape')$mk.blur();return}
+  if(e.key==='Escape'){location.href='/game';return}
+  if(e.key==='/'){e.preventDefault();$mk.focus();return}
+  if(e.key==='Enter'){e.preventDefault();go();return}
+  const dir={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];if(!dir||!cards.length)return;e.preventDefault();
+  const cur=cards.find(c=>c.w.id===chosen)||cards[0],a=cur.el.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;
+  let best=null,bd=1e9;
+  for(const c of cards){if(c===cur)continue;const b=c.el.getBoundingClientRect(),dx=b.left+b.width/2-ax,dy=b.top+b.height/2-ay;
+    if(dir[0]&&Math.sign(dx)!==dir[0]||dir[0]&&Math.abs(dy)>a.height*.6)continue;if(dir[1]&&(Math.sign(dy)!==dir[1]||Math.abs(dy)<a.height*.3))continue;
+    const dd=Math.abs(dx)+Math.abs(dy)*1.5;if(dd<bd){bd=dd;best=c}}
+  if(best)pick(best.el,best.w);
+});
 const $mk=document.getElementById('mk'),$mkb=document.getElementById('mkb'),$mkst=document.getElementById('mkst');
 $mkb.onclick=async()=>{const t=$mk.value.trim();if(!t)return;$mkb.disabled=true;$mkst.textContent='大模型在画路线，十秒上下…';
   try{const r=await (await fetch('/world/generate',{method:'POST',body:JSON.stringify({text:t})})).json();

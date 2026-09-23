@@ -42,7 +42,15 @@ body.u-ready #uready{display:block}
 #summit .sbig b{font-size:3.6rem;font-weight:900;color:#fff;margin:0 .4rem;font-variant-numeric:tabular-nums;vertical-align:-.3rem}
 #summit .sbig em{font-style:normal;font-size:1.3rem;font-weight:900;color:#000;background:var(--acc);border-radius:.4rem;padding:.05rem .5rem}
 #summit .sgh{font-size:1.6rem;font-weight:800;margin-top:.3rem}
-#summit .sck{font-size:1.35rem;margin-top:.35rem;color:var(--acc);font-weight:700}`;
+#summit .sck{font-size:1.35rem;margin-top:.35rem;color:var(--acc);font-weight:700}
+#summit .sfg{font-size:1.3rem;font-weight:700;margin-top:.45rem;padding:.35rem .7rem;border-radius:.6rem;border-left:.3rem solid var(--who-fengge);background:rgba(255,176,58,.08)}
+#summit .sfg:empty{display:none}
+#summit .sfg small{display:block;font-size:.85rem;color:var(--who-fengge);font-weight:800;letter-spacing:.15em}
+#summit .sbtn{display:flex;gap:.6rem;margin-top:.6rem;pointer-events:auto}
+#summit .sbtn button{font:inherit;font-size:1rem;font-weight:800;padding:.4rem .9rem;border-radius:.6rem;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--fg);cursor:pointer}
+#summit .sbtn button:first-child{background:var(--acc);color:#000;border-color:var(--acc)}
+#summit .sbtn kbd{font:inherit;font-weight:900;margin-right:.35rem}`;
+const RECS = 'fg_records';   // 每座山的最佳成绩（选择地图页读）：{ 世界 id: { best, who, at } }；ShellOS 内存里只有当前世界的，这里给选山页攒一份
 
 // 下一个状态（纯函数，tests/test_hud_flow.py 用 node 跑）。只有「离开游戏中」带迟滞：LEAVE_PLAY_S 秒里一直不是 ACTIVE 才切回「按住 R2」——
 //   评委扳机轻搭在门槛上、ACTIVE / ARMED 10 Hz 来回跳时，大字和面板不跟着闪。进游戏中、急停都不等（急停一帧都不能晚）。
@@ -66,10 +74,21 @@ export function makeFlow(world, preview) {
   // 登顶卡：game.html 里的 #summit，右边加二维码
   const sm = document.getElementById('summit');
   sm.innerHTML = `<div class="sg"><div><div class="t2" id="sName"></div><div class="t3" id="sText"></div>
-    <div class="sbig">用时<b id="sTime"></b><em id="sRec">新纪录</em></div><div class="sgh" id="sGhost"></div><div class="sck" id="sCard"></div>
-    <div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div></div><div>${qrHtml()}</div></div>`;
+    <div class="sbig">用时<b id="sTime"></b><em id="sRec">新纪录</em><span id="sSteps"></span></div><div class="sgh" id="sGhost"></div><div class="sck" id="sCard"></div>
+    <div class="sfg" id="sFg"></div>
+    <div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div>
+    <div class="sbtn"><button id="sAgain"><kbd>Enter</kbd>再来一次</button><button id="sMaps"><kbd>M</kbd>换地图</button></div></div><div>${qrHtml()}</div></div>`;
+  // 结算卡上的两个按钮：「再来一次」= 收起卡片（ShellOS 登顶后已经自动从山脚开下一圈，不用发任何请求）；「换地图」= 去选山页
+  const again = () => { linger = false; sm.classList.remove('show'); };
+  document.getElementById('sAgain').onclick = again;
+  document.getElementById('sMaps').onclick = () => { location.href = '/worlds'; };
+  addEventListener('keydown', e => {
+    if (e.code !== 'Enter' || !sm.classList.contains('show') || document.querySelector('#umenu.on')) return;
+    e.preventDefault(); again();
+  });
 
   const now = () => performance.now() / 1000;
+  let fgSig0 = null, fgWant = false;          // 登顶那一刻的峰哥解说签名：之后来的新一句（event = summit）就是给这次登顶的评语
   let mode = '', lastAct = now(), lastActive = -1e9, sig = null, lastS = null, lastT = null, ghostDone = null, shownAt = 0, linger = false;
   let menu = null;
 
@@ -84,6 +103,8 @@ export function makeFlow(world, preview) {
     attachMenu(m) { menu = m; },
     poke() { lastAct = now(); },               // 菜单里点了「开始爬山」：算有人来了，退出待机
     update(S) {
+      const f = S.fengge || {}, fs = `${f.t}|${f.event}|${f.text}`;
+      if (fgWant && fs !== fgSig0 && f.event === 'summit' && f.text) { fgWant = false; document.getElementById('sFg').innerHTML = `<small>${Q.get('fengge') === '0' ? '解说' : '峰哥'}</small>「${esc(f.text)}」`; }
       lastS = S;
       const T = S.terrain, t = now();
       const act = [T && T.pos, T && T.laps, T && T.preset, S.wearer, (S.swarm || []).map(e => e.t + e.msg).slice(-1)[0]].join('|');
@@ -115,6 +136,14 @@ export function makeFlow(world, preview) {
       document.getElementById('sText').textContent = world.summit ? world.summit.text : '';
       const lap = T.last_lap;
       document.getElementById('sTime').textContent = fmt(lap);
+      document.getElementById('sSteps').textContent = ` · ${T.total} 步`;
+      const f = (lastS && lastS.fengge) || {};
+      fgSig0 = `${f.t}|${f.event}|${f.text}`; fgWant = true; document.getElementById('sFg').innerHTML = '';
+      if (lap != null && !preview) try {         // 攒给选山页的最佳成绩（只存在这台大屏的浏览器里）
+        const R = JSON.parse(localStorage.getItem(RECS) || '{}') || {}, r = R[world.id] || {};
+        if (r.best == null || lap < r.best) R[world.id] = { best: lap, who: (lastS && lastS.wearer) || '', at: Date.now() };
+        localStorage.setItem(RECS, JSON.stringify(R));
+      } catch (e) { /* 隐身窗口 */ }
       document.getElementById('sRec').style.display = lap != null && (prevBest == null || lap < prevBest - 1e-6) ? '' : 'none';
       const P = lastT || T, who = P.ghost_who || '上一位';
       document.getElementById('sGhost').textContent = lap == null ? '' : ghostDone != null ? (lap - ghostDone <= 0.05 ? `和影子（${who}）同时登顶` : `比影子（${who}）慢 ${(lap - ghostDone).toFixed(1)} s`)
