@@ -8,7 +8,7 @@
 // 子模块：dawn_mountain/sky.js（天、太阳、云海、远山）、arch.js（两座门）、props.js（栏杆、松、零碎、崖、刻字）。
 import * as THREE from 'three';
 import { buildSky } from './dawn_mountain/sky.js';
-import { zhongTianMen, nanTianMen, tianJie, lanternGeo, yuHuangMiao } from './dawn_mountain/arch.js';
+import { zhongTianMen, nanTianMen, tianJie, lanternGeo, yuHuangMiao, shengXianFang, duiSongTing } from './dawn_mountain/arch.js';
 import { railings, forest, scatter, cliff, carving, graniteColor, RAIL_LAT } from './dawn_mountain/props.js';
 
 const C = {
@@ -136,6 +136,10 @@ export function build(scene, ctx) {
   const zt = zhongTianMen(ctx, ZT, gateMat), nt = nanTianMen(ctx, NT, gateMat, route.headingAt(37));
   scene.add(zt.mesh, nt.mesh); texts.push(...zt.texts, ...nt.texts);
   const ztP = route.at(ZT).pos, ntP = nt.F.base;
+  // 升仙坊（紧十八起点）、对松亭（不紧不慢又十八右侧山谷边）
+  const tight = route.segs.filter(q => q.kind === 'stairs_up').pop(), SX = tight ? tight.start + 0.1 : 24.1;
+  const sx = shengXianFang(ctx, SX, gateMat); scene.add(sx.mesh); texts.push(...sx.texts);
+  const DS = [16.2, -4.4], dsA = route.at(DS[0], DS[1]).pos;
 
   // ---------- 崖壁：慢十八左侧矮崖 → 紧十八两侧窄槽（崖脚 2.25、高 ≥ 12、上部前倾）→ 南天门两侧 → 天街左侧崖 ----------
   const rockMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true });   // 平直着色：块面分明，不像布
@@ -172,6 +176,10 @@ export function build(scene, ctx) {
     if (cv.slabPart) slabs.push(cv.slabPart); texts.push(cv.txt);
   };
   put('青云梯', 19.5, 3.8, 1.2, { w: 0.9, h: 1.75, charH: 1.5, slab: '#b6ab98' });
+  put('慢十八', 8.7, 3.7, 0.9, { w: 0.8, h: 1.55, charH: 1.3, slab: '#b6ab98' });          // 十八盘三段名刻在左侧石上：一眼知道走到哪段了
+  put('不紧不慢又十八', 14.3, 3.6, 1.2, { w: 0.75, h: 2.6, charH: 2.4, slab: '#b6ab98' });
+  { const y = Math.min(route.heightAt(DS[0]) - 0.05, hAt(dsA.x, dsA.z) + 0.35), ds = duiSongTing(ctx, DS[0], DS[1], y, gateMat, Math.max(0.6, y - hAt(dsA.x, dsA.z) + 0.5));   // 亭子坐在路下方的小平台上
+    scene.add(ds.mesh); texts.push(...ds.texts); }
   // 五岳独尊：天街尽头路左侧一块立石，磨平处刻红字，斜对来路（拱洞 / 登顶镜头都看得到）
   {
     const ctr = wyCtr, aW = route.at(N + 12.5), nrm = aW.dir.clone().negate().multiplyScalar(0.75).addScaledVector(aW.left, -0.66).normalize();
@@ -198,7 +206,7 @@ export function build(scene, ctx) {
   // ---------- 松：约 100 棵 + 日出方向的名松 ----------
   const windRy = Math.atan2(-rightN.z, rightN.x);  // 松枝伸向山谷（+x 局部 → 右侧）
   const keep = (x, z, lat, s) => {
-    if (Math.hypot(x - ntP.x, z - ntP.z) < 5 || Math.hypot(x - ztP.x, z - ztP.z) < 3.6) return false;
+    if (Math.hypot(x - ntP.x, z - ntP.z) < 5 || Math.hypot(x - ztP.x, z - ztP.z) < 3.6 || Math.hypot(x - dsA.x, z - dsA.z) < 2.4) return false;
     if (lat > 0 && lat < 7.5) return false;
     if (lat > 0 && s > 10 && lat < latL(s) + 5.5) return false;              // 左侧崖顶以里
     if (lat < 0 && s > 20 && s < 36 && -lat < 8) return false;              // 紧十八右崖
@@ -212,13 +220,13 @@ export function build(scene, ctx) {
     { s: 36.8, lat: -4.3, sc: 1.05, y: hy(36.8), ry: -0.3 },                     // 南天门右后：从拱洞 / 天街看是日出方向的剪影
     { s: 45.5, lat: -5.2, sc: 1.15, y: hy(45.5) - 0.6, ry: 0.4 },
     { s: 41.5, lat: -7.2, sc: 0.95, y: hy(41.5) - 1.4, ry: -0.2 },
-  ], 95);
+  ], kit.LOW ? 45 : 95);
   for (const m of F.meshes) scene.add(m);
 
   // ---------- 栏杆外 1–4 单位：灌丛 / 草簇 / 碎石 ----------
   {
     const R = ctx.rand, spots = [];
-    for (let k = 0; k < 900 && spots.length < 420; k++) {
+    for (let k = 0; k < 900 && spots.length < (kit.LOW ? 180 : 420); k++) {
       const s = -14 + R() * (N + 30), side = R() < 0.5 ? 1 : -1;
       const inSlot = s > 22.5 && s < 34.8, room = side > 0 ? latL(s) : (s > 21 && s < 35 ? latR(s) : 99);
       let lat = RAIL_LAT + 0.25 + R() * 4;
@@ -226,6 +234,7 @@ export function build(scene, ctx) {
       const a = route.at(s, side * lat);
       if (Math.hypot(a.pos.x - ntP.x, a.pos.z - ntP.z) < 3.8 || Math.hypot(a.pos.x - ztP.x, a.pos.z - ztP.z) < 1.2) continue;
       if (s > N - 1 && Math.hypot(a.pos.x - SC.x, a.pos.z - SC.z) < 3.2) continue;
+      if (Math.hypot(a.pos.x - dsA.x, a.pos.z - dsA.z) < 1.9) continue;                  // 对松亭
       if (side > 0 && s > NT + 1 && s < NT + 16) continue;                         // 天街店铺
       if (!util.offRoad(route, a.pos.x, a.pos.z, 0.4)) continue;
       spots.push({ x: a.pos.x, z: a.pos.z, y: Math.max(hAt(a.pos.x, a.pos.z), route.heightAt(s) - 0.3) });

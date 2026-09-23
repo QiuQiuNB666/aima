@@ -8,6 +8,7 @@ import { buildCity, updateCity } from './cyber_night/city.js';
 import { buildStreet, updateStreet } from './cyber_night/street.js';
 import { buildShrine, updateShrine } from './cyber_night/shrine.js';
 import { buildRain, updateRain } from './cyber_night/rain.js';
+import { buildLandmarks } from './cyber_night/landmarks.js';
 
 // 路面：湿沥青（Phong 高光吃点光源 → 地上有霓虹色的反光；水洼贴图当 specularMap = 水洼处更亮）。
 // 台阶：不吃光（紫色环境光会把钢灰/石灰都染成紫），颜色 = instanceColor × 顶点色（踏面 1.0 / 立面 0.6），照样吃雾
@@ -33,7 +34,7 @@ function asphaltTex(util, rand) {
 }
 
 const FOG = '#2a1640', FOG_D = 0.05;
-let renderer = null, walkLight = null, backLight = null, R = null;
+let renderer = null, walkLight = null, backLight = null, R = null, RIG0 = null, SH = null;
 const la = {};
 
 export function build(scene, ctx) {
@@ -58,6 +59,8 @@ export function build(scene, ctx) {
   // 跟着人走的低矮青色灯：在化身前 1 单位、路右侧、离地 0.7 → 镜面高光落在化身脚后的湿路面上（画面下三分之一），
   //   化身背对镜头、灯在前方偏右，身上染色很少
   R = route;
+  RIG0 = { ...ctx.camRig.follow };
+  const sh = route.segs.filter(q => q.kind === 'stairs_up').pop(); SH = sh ? sh.start : null;
   walkLight = new THREE.PointLight(acc[1], 6, 7, 1.4); walkLight.name = 'walkLight';
   // 第二盏：品红、贴地、在化身身后右侧 → 高光落在画面最下面那段路上（前景湿路面不再一片黑）
   backLight = new THREE.PointLight(acc[0], 2, 3.4, 1.4); backLight.name = 'backLight';
@@ -66,7 +69,8 @@ export function build(scene, ctx) {
   buildStreet(scene, ctx, E);           // 先挖天桥下的大街（改地面），再摆别的
   buildCity(scene, ctx, E);
   buildShrine(scene, ctx, E);
-  buildRain(scene, ctx);
+  buildLandmarks(scene, ctx);
+  buildRain(scene, ctx, kit.LOW ? { n: 900 } : undefined);
 
   const M = ctx.meshes;
   if (M.camp) M.camp.visible = false;   // 城市里没有帐篷
@@ -89,6 +93,13 @@ export function build(scene, ctx) {
     });
     nose.name = 'stairNose'; scene.add(nose);
   }
+}
+
+// 神社石阶：镜头压低拉近（离脚 1.8、身后 2.9），从大鸟居（高 3.6）的貫下面穿过去，鸟居框住往上爬的人
+export function rigFor(s, rig) {
+  if (!RIG0 || SH == null) return;
+  const k = Math.max(0, Math.min(1, (s - SH + 0.5) / 1.5)), F = rig.follow, L = (a, b) => a + (b - a) * k;
+  F.backStairs = L(RIG0.backStairs, 2.9); F.height = L(RIG0.height, 1.1); F.sideStairs = L(RIG0.sideStairs, 1.0);
 }
 
 export function update(dt, st) {

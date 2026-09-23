@@ -74,7 +74,7 @@ export function buildProps(scene, ctx, B) {
   railRun(L / 2, z0 + 0.5, L / 2, z1);
   // 投币望远镜：平台前沿栏杆内（离「观景台」牌腿 ≥ 1.5；临崖外角在 pos22 正好被站牌挡住），立柱 + 芥黄色镜头（双筒），
   //   镜筒朝前右（城市方向），衬在城和海前面；比真的大 1.3 倍，3 米外认得出
-  const tx = L / 2 - 0.35, tz = z0 + 0.6, tr = D.tele;
+  const tx = L / 2 - 0.35, tz = z0 + Math.min(W - 0.5, 1.3), tr = D.tele;   // 往外挪：离路 0.6 时从石阶回头镜头里糊在右下角
   dp(new THREE.CylinderGeometry(0.09, 0.14, 1.2, 8), tx, 0.6, tz, '#3d4a52');
   dp(new THREE.CylinderGeometry(0.26, 0.26, 0.07, 10), tx, 0.035, tz, '#3d4a52');
   const head = (geo, lx, ly, lz, color) => {                          // 头的局部坐标：+x = 镜筒朝向
@@ -134,5 +134,5 @@ export function buildProps(scene, ctx, B) {
   }
 
   const pmesh = new THREE.Mesh(util.merged(parts), vc); pmesh.name = 'deckAndStones'; scene.add(pmesh);
-  const signs = util.textSigns(texts, { size: 128 }); signs.renderOrder = 1; scene.add(signs);
+  const signs = ctx.kit.signs2(util, texts, { size: 128 }); signs.renderOrder = 1; scene.add(signs);   // 双面：正面镜头回看木牌不是反字
 }

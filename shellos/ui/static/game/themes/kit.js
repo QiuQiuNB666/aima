@@ -4,6 +4,7 @@
 //   st  = { t, dt, s(化身连续步数), progress(0..1), pos, total, avatar(Vector3), terrain(/state.terrain), pulse(本帧是否脉冲), summit(bool) }
 import * as THREE from 'three';
 import { nearest, ROAD_W } from '../path.js';
+import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
 
 export function hash2(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
 export function noise2(x, y) {
@@ -86,6 +87,24 @@ export function gridTexture(line = '#3a4653', bg = '#1c232d', px = 128, w = 3) {
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
 }
+
+// 双面字牌：正反两面都是正字（textPlane 是 DoubleSide，从背后看是镜像字 —— 正面镜头 cam=front 回看来路时全是反字）。1 次绘制
+export function sign2(util, text, height, o = {}) {
+  const m = util.textPlane(text, height, o), back = m.geometry.clone().rotateY(Math.PI);
+  m.geometry = mergeGeometries([m.geometry, back]); m.material.side = THREE.FrontSide;
+  return m;
+}
+
+// 双面招牌图集：textSigns 的每块再加一块转 180° 的背面，材质改单面 —— 两面都是正字，仍是 1 次绘制
+export function signs2(util, items, opt) {
+  const flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+  const m = util.textSigns(items.flatMap(it => [it, it.q ? { ...it, q: it.q.clone().multiply(flip) } : { ...it, ry: (it.ry || 0) + Math.PI }]), opt);
+  m.material.side = THREE.FrontSide;
+  return m;
+}
+
+// ?fx=low：展位降级。主题少摆远处/重复的东西（雨、远楼、草、星星），光影降级归 lighting.js
+export const LOW = new URLSearchParams(location.search).get('fx') === 'low';
 
 export function routeCenter(route) {
   const a = route.P[0], b = route.P[route.N] || a;

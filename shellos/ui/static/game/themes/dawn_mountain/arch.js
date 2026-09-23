@@ -140,3 +140,35 @@ export function yuHuangMiao(ctx, s, lat, lift, mat) {
   }
   return { mesh: place(ctx.util, P, F, mat), texts: [{ text: '玉皇顶', p: toWorld(F, 0, 1.62, -1.16), ry: F.ry + Math.PI, h: 0.4, color: GOLD, bg: '#1d3b4f', border: GOLD, weight: 900, pad: 0.25 }] };
 }
+
+// 升仙坊：紧十八起点的花岗岩石坊（真实地标：从坊下往上看，南天门就框在坊顶上）。
+//   两根方石柱 ±1.75（崖脚 2.1 以内），额枋底 3.3：紧十八镜头低机位（离脚 0.5、离身后踏面 ≥ 1.3）从额枋下穿过，头顶还空 1.7
+export function shengXianFang(ctx, s, mat) {
+  const F = frameAt(ctx.route, s), P = [], G = '#9d978b', GD = '#7c776d';
+  for (const x of [-1.75, 1.75]) {
+    box(P, [x, 1.8, 0], [0.36, 3.6, 0.36], G);
+    box(P, [x, 0.18, 0], [0.62, 0.36, 0.62], GD);                    // 柱础
+    for (const z of [-0.36, 0.36]) box(P, [x, 0.55, z], [0.22, 1.1, 0.34], GD);   // 抱鼓石（前后夹住柱脚）
+  }
+  box(P, [0, 3.42, 0], [4.1, 0.26, 0.4], GD);                        // 额枋
+  box(P, [0, 3.95, 0], [2.4, 0.8, 0.22], G);                         // 匾心（字另给）
+  for (const x of [-1.6, 1.6]) box(P, [x, 3.95, 0], [0.9, 0.8, 0.26], GD);
+  box(P, [0, 4.42, 0], [4.3, 0.16, 0.5], GD);
+  hipRoof(P, 4.6, 0.95, 0.5, 4.5, 0, ['#6f6a61', '#8a857b']);        // 石雕檐顶
+  return { mesh: place(ctx.util, P, F, mat), texts: plaque(F, '升仙坊', 3.95, -0.13, 0.13, 0.56, { color: '#b3241a', bg: '#b4ad9f', border: '#7c776d' }) };
+}
+
+// 对松亭：不紧不慢又十八那段右侧（山谷一侧）的小方亭，四根红柱 + 灰绿瓦攒尖，匾额朝来路；亭面高 y，台基往下伸 dep
+export function duiSongTing(ctx, s, lat, y, mat, dep = 1.4) {
+  const F = frameAt(ctx.route, s), P = [], X = 0.75;
+  F.base.addScaledVector(F.left, lat); F.base.y = y;
+  box(P, [0, 0.1 - dep / 2, 0], [2.0, dep, 2.0], '#8a8378');           // 台基（往下伸到地面，坡上不悬空）
+  for (const x of [-X, X]) for (const z of [-X, X]) P.push({ geo: new THREE.CylinderGeometry(0.08, 0.09, 1.7, 8), p: [x, 0.95, z], color: RED });
+  for (const z of [-X, X]) box(P, [0, 1.72, z], [1.7, 0.14, 0.1], RED_D);
+  for (const x of [-X, X]) box(P, [x, 1.72, 0], [0.1, 0.14, 1.7], RED_D);
+  box(P, [0, 0.42, X], [1.5, 0.07, 0.08], RED_D);                     // 靠栏（背面）
+  hipRoof(P, 2.3, 2.3, 0.8, 1.8, 0, ['#46564f', '#5d6e66']);
+  P.splice(-3, 3);                                                    // 攒尖顶：去掉庑殿的正脊和鸱吻，换宝顶
+  P.push({ geo: new THREE.ConeGeometry(0.12, 0.3, 8), p: [0, 2.7, 0], color: '#c9a24a' });
+  return { mesh: place(ctx.util, P, F, mat), texts: [{ text: '对松亭', p: toWorld(F, 0, 1.5, -X - 0.07), ry: F.ry + Math.PI, h: 0.26, color: GOLD, bg: '#1d3b4f', border: GOLD, weight: 900, pad: 0.22 }] };
+}

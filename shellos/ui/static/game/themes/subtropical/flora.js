@@ -31,6 +31,7 @@ function finish(util, parts, lo, hi) {
 }
 
 const LEAF = ['#2e5e2a', '#3a7030', '#4a8236', '#2a5230', '#56913c'];
+const PINK = ['#f7b3cb', '#f29bbd', '#fbd0de', '#4a8236', '#f5aac5', '#fcc4d6'];   // 毛棉杜鹃：粉花团里夹一团绿叶
 function broadleaf(util, R, blobs, o) {
   const P = [], trunk = '#5a4a3a', h = o.h, lean = new THREE.Vector3((R() - 0.5) * 0.5, 1, (R() - 0.5) * 0.5).normalize();
   const top = lean.clone().multiplyScalar(h * 0.55);
@@ -40,7 +41,7 @@ function broadleaf(util, R, blobs, o) {
   for (let k = 0; k < o.n; k++) {
     const a = R() * 6.28, rr = Math.sqrt(R()) * rc * 0.72, y = (R() * 0.9 - 0.25) * rc * 0.7;
     const s = rc * (0.42 + R() * 0.3) * (1 - 0.25 * Math.abs(y) / rc);
-    P.push({ geo: blobs[k % blobs.length], p: [cc.x + Math.cos(a) * rr, cc.y + y + (k === 0 ? rc * 0.35 : 0), cc.z + Math.sin(a) * rr], s: [s, s * 0.8, s], color: LEAF[(o.tone + k) % LEAF.length] });
+    P.push({ geo: blobs[k % blobs.length], p: [cc.x + Math.cos(a) * rr, cc.y + y + (k === 0 ? rc * 0.35 : 0), cc.z + Math.sin(a) * rr], s: [s, s * 0.8, s], color: (o.pal || LEAF)[(o.tone + k) % (o.pal || LEAF).length] });
   }
   return finish(util, P, cc.y - rc * 0.9, cc.y + rc * 0.8);
 }
@@ -171,7 +172,8 @@ export function buildFlora(scene, ctx, B) {
   ];
   const trees = T.map(() => []), tint = new THREE.Color(), ok = B.keep;
   // 抖动网格铺满山体：每 3.4 一格，噪声留林窗；贴路左那一排（lat < 7）只用小树，树冠外沿离路 ≥ 3.2，镜头不会扎进树冠
-  for (let gx = -62; gx <= 62; gx += 3.4) for (let gz = -62; gz <= 62; gz += 3.4) {
+  const GS = kit.LOW ? 4.8 : 3.4;                                   // fx=low：树减半
+  for (let gx = -62; gx <= 62; gx += GS) for (let gz = -62; gz <= 62; gz += GS) {
     const x = B.c.x + gx + (R() - 0.5) * 2.6, z = B.c.z + gz + (R() - 0.5) * 2.6, nr = util.nearestRoute(route, x, z), lat = nr.side * nr.d;
     if (kit.noise2(x * 0.07 + 11, z * 0.07) < 0.28 || !ok(x, z, lat, nr.s, 'tree')) continue;
     const y = hAt(x, z); if (y < B.landY + 3) continue;
@@ -181,6 +183,17 @@ export function buildFlora(scene, ctx, B) {
     trees[kind].push({ p: [x, y, z], ry: R() * 6.28, s: small ? 0.55 + R() * 0.15 : 0.8 + R() * 0.45, color: tint.clone() });
   }
   T.forEach((g, i) => { if (!trees[i].length) return; const m = util.instanced(g, vc, trees[i]); m.name = 'trees'; out.push(m); });
+
+  // 毛棉杜鹃（梧桐山的招牌：春天满山粉花）：小乔木沿路两侧，右侧（影子那边、镜头看得全）多，左侧离路 ≥ 4.5 且矮，不糊镜头
+  const az = broadleaf(util, R, blobs, { h: 4.2, r: 0.12, crown: 1.7, n: 10, tone: 0, pal: PINK }), azs = [];
+  const banyanP = B.banyans.map(([s, lat]) => route.at(s, lat).pos);
+  for (let k = 0; k < 200 && azs.length < (kit.LOW ? 6 : 13); k++) {
+    const s = 1 + R() * (N - 3), side = R() < 0.62 ? -1 : 1, lat = side * (side > 0 ? 6 + R() * 4 : 3.6 + R() * 5), a = route.at(s, lat);
+    if (!ok(a.pos.x, a.pos.z, lat, s, 'low') || (s > N - 6 && Math.abs(lat) < 9)) continue;     // 'tree' 规则太严（右侧 s>14 要树顶低于路面）一棵都放不下；按矮东西的规矩 + 山脊留空
+    if (banyanP.some(p => Math.hypot(a.pos.x - p.x, a.pos.z - p.z) < 3.4)) continue;
+    azs.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) - 0.1, a.pos.z], ry: R() * 6.28, s: side > 0 ? 0.5 + R() * 0.12 : 0.55 + R() * 0.2, color: new THREE.Color(1.3, 1.3, 1.3) });   // 亮一点：Lambert 背光面会把粉压成暗紫
+  }
+  if (azs.length) { const m = util.instanced(az, vc, azs); m.name = 'azalea'; out.push(m); }
 
   // 榕树：指定位置（一眼认出）
   const bGeo = banyan(util, R, blobs), bItems = [];
@@ -215,7 +228,7 @@ export function buildFlora(scene, ctx, B) {
     else if (R() < 0.75) put(ferns, s, lat, near * (0.7 + R() * 0.6), new THREE.Color().setHSL(0.28 + R() * 0.04, 0.5, 0.36 + R() * 0.12));
     else put(shrubs, s, lat, near * (0.4 + R() * 0.35), new THREE.Color().setHSL(0.29 + R() * 0.05, 0.45, 0.13 + R() * 0.06));
   }
-  for (let k = 0; k < 420; k++) {                                   // 林下（左侧山坡多放：从镜头看那是一整面坡）
+  for (let k = 0, n = kit.LOW ? 180 : 420; k < n; k++) {             // 林下（左侧山坡多放：从镜头看那是一整面坡）
     const s = -16 + R() * (N + 32), side = R() < 0.7 ? 1 : -1, lat = side * (3 + Math.pow(R(), 1.6) * 20), a = route.at(s, lat);
     if (!ok(a.pos.x, a.pos.z, lat, s, 'low')) continue;
     const k = Math.abs(lat) < 7 ? 0.65 : 1;                        // 贴路的小一点（镜头近）

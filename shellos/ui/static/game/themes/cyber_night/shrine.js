@@ -33,14 +33,13 @@ export function buildShrine(scene, ctx, E) {
   const lam = [], lit = [], stone = [], haloPts = [], haloCol = [];
 
   // ---- 鸟居 ----
-  for (const [s, H, W] of [[s0 - 0.7, 2.95, 1.72], [s1 + 0.7, 2.5, 1.6]]) {
-    // transparent 常开（opacity 平时 = 1，照样写深度）：镜头从后面贴近时要淡出
-    const tmat = shade(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#3a0c04', transparent: true }), { fogK: 0.25 });   // 雾只吃 1/4：开场帧远远就是朱红的
+  for (const [s, H, W] of [[s0 - 0.7, 3.6, 1.95], [s1 + 0.7, 2.5, 1.6]]) {   // 下面那座高 3.6、柱距 3.9：石阶上镜头压低（rigFor）从貫下面穿过去，不再糊一片半透明横梁
+    const tmat = shade(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#3a0c04' }), { fogK: 0.25 });   // 雾只吃 1/4：开场帧远远就是朱红的
     const a = route.at(s), m = new THREE.Mesh(toriiGeo(util, H, W), tmat);
     m.position.copy(a.pos); m.position.y = gy(a.pos.x, a.pos.z) + 0.02; m.rotation.y = -a.heading; m.name = 'torii';
     scene.add(m); toriis.push({ m, a, W, H });
     const plaque = util.textPlane('愛宕神社', H * 0.2, { vertical: true, color: '#ffd98a', bg: '#1b0f0b', border: '#c9a24a', glow: 0.5, weight: 900 });   // 神额：挂在鸟居上，跟着一起淡出
-    plaque.material.transparent = true; shade(plaque.material, { fogK: 0.25 }); plaque.position.set(-0.1, H * 0.87, 0); plaque.rotation.y = -Math.PI / 2; m.add(plaque); m.userData.plaque = plaque;
+    shade(plaque.material, { fogK: 0.25 }); plaque.position.set(-0.1, H * 0.87, 0); plaque.rotation.y = -Math.PI / 2; m.add(plaque); m.userData.plaque = plaque;
   }
 
   // ---- 石灯笼：石阶两侧，每 2 步一对；山顶参道再两对 ----
@@ -138,15 +137,13 @@ export function buildShrine(scene, ctx, E) {
   scene.add(lamMesh, litMesh, stoneMesh, halo);
 }
 
-// 镜头从后面贴近鸟居（石阶上镜头正好在下面那座鸟居后 1–2 单位，横梁糊满画面）：离鸟居平面 3.4 → 1.6 淡出，穿过前后藏起来
+// 保险：镜头真要从横梁高度穿过鸟居（离鸟居平面 < 0.8、高度在貫以上）才藏起来；平时不透明（以前 3.4 → 1.6 淡出，半透明横梁糊满画面）
 const d = new THREE.Vector3();
 export function updateShrine(dt, st) {
   if (!st.camera) return;
   for (const t of toriis) {
     d.subVectors(st.camera.position, t.m.position);
     const along = d.x * t.a.dir.x + d.z * t.a.dir.z, lat = d.x * t.a.left.x + d.z * t.a.left.z;
-    let k = 1;
-    if (Math.abs(lat) < t.W + 1.5 && along > -3.4 && along < 1.1) k = along < -1.6 ? (-1.6 - along) / 1.8 : 0;
-    t.m.material.opacity = t.m.userData.plaque.material.opacity = k; t.m.visible = k > 0.02;
+    t.m.visible = !(Math.abs(lat) < t.W + 1.2 && Math.abs(along) < 0.8 && d.y > t.H * 0.74 - 0.35);
   }
 }

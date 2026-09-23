@@ -172,6 +172,23 @@ export function build(scene, ctx) {
   scene.add(W.back);
   const wallMesh = util.instanced(stoneGeo(), new THREE.MeshLambertMaterial({ flatShading: true, emissive: '#0c0909' }), W.stones); wallMesh.name = 'stoneWallStones'; scene.add(wallMesh);
 
+  // ---- 岩場：两侧铁桩 + 锁链扶手（七合目岩场真有），台阶段一眼看得出是「爬岩」；桩高 0.85，左侧也不挡镜头
+  {
+    const rk = route.segs.find(q => q.kind === 'stairs_up'), parts = [], up = new THREE.Vector3(1, 0, 0), dv = new THREE.Vector3();
+    const bar = (a, b, t, color) => { dv.subVectors(b, a); parts.push({ geo: new THREE.BoxGeometry(dv.length() + 0.02, t, t), p: a.clone().add(b).multiplyScalar(0.5).toArray(), q: new THREE.Quaternion().setFromUnitVectors(up, dv.normalize()), color }); };
+    if (rk) for (const sd of [1, -1]) {
+      let prev = null;
+      for (let s = rk.start - 0.5; s <= rk.start + rk.steps + 0.5; s += 1) {
+        const a = route.at(s, sd * 1.32), y = route.heightAt(s) - 0.02;
+        parts.push({ geo: new THREE.CylinderGeometry(0.035, 0.045, 0.85, 6), p: [a.pos.x, y + 0.42, a.pos.z], color: '#5d5048' });
+        const top = new THREE.Vector3(a.pos.x, y + 0.8, a.pos.z);
+        if (prev) { const m = prev.clone().add(top).multiplyScalar(0.5); m.y -= 0.13; bar(prev, m, 0.03, '#9a7a62'); bar(m, top, 0.03, '#9a7a62'); }
+        prev = top;
+      }
+    }
+    if (parts.length) { const m = new THREE.Mesh(util.merged(parts), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#1a1210' })); m.name = 'rockChains'; scene.add(m); }
+  }
+
   // ---- 地标，按站分组：{ from = 化身走到第几步才淡入 }
   const tin = tinTexture(util);
   const G = {};
@@ -186,12 +203,12 @@ export function build(scene, ctx) {
   const addNobori = (g, s, lat, col) => { const o = onGround(s, lat), F = nobori(col); place(F.parts, o.p, o.ry, g.body); place(F.cloth, o.p, o.ry, g.cloth); };
 
   const g0 = grp('base', -99);                                        // 五合目：开局就在
-  addSign(g0, 1.6, -2.7, '吉田口', '五合目'); addLantern(g0, 2.2, 3.2); addLantern(g0, 2.2, -2.6);   // 开局只有这一块站牌
-  addSign(grp('h6', 3), 11.6, 3.4, '六合目');                            // 走起来才淡入；放左边：右边是影子，头顶标签会叠在牌上
-  addHut(grp('h7', 15), 24.2, -4.8, { name: '七合目', w: 3.2, lit: 3 }, 0.3);   // 沉 0.3：坡上不露黑色石基
+  addSign(g0, 1.6, -2.7, '吉田口', '五合目'); addLantern(g0, 2.2, 4.0); addLantern(g0, 2.2, -2.6);   // 开局只有这一块站牌
+  addSign(grp('h6', 3), 11.6, 4.1, '六合目');                            // 走起来才淡入；放左边：右边是影子，头顶标签会叠在牌上
+  addHut(grp('h7', 15), 24.2, -4.8, { name: '七合目', yago: '東洋館', w: 3.2, lit: 3 }, 0.3);   // 沉 0.3：坡上不露黑色石基
   const g8 = grp('h8', 23);
-  addHut(g8, 29.8, -5.3, { name: '八合目', w: 4.4, lit: 5 });
-  addHut(g8, 31.5, 7.6, { w: 3.2, lit: 3 });                           // 八合目上面一层（左坡）
+  addHut(g8, 29.8, -5.3, { name: '八合目', yago: '白雲荘', w: 4.4, lit: 5 });
+  addHut(g8, 31.5, 7.6, { yago: '元祖室', w: 3.2, lit: 3 });                         // 八合目上面一层（左坡）
   const g9 = grp('g9', 30);
   addSign(g9, 31.2, -2.9, '九合目');
   { const a = route.at(36, -4.4); place(torii({ hw: 1.25, H: 2.6 }), a.pos.setY(Math.max(route.heightAt(36), hAt(a.pos.x, a.pos.z))), -a.heading, g9.red); }
@@ -205,6 +222,15 @@ export function build(scene, ctx) {
   { const o = onGround(N + 6.5, -4.3); place(pillar(), o.p, o.ry, gT.body);
     place([{ text: '富士山頂', p: [-0.23, 1.3, 0], ry: -Math.PI / 2 - 0.35, h: 1.3, vertical: true, color: '#1a1410', bg: '#b9b2a8', border: '#5a5450', weight: 900, pad: 0.1 },
       { text: '3776m', p: [-0.48, 0.5, 0], ry: -Math.PI / 2 - 0.35, h: 0.22, color: '#1a1410', bg: '#d8d0c4', weight: 900 }], o.p, o.ry, gT.texts); }
+  { // 久須志神社：吉田口登顶处的小社（左前方，镜头朝鸟居 + 日出时在画面左侧），铜绿切妻顶 + 暖光格子门 + 横额
+    const o = onGround(N + 22, 4.4), r = o.ry + Math.PI / 2 + 0.5, B = (x, y, z) => new THREE.BoxGeometry(x, y, z);   // 正面朝来路偏向路
+    place([{ geo: B(2.8, 0.5, 2.2), p: [0, 0.1, 0], color: '#5a5450' }, { geo: B(2.2, 1.5, 1.6), p: [0, 1.1, 0], color: '#5a3a26' },
+      { geo: B(0.12, 1.5, 0.12), p: [-1.05, 1.1, -0.78], color: '#c8361f' }, { geo: B(0.12, 1.5, 0.12), p: [1.05, 1.1, -0.78], color: '#c8361f' }], o.p, r, gT.body);
+    for (const kz of [-1, 1]) place([{ geo: B(2.7, 0.06, 1.25), p: [0, 2.12, kz * 0.52], q: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), kz * 0.62), color: '#4f8a78' }], o.p, r, gT.body);
+    place([{ geo: new THREE.PlaneGeometry(1.5, 0.9).rotateY(Math.PI), p: [0, 0.95, -0.82], color: '#ffb24a' }], o.p, r, gT.glass);
+    place([{ text: '久須志神社', p: [0, 1.72, -0.84], ry: Math.PI, h: 0.26, color: '#f4ead2', bg: '#3a2616', border: '#c9a24a', weight: 900, pad: 0.1 }], o.p, r, gT.texts);
+    gT.glow.push({ p: route.at(N + 22, 4.4).pos.clone().setY(o.p.y + 1.0), c: '#ffbf64', sz: 2.4 });
+  }
   addNobori(gT, N + 2.6, -4.0, '#c8361f'); addNobori(gT, N + 3.6, -4.3, '#f0ece0');   // 石柱和幟往右让：登顶时影子站在化身右边
 
   for (const [key, g] of Object.entries(G)) {
@@ -215,14 +241,14 @@ export function build(scene, ctx) {
     mk(g.glass, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), 'hutLights');
     mk(g.red, new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#3a0c06' }), 'torii');
     mk(g.cloth, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, emissive: '#1a1010' }), 'nobori');
-    if (g.texts.length) { const t = util.textSigns(g.texts, { size: 96 }); revealable(t.material, U); t.renderOrder = 1; t.name = `signs-${key}`; scene.add(t); meshes.push(t); }
+    if (g.texts.length) { const t = kit.signs2(util, g.texts, { size: 96 }); revealable(t.material, U); t.renderOrder = 1; t.name = `signs-${key}`; scene.add(t); meshes.push(t); }
     const gl = g.glow.length ? glows(g.glow) : null; if (gl) { scene.add(gl.mesh); meshes.push(gl.mesh); }
     groups.push({ from: g.from, U, meshes, gl, top: key === 'top' });
   }
 
   // ---- 火山岩：路边碎石 + 岩场大块 + 山顶火口缘一圈；左侧 4.4 以内只放矮的（镜头在左后方）
   const rocks = [], rc = ['#3b2826', '#4c3029', '#2a2022', '#5c3628', '#33292a'];
-  const avoid = [[24.2, -4.8, 3.6], [29.8, -5.3, 3.8], [31.5, 7.6, 3.4], [36.8, -4.4, 3.2], [N + 6.5, -4.3, 1.2]].map(([s, l, r]) => [route.at(s, l).pos, r]);
+  const avoid = [[24.2, -4.8, 3.6], [29.8, -5.3, 3.8], [31.5, 7.6, 3.4], [36.8, -4.4, 3.2], [N + 6.5, -4.3, 1.2], [N + 22, 4.4, 2.6]].map(([s, l, r]) => [route.at(s, l).pos, r]);
   avoid.push([TOR, 3.4]);
   const tryRock = (x, z, sc, lat) => {
     if (!util.offRoad(route, x, z, 0.55 + sc)) return;
@@ -234,7 +260,7 @@ export function build(scene, ctx) {
     rocks.push({ p: [x, hAt(x, z) - sc * 0.22, z], q, s: [sc * (0.8 + R() * 0.5), sc * (0.7 + R() * 0.6), sc * (0.8 + R() * 0.5)], color: rc[(R() * rc.length) | 0] });
   };
   const tryAt = (s, lat, sc) => { const a = route.at(s, lat); tryRock(a.pos.x, a.pos.z, sc, lat); };
-  for (let k = 0; k < 360; k++) { const sd = R() < 0.5 ? 1 : -1; tryAt(-12 + R() * (N + 12), sd * (1.9 + Math.pow(R(), 1.6) * 24), 0.15 + Math.pow(R(), 2) * 0.75); }
+  for (let k = 0, n = kit.LOW ? 160 : 360; k < n; k++) { const sd = R() < 0.5 ? 1 : -1; tryAt(-12 + R() * (N + 12), sd * (1.9 + Math.pow(R(), 1.6) * 24), 0.15 + Math.pow(R(), 2) * 0.75); }
   for (let k = 0; k < 70; k++) { const sd = R() < 0.5 ? 1 : -1; tryAt(16.5 + R() * 8, sd * (2.0 + R() * 5.5), 0.45 + R() * 0.9); }      // 岩场
   for (let k = 0; k < 130; k++) {                                     // 火口缘碎石：平台外缘一圈（朝太阳那一段压矮，不挡日出）
     const a = R() * Math.PI * 2, r = 9.2 + R() * 2.4, x = Pc.x + Math.cos(a) * r, z = Pc.z + Math.sin(a) * r;

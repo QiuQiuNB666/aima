@@ -190,6 +190,13 @@ export function build(scene, ctx) {
     bar.position.set(0, -3.0, 0.1); pnl.add(bar);
   }
 
+  // ---- 起点背后一块大牌（正面镜头回看来路时的背景）：游戏名 + 训练场编号 ----
+  {
+    const pnl = util.textPlane(world.id === 'train_slope' ? '峰哥亡命天涯 · 训练场 02' : '峰哥亡命天涯 · 训练场 01', 4.6, { size: 160, weight: 900, color: '#e8eef5', bg: '#0c131b', border: C.glow, pad: 0.4, fog: false });
+    pnl.material.transparent = false; pnl.material.depthWrite = true;
+    pnl.position.copy(c).addScaledVector(D, -70).setY(2.6); pnl.lookAt(c.x, 2.6, c.z); pnl.name = 'homeBoard'; scene.add(pnl);
+  }
+
   // ---- 基座：路面两侧立墙落到 y=0；台阶段贴在方块侧面外一点，把彩色侧面盖成中性灰（只剩踏面和立面带色）----
   const S0 = -APRON / STEP, S1 = N + APRON / STEP, pos = [];
   for (let s = S0; s < S1; s += 0.25) {
@@ -294,7 +301,7 @@ export function build(scene, ctx) {
   {
     const frameMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#ffffff', emissiveIntensity: 0.25 });
     const list = segs.filter(sg => sg.kind !== 'flat').map(sg => ({ s: sg.start, kind: sg.kind, text: `${NAME[sg.kind]} · ${sg.steps} 步`, bg: KC[sg.kind] }));
-    list.push({ s: N, kind: 'finish', text: '终点 · FINISH', bg: '#eef3f8' });
+    list.push({ s: N, kind: 'finish', text: '终点 · FINISH', bg: '#eef3f8' }, { s: 0, kind: 'finish', text: '起点 · START', bg: '#eef3f8' });   // 起点门：跟拍时一开场就走过了（藏），正面镜头回看时在身后
     for (const it of list) {
       const a = route.at(it.s), y0 = route.heightAt(it.s - 0.01), fc = '#9aa8b8', bc = it.kind === 'finish' ? '#c9d4e0' : it.bg;
       const g = new THREE.Group(); g.name = 'arch';
@@ -312,7 +319,8 @@ export function build(scene, ctx) {
       const w = pnl.geometry.parameters.width; if (w > 2 * AW - 0.1) pnl.scale.setScalar((2 * AW - 0.1) / w);
       pnl.position.set(-0.07, y0 + TB - 0.05 - 0.4 * pnl.scale.y, 0); pnl.rotation.y = -Math.PI / 2;   // 牌面朝来路（-X 本地 = 化身来的方向）
       pnl.material.side = THREE.FrontSide;
-      g.add(pnl);
+      const back = pnl.clone(); back.position.x = 0.07; back.rotation.y = Math.PI / 2;   // 背面也挂一块：正面镜头回看刚走过的门，字是正的
+      g.add(pnl, back);
       g.position.set(a.pos.x, 0, a.pos.z); g.rotation.y = -a.heading;
       g.userData.s = it.s; scene.add(g); arches.push(g);
     }
@@ -361,7 +369,11 @@ export function update(dt, st) {
   cam.updateMatrixWorld();
   let next = true;                                             // 只显示前方最近的一座（后面几座叠在一起太乱）；走过就藏
   bodyBox(st, cam);
-  for (const g of arches) {
+  if (window.__camMode === 'front') {                          // 正面镜头（V / ?cam=front）回看来路：反过来只显示身后最近的一座（刚走过的路段门）
+    let best = null;
+    for (const g of arches) { g.visible = false; if (!st.summit && g.userData.s <= st.s - 0.15 && (!best || g.userData.s > best.userData.s)) best = g; }
+    if (best) { best.visible = true; for (const p of best.userData.posts) p.m.visible = !hits(p.a, p.b, cam); }
+  } else for (const g of arches) {
     g.visible = next && !st.summit && st.s < g.userData.s - 0.15;
     if (g.visible) { next = false; for (const p of g.userData.posts) p.m.visible = !hits(p.a, p.b, cam); }
   }
