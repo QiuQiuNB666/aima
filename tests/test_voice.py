@@ -70,7 +70,7 @@ def tts(brain_tts, monkeypatch):
     """起 brain/tts.py 的服务，synth 换成假的，记调用次数。"""
     mod = brain_tts
     calls = []
-    monkeypatch.setattr(mod, "synth", lambda text: (calls.append(text) or WAV, True))
+    monkeypatch.setattr(mod, "synth", lambda text, vid="": (calls.append(text if not vid else (vid, text)) or WAV, True))
     srv = ThreadingHTTPServer(("127.0.0.1", 0), mod.H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     monkeypatch.setattr(voice, "URL", f"http://127.0.0.1:{srv.server_address[1]}")
@@ -181,3 +181,30 @@ def test_clone_without_verification_saves_nothing(brain_tts, minimax):
     with pytest.raises(RuntimeError, match="2038"):
         brain_tts.clone()
     assert not os.path.isfile(brain_tts.VOICE_ID_FILE)
+
+
+def test_npc_route_whitelist_and_separate_cache(tts):
+    """追兵 NPC：只念白名单台词、用预设音色、缓存在 npc/ 子目录，不和峰哥混。"""
+    import re
+    import urllib.parse
+    js = open(os.path.join(os.path.dirname(__file__), "..", "shellos", "ui", "static", "game", "npc.js"), encoding="utf-8").read()
+    body = re.search(r"const LINES = \{(.*?)\};", js, re.S).group(1)
+    assert set(re.findall(r"'([^']+)'", body)) - set(re.findall(r"^\s*(\w+):", body, re.M)) <= set(voice.NPC_LINES)
+    dash = Dashboard(SimpleNamespace(fengge=SimpleNamespace(last={})), port=0)
+    base = f"http://127.0.0.1:{dash.httpd.server_address[1]}/voice/npc.wav?t="
+    try:
+        with urlopen(base + urllib.parse.quote("追上你了")) as r:
+            assert r.status == 200 and r.read() == WAV
+        with urlopen(base + urllib.parse.quote("随便念一句")) as r:
+            assert r.status == 204                                          # 不在白名单：不出声、不花钱
+        assert tts == [(voice.NPC_VOICE, "追上你了")]
+        assert os.path.isfile(voice.path("追上你了", voice.NPC_VOICE)) and "npc" in voice.path("追上你了", voice.NPC_VOICE)
+        assert not os.path.isfile(voice.path("追上你了"))                   # 峰哥那份没被占
+    finally:
+        dash.httpd.shutdown()
+
+
+def test_minimax_preset_voice_needs_no_clone(brain_tts, minimax):
+    minimax.replies["/v1/t2a_v2"] = {"data": {"audio": WAV.hex()}, "base_resp": {"status_code": 0}}
+    assert brain_tts.synth("风起了", "female-shaonv") == (WAV, True)       # 没复刻过也能用预设音色
+    assert json.loads(minimax.seen[0][3])["voice_setting"]["voice_id"] == "female-shaonv"

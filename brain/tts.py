@@ -2,12 +2,13 @@
 
   python3 brain/tts.py --clone      # 一次性：把 data/voice/ref/fengge_ref.wav 传给 MiniMax 快速复刻，voice_id 存 data/voice/minimax_voice_id
   python3 brain/tts.py --canned     # 把 shellos/agent/fengge.py 的兜底语录预生成进 data/voice/（断网也有声）
+  python3 brain/tts.py --npc        # 把追兵 NPC 的台词（shellos/agent/voice.py NPC_LINES，预设音色）预生成进 data/voice/npc/
   python3 brain/tts.py              # 起服务，127.0.0.1:8791
 
 展位 MacBook 走同一条 SSH 反向隧道，多转一个口：
   ssh -N -R 8790:127.0.0.1:8790 -R 8791:127.0.0.1:8791 zhongrenfei@100.112.252.66
 
-POST /tts {text} → audio/wav（已缓存直接给；say 兜底出来的带 Cache-Control: no-store，ShellOS 不落缓存）
+POST /tts {text[, voice]} → audio/wav（voice 缺省 = 峰哥复刻音色；给了 = MiniMax 系统预设音色 ID，J 线追兵 NPC 用，缓存在 data/voice/npc/）（已缓存直接给；say 兜底出来的带 Cache-Control: no-store，ShellOS 不落缓存）
 GET  /health
 只听 127.0.0.1。
 
@@ -78,10 +79,10 @@ def _mm(path, body, ctype="application/json", timeout=10.0):
 MM_TIMEOUT = 15.0                                # 9/23 实测一句 4–10 s；加上退到 say 的时间，要在 ShellOS 那边 25 s 之内
 
 
-def minimax(text: str) -> bytes:
+def minimax(text: str, voice_id: str = "") -> bytes:
     j = _mm("/v1/t2a_v2", json.dumps({
         "model": MM_MODEL, "text": text, "stream": False, "language_boost": "Chinese", "output_format": "hex",
-        "voice_setting": {"voice_id": _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0},
+        "voice_setting": {"voice_id": voice_id or _mm_voice_id(), "speed": 1, "vol": 1, "pitch": 0},
         "audio_setting": {"sample_rate": 24000, "format": "wav", "channel": 1},
     }, ensure_ascii=False).encode(), timeout=MM_TIMEOUT)
     data = bytes.fromhex(j["data"]["audio"])
@@ -102,28 +103,29 @@ def say(text: str) -> bytes:
             return f.read()
 
 
-def synth(text: str):
-    """文字 → (wav 字节, 能不能缓存)。MiniMax 配好了但这次失败，say 出来的不缓存，免得恢复后还是女声。"""
+def synth(text: str, voice_id: str = ""):
+    """文字 → (wav 字节, 能不能缓存)。MiniMax 配好了但这次失败，say 出来的不缓存，免得恢复后还是女声。
+    voice_id = 系统预设音色（NPC）：不需要复刻过，有 key 就行。"""
     global _mm_down_t
-    if not (os.environ.get("MINIMAX_API_KEY") and _mm_voice_id()):
+    if not (os.environ.get("MINIMAX_API_KEY") and (voice_id or _mm_voice_id())):
         return say(text), True
     if time.time() - _mm_down_t > MM_BACKOFF_S:
         try:
-            return minimax(text), True
+            return minimax(text, voice_id), True
         except Exception as e:  # noqa: BLE001  断网 / 超时 / 限流 / 欠费：退到 say
             _mm_down_t = time.time()
             sys.stderr.write(f"[tts] MiniMax 失败，{MM_BACKOFF_S:.0f} s 内用 say：{str(e)[:200]}\n")
     return say(text), False
 
 
-def get(text: str):
-    path = voice.path(text)
+def get(text: str, voice_id: str = ""):
+    path = voice.path(text, voice_id)
     if os.path.isfile(path):
         with open(path, "rb") as f:
             return f.read(), True
-    data, keep = synth(text)
+    data, keep = synth(text, voice_id)
     if keep:
-        voice.save(text, data)
+        voice.save(text, data, voice_id)
     return data, keep
 
 
@@ -170,11 +172,12 @@ class H(BaseHTTPRequestHandler):
         if self.path != "/tts":
             return self._send(b"{}", "application/json", 404)
         n = int(self.headers.get("Content-Length") or 0)
-        text = str(json.loads(self.rfile.read(n) or b"{}").get("text", "")).strip()
+        req = json.loads(self.rfile.read(n) or b"{}")
+        text, vid = str(req.get("text", "")).strip(), str(req.get("voice") or "")[:64]
         if not text or len(text) > MAX_CHARS:
             return self._send(b'{"error":"text"}', "application/json", 400)
         try:
-            data, keep = get(text)
+            data, keep = get(text, vid)
             self._send(data, "audio/wav", keep=keep)
         except Exception as e:  # noqa: BLE001  ShellOS 看到非 200 就不出声
             self.log_message("合成失败：%s", str(e)[:200])
@@ -191,6 +194,12 @@ if __name__ == "__main__":
         for line in sorted({s for v in CANNED.values() for s in v}):
             _, keep = get(line)
             print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.key(line), line)
+        sys.exit(0)
+    if "--npc" in sys.argv:                             # 预设音色，按字数计费（6 句几十个字，几分钱）
+        MM_TIMEOUT, MM_BACKOFF_S = 60.0, 0.0
+        for line in voice.NPC_LINES:
+            _, keep = get(line, voice.NPC_VOICE)
+            print("ok" if keep else "say（MiniMax 失败，没缓存）", voice.NPC_VOICE, voice.key(line, voice.NPC_VOICE), line)
         sys.exit(0)
     mm = bool(os.environ.get("MINIMAX_API_KEY") and _mm_voice_id())
     print(f"峰哥语音就绪 127.0.0.1:{PORT}  声音 {'minimax:' + MM_MODEL if mm else 'say:' + SAY_VOICE}")

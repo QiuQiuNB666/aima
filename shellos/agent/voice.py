@@ -18,36 +18,42 @@ DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data
 BACKOFF_S = 20.0
 _down_t = -1e9
 _open = urllib.request.build_opener(urllib.request.ProxyHandler({})).open    # 不走系统代理（MacBook 的 Shadowrocket 会截走 127.0.0.1）
+# J 线追兵 NPC「疾风」：MiniMax 系统预设音色（不是复刻，不额外花钱），台词原创、白名单——/voice/npc.wav 只念这几句。
+# 和 static/game/npc.js 的 LINES 保持一致（tests/test_voice.py 会对一遍）。换音色：SHELLOS_NPC_VOICE=<音色 ID>，再清 data/voice/npc/。
+NPC_VOICE = os.environ.get("SHELLOS_NPC_VOICE", "Chinese (Mandarin)_Crisp_Girl")
+NPC_LINES = ("风起了", "别停", "追上你了", "等等我", "抓到你了", "被你甩掉了")
 _lock = threading.Lock()   # ponytail: 全局锁，同一句两个页面同时要只合成一次；多句并发合成再换按文字加锁
 
 
-def key(text):
-    return hashlib.sha1(text.encode()).hexdigest()[:16]
+def key(text, voice=""):
+    return hashlib.sha1((voice + "|" + text if voice else text).encode()).hexdigest()[:16]
 
 
-def path(text):
-    return os.path.join(DIR, key(text) + ".wav")
+def path(text, voice=""):
+    """voice 空 = 峰哥（data/voice/）；给了预设音色 ID = NPC（data/voice/npc/，不和峰哥的混）。"""
+    return os.path.join(DIR, "npc", key(text, voice) + ".wav") if voice else os.path.join(DIR, key(text) + ".wav")
 
 
-def save(text, data):
-    os.makedirs(DIR, exist_ok=True)
-    tmp = path(text) + ".tmp"
-    with open(tmp, "wb") as f:
+def save(text, data, voice=""):
+    p = path(text, voice)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p + ".tmp", "wb") as f:
         f.write(data)
-    os.replace(tmp, path(text))
+    os.replace(p + ".tmp", p)
 
 
-def get(text, timeout=25.0):    # MiniMax 实测一句 10 s 上下，宁可晚念也别退成女声
+def get(text, timeout=25.0, voice=""):    # MiniMax 实测一句 10 s 上下，宁可晚念也别退成女声
     global _down_t
     if not text:
         return None
     with _lock:
-        if os.path.isfile(path(text)):
-            with open(path(text), "rb") as f:
+        if os.path.isfile(path(text, voice)):
+            with open(path(text, voice), "rb") as f:
                 return f.read()
         if time.time() - _down_t < BACKOFF_S:
             return None
-        req = urllib.request.Request(URL + "/tts", data=json.dumps({"text": text}, ensure_ascii=False).encode(),
+        body = {"text": text, "voice": voice} if voice else {"text": text}
+        req = urllib.request.Request(URL + "/tts", data=json.dumps(body, ensure_ascii=False).encode(),
                                      headers={"Content-Type": "application/json"})
         try:
             with _open(req, timeout=timeout) as r:
@@ -56,5 +62,5 @@ def get(text, timeout=25.0):    # MiniMax 实测一句 10 s 上下，宁可晚�
             _down_t = time.time()
             return None
         if keep:                   # no-store = 克隆音色这次失败、退到 say 念的，下次还要再问
-            save(text, data)
+            save(text, data, voice)
         return data
