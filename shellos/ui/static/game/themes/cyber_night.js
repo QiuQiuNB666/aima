@@ -11,6 +11,7 @@ import { buildRain, updateRain } from './cyber_night/rain.js';
 import { buildLandmarks, buildLandmarks2, updateLandmarks } from './cyber_night/landmarks.js';
 import { buildInteract } from './cyber_night/interact.js';
 import { buildGits } from './cyber_night/gits.js';
+import { buildModels } from './cyber_night/models.js';
 
 // 路面：湿沥青（Phong 高光吃点光源 → 地上有霓虹色的反光；水洼贴图当 specularMap = 水洼处更亮）。
 // 台阶：不吃光（紫色环境光会把钢灰/石灰都染成紫），颜色 = instanceColor × 顶点色（踏面 1.0 / 立面 0.6），照样吃雾
@@ -39,7 +40,7 @@ const FOG = '#2a1640', FOG_D = 0.05;
 let renderer = null, walkLight = null, backLight = null, R = null, RIG0 = null, SH = null;
 const la = {};
 
-let SFX = null, ACT = null, GITS = null;                                      // 落阶反馈（kit.stepFx）
+let SFX = null, ACT = null, GITS = null, MODELS = null;                                      // 落阶反馈（kit.stepFx）
 export function build(scene, ctx) {
   SFX = ctx.kit.stepFx(ctx, { dust: '#bcd4ff', flash: ctx.theme.accent[1], add: true, dustA: 0.8, wet: true });   // 雨夜：溅起的是水花，踏面亮青；wet = 平地每步踩水坑溅一圈
   const { theme, kit, lights, route, util } = ctx, acc = theme.accent;
@@ -76,6 +77,7 @@ export function build(scene, ctx) {
   buildLandmarks(scene, ctx);
   buildLandmarks2(scene, ctx);
   GITS = buildGits(scene, ctx, E);                                      // 攻壳致敬：四脚机甲、港式出挑招牌、空调外机、垂线
+  MODELS = buildModels(scene, ctx, E, GITS);                           // 下载的开源模型（static/models/cyber/）：电子狛犬、巡逻无人机、招牌、空调外机、天线、电缆；异步加载，fx=low 不加载
   ACT = buildInteract(scene, ctx, E);                                   // 场景互动：贩卖机掉罐、等红灯的行人挥手让路、提灯一盏盏亮
   buildRain(scene, ctx, kit.LOW ? { n: 900 } : undefined);
 
@@ -114,6 +116,7 @@ export function update(dt, st) {
   updateLandmarks(dt, st);
   if (ACT) ACT.update(dt, st);
   if (GITS) GITS.update(dt, st);
+  if (MODELS) MODELS.update(dt, st);
   if (renderer) renderer.getDrawingBufferSize(HUD_RES.value);
   if (walkLight && R && st.s != null) { R.at(st.s + 2, -0.75, la); walkLight.position.set(la.pos.x, la.pos.y + 0.7, la.pos.z);
     R.at(st.s - 1.6, -1.05, la); backLight.position.set(la.pos.x, la.pos.y + 0.35, la.pos.z); }

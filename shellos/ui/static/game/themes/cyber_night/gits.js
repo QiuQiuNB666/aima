@@ -84,14 +84,15 @@ export function buildGits(scene, ctx, E) {
     const y = b.y0 + Math.min(b.h - h / 2 - 0.3, 3.0 + h / 2 + (k % 3) * 0.6);
     const a = route.at(b.sc + (k % 2 ? 0.25 : -0.25) * b.ds, b.side * (b.front - 0.95));
     if (y - h / 2 > b.y0 + 2.4 && want) trig.push({ s: b.sc, text: t });
-    if (y - h / 2 > b.y0 + 2.4) signs.push({ text: t, p: a.pos.clone().setY(y), ry: -a.heading + Math.PI / 2, h, color: col, bg: '#07040c', border: col, glow: 1, vertical: true, weight: 900 });
+    if (y - h / 2 > b.y0 + 2.4) { signs.push({ text: t, p: a.pos.clone().setY(y), ry: -a.heading + Math.PI / 2, h, color: col, bg: '#07040c', border: col, glow: 1, vertical: true, weight: 900 }); (E.facade ||= []).push({ p: a.pos.clone().setY(y), w: 1.2, h }); }
     for (let j = 0, n = LOW ? 1 : 2 + (k % 3); j < n; j++) {                   // 空调外机：挂在楼面上，离地 1.4 往上
       const q = route.at(b.sc + (rand() - 0.5) * b.ds * 0.7, b.side * (b.front - 0.18));
-      ac.push({ p: [q.pos.x, b.y0 + 1.4 + rand() * (b.h - 2), q.pos.z], ry: -q.heading, s: [0.55, 0.38, 0.3], color: new THREE.Color('#9aa0ac').multiplyScalar(0.55 + rand() * 0.25) });
+      ac.push({ p: [q.pos.x, b.y0 + 1.4 + rand() * (b.h - 2), q.pos.z], ry: -q.heading, s: [0.55, 0.38, 0.3], color: new THREE.Color('#9aa0ac').multiplyScalar(0.55 + rand() * 0.25), f: [-b.side * q.left.x, -b.side * q.left.z] });   // f = 正面朝向（朝街），models.js 换真模型用
     }
   });
   if (signs.length) { const m = kit.signs2(util, signs, { size: 96 }); shade(m.material, { mask: true, neon: true }); m.name = 'hkSigns'; scene.add(m); }
-  if (ac.length) { const m = util.instanced(B(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#08080c' }), ac); m.name = 'acUnits'; scene.add(m); }
+  if (ac.length) { const m = util.instanced(B(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#08080c' }), ac); m.name = 'acUnits'; scene.add(m); out.acMesh = m; }
+  out.ac = ac; out.near = near;                                              // models.js：真空调外机 / 招牌 / 天线 / 电缆摆在同一批楼上
   // 横穿起点街的垂线：左右楼面之间，4–6.5 高，中间下垂
   const L = near.filter(b => b.side > 0), Rr = near.filter(b => b.side < 0);
   for (let k = 0; k < Math.min(L.length, Rr.length, LOW ? 3 : 7); k++) {
