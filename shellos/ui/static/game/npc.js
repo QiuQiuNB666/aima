@@ -7,7 +7,8 @@
 // 声音：/voice/npc.wav?t=<台词>（ShellOS 只念 voice.py NPC_LINES 白名单，MiniMax 预设音色）；?voice=0 静音，预览不出声。
 // 调试：window.__npc = { gap, state, say(line) }。
 import * as THREE from 'three';
-import { makeJifeng, 角色名 } from './npc_jifeng.js';
+import { makeJifeng, 角色名 } from './npc_jifeng.js';   // 旧版追兵「捷风」：?npc=jifeng
+import { makeAssistant } from './npc_assistant.js';   // 缺省：峰哥的助理（9/23 夜起）
 import { WHO } from './style.js';
 import { synthHip } from './anim.js';
 
@@ -46,11 +47,12 @@ const CSS = `
 #npcTag.edge .nm::after{content:" ↓ " attr(data-rel)}`;
 
 export async function initNpc({ scene, route, me, camera, getS, preview }) {
-  const npc = await makeJifeng(scene);
+  const LEGACY = Q.get('npc') === 'jifeng';
+  const npc = LEGACY ? await makeJifeng(scene) : await makeAssistant(scene);
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const tag = document.createElement('div'); tag.className = 'hud'; tag.id = 'npcTag';
   tag.innerHTML = '<span class="bub panel"></span><span class="nm"></span>'; document.body.append(tag);
-  const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = 角色名;
+  const nm = tag.querySelector('.nm'), bub = tag.querySelector('.bub'); nm.textContent = LEGACY ? 角色名 : npc.name;
 
   let gap = preview && Q.has('npcgap') ? +Q.get('npcgap') : NPC.START;
   let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9, gph = 0;
