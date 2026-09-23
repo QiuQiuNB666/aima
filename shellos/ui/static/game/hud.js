@@ -1,5 +1,5 @@
 // HUD：只读 /state（10 Hz）。DOM 在 game.html 里。
-import { KIND_NAME } from './path.js';
+import { KIND_NAME, RISE } from './path.js';
 
 export const KC = { flat: '#8a95a3', up: '#3ddc84', down: '#4fc3f7', stairs_up: '#ffd54f', stairs_down: '#ff8a65', wait: '#ff2e88' };
 const $ = id => document.getElementById(id);
@@ -13,6 +13,11 @@ export function makeHud(world) {
   const acc = (world.theme && world.theme.accent) || [];
   if (acc[1]) document.documentElement.style.setProperty('--acc', acc[1]);
   let lastCard = null, lastApplied = '';
+  // 海拔：落差 < 20 m 的世界（训练场 0–5 m）按每步起点高度显示一位小数（和场景里的刻度游标对得上）；大山照旧用 /state 的整数
+  const [a0, a1] = world.alt || [0, 0], hs = [];
+  if (a1 !== a0 && Math.abs(a1 - a0) < 20) { let h = 0; for (const sg of world.route || []) for (let k = 0; k < sg.steps; k++) { hs.push(h); h += RISE[sg.kind] || 0; } }
+  const hmax = Math.max(...hs, 0) || 1;
+  const altText = T => hs.length ? (a0 + (a1 - a0) * hs[Math.min(hs.length - 1, T.pos)] / hmax).toFixed(1) : (T.altitude ?? '—');
   const hist = [[], []];      // 每条腿 [{t, v}]
   const cards = $('cards');
   function card(kind, quote, detail) {
@@ -38,7 +43,7 @@ export function makeHud(world) {
         $('next').innerHTML = n ? `<b>${n.in}</b> 步后：${nk}${n.label && n.label !== nk ? ' · ' + esc(n.label) : ''}` : `前方：${esc(world.summit ? world.summit.name : '终点')}`;
       }
       if (T) {
-        $('alt').innerHTML = `${T.altitude ?? '—'}<small>${world.unit || 'm'}</small>`;
+        $('alt').innerHTML = `${altText(T)}<small>${world.unit || 'm'}</small>`;
         $('step').textContent = `第 ${Math.min(T.pos + 1, T.total)} / ${T.total} 步`;
         $('prog').firstElementChild.style.width = `${(T.pos / Math.max(1, T.total)) * 100}%`;
         $('time').textContent = fmt(T.elapsed); $('best').textContent = fmt(T.best); $('laps').textContent = `${T.laps} 次`;

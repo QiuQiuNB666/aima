@@ -10,31 +10,46 @@ import { buildProps } from './subtropical/props.js';
 
 const C = {
   zenith: '#4d9ad8', hz: '#dbe9ea', fog: '#d3e2df', mist: '#f2f7f5', ray: '#fff4cf', bird: '#26312d',
-  farHill: '#7f9aa8', land: '#5b7464', sea: '#9dbfcf', towers: ['#d4dce0', '#c3ced5', '#e2e7e8', '#b4c1ca', '#cbd3d6'],   // 楼：阳光下的浅灰白，压在灰绿城区上
+  farHill: '#7f9aa8', land: '#5b7464', sea: '#3d7aa6', towers: ['#9aa7b4', '#aab4be', '#b7bec6', '#c6ccd2', '#a4a39c', '#b4aea4'],   // 楼：暖灰 / 蓝灰（别一片白）；海湾深蓝
 };
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-let far = null;
+let far = null, sceneRef = null, ghostDone = false;
 
-// 石阶贴图：浅灰花岗岩麻点 + 深色边线（一级一级分得清）+ 边角一点青苔
+// 石阶贴图：只管花岗岩麻点和一点青苔（亮度 ~0.85–1.1，乘到下面的定色上）
 function stoneTex(util, kit) {
   return util.canvasTexture(128, 128, (g, w, h) => {
     const im = g.createImageData(w, h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const n = 0.84 + 0.1 * kit.noise2(x * 0.09, y * 0.09) + 0.12 * (kit.hash2(x, y) - 0.5);
-      const edge = Math.min(x, y, w - 1 - x, h - 1 - y), e = edge < 4 ? 0.6 : 1;
-      const moss = edge < 14 ? Math.max(0, kit.noise2(x * 0.18 + 5, y * 0.18) - 0.55) * 2.2 * (1 - edge / 14) : 0;
-      const v = n * e * 255, i = (y * w + x) * 4;
-      im.data[i] = v * (1 - 0.45 * moss); im.data[i + 1] = v * (1 - 0.1 * moss); im.data[i + 2] = v * (0.97 - 0.5 * moss); im.data[i + 3] = 255;
+      const n = 0.93 + 0.08 * kit.noise2(x * 0.09, y * 0.09) + 0.1 * (kit.hash2(x, y) - 0.5);
+      const edge = Math.min(x, y, w - 1 - x, h - 1 - y);
+      const moss = edge < 12 ? Math.max(0, kit.noise2(x * 0.18 + 5, y * 0.18) - 0.6) * 1.6 * (1 - edge / 12) : 0;
+      const v = n * 255, i = (y * w + x) * 4;
+      im.data[i] = v * (1 - 0.35 * moss); im.data[i + 1] = v * (1 - 0.05 * moss); im.data[i + 2] = v * (1 - 0.45 * moss); im.data[i + 3] = 255;
     }
     g.putImageData(im, 0, 0);
   });
 }
 
+// 台阶：踏面 / 立面定色（不吃光——太阳在前方，立面背光会和踏面糊成一片灰坡）。踏面 #C9C3B5、立面 #5A5750（亮度比 > 3:1），
+//   踏面前沿一条 4 cm 浅色防滑条（= 一级一级的边）。踏面/立面靠引擎的顶点色区分（踏面 1.0、立面 0.6，build 里把实例色设成 1 / 0.95）。
+export const STAIR = { tread: '#c9c3b5', riser: '#5a5750', nose: '#f1ece0', noseW: 0.04 / 0.52 };
 export function pathMaterials({ THREE, util, kit }) {
-  return {
-    road: new THREE.MeshLambertMaterial({ color: '#a39684' }),
-    stairs: new THREE.MeshLambertMaterial({ color: '#ffffff', map: stoneTex(util, kit) }),
+  const stairs = new THREE.MeshLambertMaterial({ color: '#ffffff', map: stoneTex(util, kit) });
+  const U = { uTread: { value: new THREE.Color(STAIR.tread) }, uRiser: { value: new THREE.Color(STAIR.riser) }, uNose: { value: new THREE.Color(STAIR.nose) }, uNoseW: { value: STAIR.noseW } };
+  stairs.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uTread, uRiser, uNose;\nuniform float uNoseW;')
+      .replace('#include <opaque_fragment>', `{
+        float tr = step(0.8, vColor.r), alt = tr > 0.5 ? vColor.r : vColor.r / 0.6;
+        vec3 det = diffuseColor.rgb / max(vColor.rgb, vec3(0.01));        // 贴图细节（麻点、青苔）
+        vec3 base = mix(uRiser, uTread, tr) * det * alt;
+        if (tr > 0.5 && vMapUv.x < uNoseW) base = uNose * alt;
+        outgoingLight = base;
+      }
+      #include <opaque_fragment>`);
   };
+  stairs.customProgramCacheKey = () => 'subtropical-stairs';
+  return { road: new THREE.MeshLambertMaterial({ color: '#a39684' }), stairs };
 }
 
 export function build(scene, ctx) {
@@ -53,7 +68,7 @@ export function build(scene, ctx) {
   const ground = kit.terrain(ctx, { amp: 9, drop: 0.9, rough: 1.7, reach: 15, seed: 21 });
   {
     const g = ground.geometry, p = g.attributes.position, col = g.attributes.color, cc = new THREE.Color();
-    const soil = new THREE.Color('#9a5a38'), dark = new THREE.Color('#2c5a28'), mid = new THREE.Color('#3d7232'), lite = new THREE.Color('#6a9a40');
+    const dark = new THREE.Color('#2c5a28'), mid = new THREE.Color('#3d7232'), lite = new THREE.Color('#6a9a40');
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i), nr = util.nearestRoute(route, x, z);
       let y = p.getY(i);
@@ -64,7 +79,6 @@ export function build(scene, ctx) {
       p.setY(i, y);
       const n = kit.fbm(x * 0.09, z * 0.09, 3);
       cc.copy(dark).lerp(mid, smooth(0.3, 0.6, n)).lerp(lite, smooth(0.55, 0.8, kit.noise2(x * 0.3 + 3, z * 0.3)) * 0.7);   // 大斑 + 树冠般的小斑
-      cc.lerp(soil, smooth(2.9, 1.5, nr.d) * (0.55 + 0.4 * kit.noise2(x * 0.6, z * 0.6)));   // 路肩红土
       cc.multiplyScalar(0.92 + 0.18 * kit.noise2(x * 0.45, z * 0.45));
       col.setXYZ(i, cc.r, cc.g, cc.b);
     }
@@ -78,13 +92,22 @@ export function build(scene, ctx) {
     return (Y(ix, iz) * (1 - u) + Y(ix + 1, iz) * u) * (1 - v) + (Y(ix, iz + 1) * (1 - u) + Y(ix + 1, iz + 1) * u) * v;
   };
 
+  soilStrip(scene, ctx, hAt);
+
   // 台阶：浅灰花岗岩，隔级略暗
   if (M.stairs && M.stairIndex.length) {
-    const sc = new THREE.Color('#d9d4c8'), tmp = new THREE.Color();
-    for (let n = 0; n < M.stairIndex.length; n++) M.stairs.setColorAt(n, tmp.copy(sc).multiplyScalar(n % 2 ? 1 : 0.9));
+    const tmp = new THREE.Color();
+    for (let n = 0; n < M.stairIndex.length; n++) M.stairs.setColorAt(n, tmp.setScalar(n % 2 ? 1 : 0.95));   // 定色在 pathMaterials；这里只给隔级明暗
     M.stairs.instanceColor.needsUpdate = true;
   }
   if (M.camp) M.camp.visible = false;             // 景区入口，不搭帐篷
+  if (M.flag) M.flag.visible = false;             // 山顶有「鹏城第一峰」石，不插灰杆绿旗
+  // 路沿 / 每步刻度：深褐灰（亮绿细线像调试线框）
+  if (M.edges) { M.edges.material.color.set('#4a4036'); M.edges.material.opacity = 0.8; }
+  if (M.lines) { const a = M.lines.geometry.attributes.color, k = new THREE.Color('#4a4036'); for (let i = 0; i < a.count; i++) a.setXYZ(i, k.r, k.g, k.b); a.needsUpdate = true; M.lines.material.opacity = 0.75; }
+  // 影子：饱和一点的青 + 不透明度 0.55（浅色石阶、白城前也看得见）；轮廓光和光晕在 update 第一帧挂上（影子在 build 之后才加载）
+  ctx.theme.ghost = '#1fb2e4'; ctx.theme.ghostOpacity = 0.55;
+  sceneRef = scene;
 
   // 关键位置
   const obs = route.segs.find(sg => sg.label === '观景台') || { start: 21, steps: 2 };
@@ -96,11 +119,12 @@ export function build(scene, ctx) {
     rails: [[-1, 8, -1], [8, obs.start - 1, 1], [8, obs.start - 3, -1], [obs.start + obs.steps, N - 5, 1], [obs.start + obs.steps + 2, N - 1, -1]],
     deck: { s: deckS, len: 2.4, w: 3.4, tele: [0.6, 2.4, 0.3] },
     stones: [
-      { text: '梧桐山', s: 2.6, lat: 3.4, k: 0.45, w: 2.4, h: 1.3, d: 1.0, charH: 0.7 },          // 山脚路左（矮于 1.5，不挡镜头）
-      { text: '好汉坡', s: 8.2, lat: -3.1, k: -0.55, w: 2.2, h: 1.35, d: 1.0, charH: 0.72 },
+      // 刻字石：th = 字块高（字形约 0.7 th）。梧桐山在山脚左前（s 1.0、路左 3.85、字面朝山下（镜头来的方向）：山脚看得到，走到缓坡时已在镜头后面，不从左下角 HUD 下面露出来）；好汉坡石往右挪（不在影子正后方）
+      { text: '梧桐山', s: 1.0, lat: 3.85, k: 0.12, tx: 0.32, w: 2.7, h: 1.4, d: 1.1, th: 0.66 },          // 路左 3.85（矮于 1.5，不挡镜头）
+      { text: '好汉坡', s: 8.2, lat: -4.6, k: -0.6, w: 2.5, h: 1.4, d: 1.0, th: 0.66 },
       { text: '好汉坡', s: 17.5, lat: -2.3, k: -0.3, w: 0.62, h: 1.6, board: true, vertical: true, charH: 1.45 },
-      { text: '观景台', s: deckS - 1.6, lat: -1.6, k: -0.2, w: 1.25, h: 0.42, board: true, deck: true, charH: 0.32 },
-      { text: '鹏城第一峰', s: N + 4.5, lat: -3.3, k: -0.4, w: 3.6, h: 1.3, d: 1.0, charH: 0.5, col: '#bdb5a5' },
+      { text: '观景台', s: deckS - 1.6, lat: -1.75, k: -0.2, w: 1.3, h: 0.46, board: true, deck: true, charH: 0.36, legs: 1.3 },   // 牌子抬过平台栏杆（以前被栏杆柱挡掉「台」）
+      { text: '鹏城第一峰', s: N + 5.2, lat: -5.2, k: -0.35, w: 4.3, h: 1.75, d: 1.2, th: 0.86, col: '#bdb5a5' },
     ],
   };
   const deckA = route.at(deckS), deckC = deckA.pos.clone().addScaledVector(deckA.left, -(1.1 + B.deck.w / 2));
@@ -108,8 +132,10 @@ export function build(scene, ctx) {
   // 放东西的规矩：路左 3 以内不放高的、观景台和它右前方的视野留空、登顶环绕圈留空、榕树周围留空
   const PN = route.P[N], DN = route.at(N).dir;
   const banyanP = B.banyans.map(([s, lat]) => route.at(s, lat).pos.clone());
+  const stoneP = B.stones.filter(S => !S.board).map(S => route.at(S.s, S.lat).pos.clone());
   B.keep = (x, z, lat, s, kind) => {
     if (!util.offRoad(route, x, z, kind === 'low' ? 0.45 : 1.6)) return false;
+    if (stoneP.some(p => clearOf(x, z, p, kind === 'low' ? 1.5 : 3.2))) return false;
     if (clearOf(x, z, SC, kind === 'low' ? 5.9 : 8)) return false;
     if (clearOf(x, z, deckC, kind === 'low' ? 2.6 : 5.5)) return false;
     if (kind === 'tree') {
@@ -129,6 +155,76 @@ export function build(scene, ctx) {
   buildProps(scene, ctx, B);
 }
 
+// 路肩红土：路沿外 0.8 m 一条贴地带（跟着地面高度），外沿用噪声 alpha 咬出不规则的边（alphaTest，干净利落，不是顶点色糊开）
+function soilStrip(scene, ctx, hAt) {
+  const { route, util, kit } = ctx, N = route.N, W0 = 1.1, W1 = 1.95, NC = 4;
+  const tex = util.canvasTexture(64, 256, (g, w, h) => {
+    const im = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const u = x / (w - 1), n = kit.fbm(x * 0.06, y * 0.035, 3), grit = kit.hash2(x, y);
+      const edge = 0.7 + 0.24 * n;                                             // 外沿在 70–94 % 之间起伏
+      const a = u < edge ? 255 : 0, k = 0.86 + 0.2 * kit.noise2(x * 0.2, y * 0.08) + 0.12 * (grit - 0.5) - 0.12 * Math.max(0, u - edge + 0.08) / 0.08;
+      const i = (y * w + x) * 4;
+      im.data[i] = 158 * k; im.data[i + 1] = 90 * k; im.data[i + 2] = 56 * k; im.data[i + 3] = a;
+      if (grit > 0.985 && a) { im.data[i] = im.data[i + 1] = im.data[i + 2] = 190; }   // 小石子
+    }
+    g.putImageData(im, 0, 0);
+  });
+  tex.wrapT = THREE.RepeatWrapping;
+  const pos = [], uv = [], idx = [], S0 = -16, S1 = N + 16, ds = 0.25;
+  for (const side of [1, -1]) {
+    const b0 = pos.length / 3;
+    let rows = 0;
+    for (let s = S0; s <= S1 + 1e-6; s += ds, rows++) for (let c = 0; c <= NC; c++) {
+      const w = W0 + (W1 - W0) * c / NC, a = route.at(s, side * w);
+      pos.push(a.pos.x, hAt(a.pos.x, a.pos.z) + 0.035, a.pos.z); uv.push(c / NC, s * 0.25);
+    }
+    for (let r = 0; r < rows - 1; r++) for (let c = 0; c < NC; c++) {
+      const a = b0 + r * (NC + 1) + c, b = a + NC + 1;
+      idx.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+  m.name = 'soilStrip'; scene.add(m);
+}
+
 export function update(dt, st) {
   if (far) far.update(st.t);
+  if (!ghostDone && sceneRef) { ghostDone = true; dressGhost(sceneRef); }
+}
+
+// 影子：给引擎的半透明材质补菲涅尔轮廓光（#5FE3FF，边缘更不透明）+ 身后一团固定的青色光晕。
+//   在渲染前第一帧改（材质还没编译）；引擎每帧改 opacity 照常生效。ponytail: 该进引擎 loadAvatar(ghost)，见 engine_requests
+function dressGhost(scene) {
+  const g = scene.getObjectByName('ghost');
+  if (!g) return;
+  const rim = { value: new THREE.Color('#5fe3ff') };
+  g.traverse(o => {
+    if (!o.isMesh || !o.material || o.material.userData.rim) return;
+    const m = o.material; m.userData.rim = true;
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uRim = rim;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vGN, vGV;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\n#ifdef USE_SKINNING\nvGN = normalize(transformedNormal);\n#else\nvGN = normalize(normalMatrix * normal);\n#endif\nvGV = -mvPosition.xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vGN, vGV;\nuniform vec3 uRim;')
+        .replace('#include <opaque_fragment>', `float fr = pow(1.0 - abs(dot(normalize(vGN), normalize(vGV))), 1.8);
+          outgoingLight = mix(outgoingLight, uRim, fr);
+          diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + 0.8 * fr));
+          #include <opaque_fragment>`);
+    };
+    m.customProgramCacheKey = () => 'subtropical-ghost-rim';
+    m.needsUpdate = true;
+  });
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex(), color: '#5fe3ff', transparent: true, opacity: 0.38, depthWrite: false, fog: false }));
+  halo.scale.set(1.5, 2.3, 1); halo.position.y = 0.85; halo.renderOrder = 1; halo.name = 'ghostHalo';
+  g.add(halo);
+}
+function haloTex() {
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+  const g = cv.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }

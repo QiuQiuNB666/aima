@@ -4,14 +4,23 @@ import * as THREE from 'three';
 import { ROAD_W } from '../../path.js';
 
 const X = new THREE.Vector3(1, 0, 0);
-// 刻字石：二十面体细分 1 次 + 按位置哈希起伏，保持分面（花岗岩块）
-function rockGeo() {
-  const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position;
+// 刻字石：二十面体细分 1 次 + 按位置哈希起伏，保持分面（花岗岩块）；正面（+z）在 FRONT 处削平 = 磨光的字面，和石头同一块花岗岩色
+const FRONT = 0.62;
+const hsh = (x, y, z) => { const h = Math.sin(x * 12.9 + y * 78.2 + z * 37.7) * 43758.5; return h - Math.floor(h); };
+function rockGeo(tone) {
+  const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position, base = new THREE.Color(tone), c = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), h = Math.sin(x * 12.9 + y * 78.2 + z * 37.7) * 43758.5, k = 0.85 + 0.25 * (h - Math.floor(h));
-    p.setXYZ(i, x * k, Math.max(y * k, -0.6), z * k);
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 0.85 + 0.25 * hsh(x, y, z);
+    p.setXYZ(i, x * k, Math.max(y * k, -0.6), Math.min(z * k, FRONT));
   }
   g.deleteAttribute('uv'); g.computeVertexNormals();
+  const col = new Float32Array(p.count * 3), n = g.attributes.normal;
+  for (let f = 0; f < p.count; f += 3) {                       // 每个面一个色：花岗岩的明暗斑块；削平的正面略亮、匀
+    const flat = n.getZ(f) > 0.99, v = flat ? 1.04 : 0.86 + 0.2 * hsh(p.getX(f) + 3, p.getY(f), p.getZ(f));
+    c.copy(base).multiplyScalar(v);
+    for (let j = 0; j < 3; j++) col.set([c.r, c.g, c.b], (f + j) * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
 const RAIL_LAT = ROAD_W / 2 + 0.3;           // 1.4：护栏在路沿外
@@ -85,13 +94,18 @@ export function buildProps(scene, ctx, B) {
     const ry = Math.atan2(f.x, f.z);
     const base = a.pos.clone().setY(g);
     if (S.board) {                                                    // 木牌：两根柱 + 板
-      for (const sx of [-1, 1]) parts.push({ geo: new THREE.BoxGeometry(0.1, S.h + 0.6, 0.1), p: base.clone().add(new THREE.Vector3(Math.cos(ry) * sx * S.w * 0.42, (S.h + 0.6) / 2, -Math.sin(ry) * sx * S.w * 0.42)).toArray(), ry, color: '#5c4028' });
-      parts.push({ geo: new THREE.BoxGeometry(S.w, S.h, 0.08), p: base.clone().setY(g + 0.6 + S.h / 2).toArray(), ry, color: '#6e4b2c' });
-      texts.push({ text: S.text, p: base.clone().setY(g + 0.6 + S.h / 2).addScaledVector(f, 0.05).toArray(), ry, h: S.charH, color: '#fff3d6', weight: 800, vertical: S.vertical });
+      const legs = S.legs || 0.6;
+      for (const sx of [-1, 1]) parts.push({ geo: new THREE.BoxGeometry(0.1, S.h + legs, 0.1), p: base.clone().add(new THREE.Vector3(Math.cos(ry) * sx * S.w * 0.44, (S.h + legs) / 2, -Math.sin(ry) * sx * S.w * 0.44)).toArray(), ry, color: '#5c4028' });
+      parts.push({ geo: new THREE.BoxGeometry(S.w, S.h, 0.08), p: base.clone().setY(g + legs + S.h / 2).toArray(), ry, color: '#6e4b2c' });
+      texts.push({ text: S.text, p: base.clone().setY(g + legs + S.h / 2).addScaledVector(f, 0.07).toArray(), ry, h: S.charH, color: '#fff3d6', weight: 800, vertical: S.vertical, pad: S.vertical ? 0.3 : 0.12 });
     } else {                                                          // 石：12 面体压扁，前面切平
-      parts.push({ geo: rockGeo(), p: base.clone().setY(g + S.h * 0.4).toArray(), ry, s: [S.w * 0.56, S.h * 0.62, S.d * 0.55], color: S.col || '#b9b2a4' });
-      parts.push({ geo: new THREE.BoxGeometry(S.w * 0.84, S.h * 0.72, 0.05), p: base.clone().setY(g + S.h * 0.5).addScaledVector(f, S.d * 0.6).toArray(), ry, color: S.col || '#c7c0b0' });   // 磨平的正面
-      texts.push({ text: S.text, p: base.clone().setY(g + S.h * 0.5).addScaledVector(f, S.d * 0.6 + 0.04).toArray(), ry, h: S.charH, color: '#c8261e', weight: 900, vertical: S.vertical });
+      const cy = g + S.h * 0.4, front = FRONT * S.d * 0.55;          // 削平的正面离石心的距离
+      parts.push({ geo: rockGeo(S.col || '#b9b2a4'), p: base.clone().setY(cy).toArray(), ry, s: [S.w * 0.56, S.h * 0.62, S.d * 0.55] });
+      // 朱红字（#D4231C）直接写在石面上，底下垫一层 1 px 感的深色投影（同一个图集、先画）
+      const rt = new THREE.Vector3(Math.cos(ry), 0, -Math.sin(ry)), sh = S.th * 0.025;   // rt = 字面上的「右」；tx = 字在石面上往右挪（石头贴画面左缘时）
+      const at = base.clone().setY(cy + S.h * 0.06).addScaledVector(f, front + 0.02).addScaledVector(rt, S.tx || 0);
+      texts.push({ text: S.text, p: at.clone().addScaledVector(rt, sh).add(new THREE.Vector3(0, -sh, 0)).addScaledVector(f, -0.006).toArray(), ry, h: S.th, color: '#2a0d08', weight: 900, pad: 0.12 });
+      texts.push({ text: S.text, p: at.toArray(), ry, h: S.th, color: '#d4231c', weight: 900, pad: 0.12 });
     }
   }
   const pmesh = new THREE.Mesh(util.merged(parts), vc); pmesh.name = 'deckAndStones'; scene.add(pmesh);

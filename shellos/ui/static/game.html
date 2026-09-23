@@ -18,19 +18,19 @@
 </script>
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
 <style>
-:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.76);--line:rgba(255,255,255,.12);--acc:#29e7ff;--acc0:#ff2e88}
+:root{--fg:#f4f7fa;--dim:#a9b3bf;--panel:rgba(8,10,16,.86);--line:rgba(255,255,255,.12);--acc:#29e7ff;--acc0:#ff2e88}
 html{font-size:clamp(13px,1.04vw,44px)}
 *{box-sizing:border-box}
 body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;user-select:none}
 #c{position:fixed;inset:0;display:block;width:100vw;height:100vh}
 .hud{position:fixed;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:.8rem 1.1rem;backdrop-filter:blur(6px)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:1rem;padding:.8rem 1.1rem;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #tl{left:1.4rem;top:1.2rem;display:flex;flex-direction:column;gap:.5rem;max-width:30rem}
 #back{pointer-events:auto;align-self:flex-start;color:var(--fg);text-decoration:none;font-size:1rem;padding:.45rem .9rem;border-radius:.7rem;background:var(--panel);border:1px solid var(--line)}
 #back:hover{border-color:#fff}
 #wname{font-size:1.7rem;font-weight:800;letter-spacing:.1em}
 #wsub{font-size:.9rem;color:var(--dim)}
-#tc{left:50%;top:1.2rem;transform:translateX(-50%);text-align:center;min-width:26rem}
+#tc{left:50%;top:1.2rem;transform:translateX(-50%);text-align:center;min-width:19rem;max-width:34rem}
 #seg{font-size:2.3rem;font-weight:800;letter-spacing:.08em;line-height:1.15}
 .chip{display:inline-block;font-size:.95rem;font-weight:700;padding:.12rem .6rem;border-radius:.45rem;color:#000;vertical-align:.35rem;margin-left:.5rem}
 #next{margin-top:.35rem;font-size:1.25rem;color:#fff}
@@ -63,14 +63,18 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #wait .bar{margin-top:.6rem;height:.7rem}
 #wait .bar::after{display:none}
 #wait .bar i{left:0;background:#3ddc84}
-#summit{left:50%;bottom:9%;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:1.1rem 2.6rem;max-width:44rem}
+#summit{left:50%;bottom:5%;transform:translate(-50%,0) scale(.9);text-align:center;opacity:0;transition:opacity .5s,transform .5s;padding:.8rem 2rem;max-width:40rem}
 #summit.show{opacity:1;transform:translate(-50%,0) scale(1);transition-delay:2s}
+body.preview #summit,body.preview #summit.show{transition:none}
+body.sc-left #summit{left:1.4rem;bottom:1.4rem;text-align:left;transform:scale(.9);transform-origin:left bottom}
+body.sc-left #summit.show{transform:none}
+body.summit.sc-left #bl{display:none}
 body.summit #hint{display:none!important}
-#summit .t1{font-size:1.2rem;letter-spacing:.4em;color:var(--dim)}
-#summit .t2{font-size:3rem;font-weight:900;letter-spacing:.12em}
-#summit .t3{font-size:1.4rem;margin-top:.3rem}
-#summit .t4{font-size:1.5rem;margin-top:.5rem;font-variant-numeric:tabular-nums}
-#summit .t5{font-size:1.2rem;margin-top:.5rem;color:var(--acc)}
+#summit .t2{font-size:2.4rem;font-weight:900;letter-spacing:.12em;line-height:1.15}
+#summit .t2::before{content:"登顶 · ";font-size:1.3rem;font-weight:700;letter-spacing:.2em;color:var(--dim);vertical-align:.35rem}
+#summit .t3{font-size:1.15rem;margin-top:.2rem}
+#summit .t4{font-size:1.25rem;margin-top:.3rem;font-variant-numeric:tabular-nums}
+#summit .t5{font-size:1rem;margin-top:.3rem;color:var(--acc)}
 #cards{right:1.4rem;top:13rem;width:24rem;display:flex;flex-direction:column;gap:.6rem}
 .card{transform:translateX(120%);transition:transform .45s cubic-bezier(.2,.9,.3,1.2),opacity .6s;font-size:1rem}
 .card.in{transform:none}
@@ -78,7 +82,7 @@ body.summit #hint{display:none!important}
 .card .k{font-size:.85rem;color:var(--acc);letter-spacing:.15em}
 .card .q{font-size:1.2rem;margin:.2rem 0}
 .card .d{font-size:.9rem;color:var(--dim)}
-#ghostTag{transform:translate(-50%,-100%);font-size:1.05rem;font-weight:700;white-space:nowrap;padding:.3rem .8rem;border-radius:.6rem;background:rgba(4,8,14,.86);border:2px solid rgba(159,232,255,.8);color:#dff6ff;display:none;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+#ghostTag{transform:translate(-50%,-100%);font-size:.9rem;font-weight:700;white-space:nowrap;padding:.3rem .8rem;border-radius:.6rem;background:rgba(4,8,14,.86);border:2px solid rgba(159,232,255,.8);color:#dff6ff;display:none;box-shadow:0 2px 10px rgba(0,0,0,.5)}
 #ghostTag small{color:var(--dim);margin-left:.4rem}
 #banner{left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-size:1.3rem;display:none;pointer-events:auto}
 #banner button{margin-top:.8rem;font:inherit;font-weight:700;padding:.5rem 1.2rem;border-radius:.7rem;border:0;cursor:pointer}
@@ -108,7 +112,7 @@ body.puppet #puppet{display:block}
 <div class="hud panel" id="br"><span>用时</span><b id="time">0.0 s</b><span>最佳</span><b id="best">—</b><span>登顶</span><b id="laps">0 次</b><span>穿戴者</span><b id="wearer">—</b><span id="ghostK">影子</span><b id="ghostV">—</b></div>
 <div class="hud panel" id="hint">模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 慢/中/快 · <kbd>R</kbd> 回山脚 <span id="hintS"></span></div>
 <div class="hud panel" id="wait"><div class="big">● 红灯</div><div class="sub" id="waitT">站定 2 秒放行</div><div class="bar"><i id="waitB"></i></div></div>
-<div class="hud panel" id="summit"><div class="t1">登顶</div><div class="t2" id="sName"></div><div class="t3" id="sText"></div><div class="t4" id="sTime"></div><div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div></div>
+<div class="hud panel" id="summit"><div class="t2" id="sName"></div><div class="t3" id="sText"></div><div class="t4" id="sTime"></div><div class="t5">✓ 已写入山的记忆 —— 下一位会看到你的影子</div></div>
 <div class="hud" id="cards"></div>
 <div class="hud panel" id="puppet"><div class="t">共驾：Ghost 操控 Shell</div><div class="s">手柄摇杆直接推两条腿 · 按住 R2 才有力</div></div>
 <div class="hud" id="ghostTag"></div>

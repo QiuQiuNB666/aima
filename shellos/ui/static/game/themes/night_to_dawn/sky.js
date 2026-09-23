@@ -14,11 +14,11 @@ const col = () => ({ value: new THREE.Color() });
 export function buildSky(scene, ctx, fwd, sunXZ) {
   const c = ctx.kit.routeCenter(ctx.route), R = ctx.rand;
   const up = new THREE.Vector3(0, 1, 0), right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-  // 银河：一条大圆，在前方天空从左下斜到右上
-  const look = fwd.clone().multiplyScalar(0.8).addScaledVector(up, 0.6).normalize();
-  const tan = right.clone().multiplyScalar(-0.75).addScaledVector(up, 0.65).normalize();
-  const band = new THREE.Vector3().crossVectors(look, tan).normalize();
-  const bx = look.clone(), by = new THREE.Vector3().crossVectors(band, bx).normalize();
+  // 银河：一条斜着的大圆，最高点在右前方 55°、仰角只有 34°——从左边地平线斜斜升到右上，不经过头顶（不像探照灯）
+  const hz = fwd.clone().multiplyScalar(Math.cos(0.96)).addScaledVector(right, Math.sin(0.96)).normalize(), EL = 0.6;
+  const bx = hz.clone().multiplyScalar(Math.cos(EL)).addScaledVector(up, Math.sin(EL)).normalize();
+  const band = hz.clone().multiplyScalar(-Math.sin(EL)).addScaledVector(up, Math.cos(EL)).normalize();
+  const by = new THREE.Vector3().crossVectors(band, bx).normalize();
 
   const U = {
     top: col(), mid: col(), hzCool: col(), hzWarm: col(), below: col(), sunCol: col(),
@@ -42,9 +42,9 @@ export function buildSky(scene, ctx, fwd, sunXZ) {
         float b = dot(d, band);
         vec2 q = vec2(dot(d, bx), dot(d, by)) * 4.2 + vec2(b * 9., -b * 7.);
         float n = fbm(q), n2v = fbm(q * 2.7 + 5.3);
-        float mw = exp(-b * b * 70.) * (0.15 + 0.9 * n * n) + exp(-b * b * 300.) * 0.6 * n2v * n2v;
-        mw *= 1. - 0.75 * exp(-pow((b - 0.012) * 45., 2.)) * smoothstep(0.35, 0.65, n2v);
-        c += vec3(0.62, 0.68, 0.95) * mw * milky * smoothstep(-0.02, 0.25, e) * 0.26;
+        float mw = exp(-b * b * 20.) * (0.12 + 0.8 * n * n) + exp(-b * b * 80.) * 0.45 * n2v * n2v;   // 宽而柔
+        mw *= 1. - 0.6 * exp(-pow((b - 0.02) * 22., 2.)) * smoothstep(0.35, 0.65, n2v);
+        c += vec3(0.62, 0.68, 0.95) * mw * milky * smoothstep(-0.02, 0.3, e) * 0.13;
         c = mix(c, below, smoothstep(0.0, -0.1, e));
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
@@ -57,7 +57,7 @@ export function buildSky(scene, ctx, fwd, sunXZ) {
   const v = new THREE.Vector3(), tint = [[1, 1, 1], [0.78, 0.86, 1], [1, 0.9, 0.75], [0.7, 0.8, 1]];
   for (let i = 0; i < NS; i++) {
     if (i < NS * 0.35) {                           // 银河里的星：大圆上随机角 + 小偏离
-      const a = R() * Math.PI * 2, off = (R() + R() + R() - 1.5) * 0.09;
+      const a = R() * Math.PI * 2, off = (R() + R() + R() - 1.5) * 0.15;
       v.copy(bx).multiplyScalar(Math.cos(a)).addScaledVector(by, Math.sin(a)).addScaledVector(band, off).normalize();
     } else {
       const a = R() * Math.PI * 2, y = Math.pow(R(), 0.8);
@@ -101,8 +101,27 @@ export function buildSky(scene, ctx, fwd, sunXZ) {
   ].map(r => {
     const m = ctx.kit.ridge(ctx, { ...r, color: '#000', jag: 1.1, base: -40 });   // kit.ridge 在 +x 方向有一道接缝（首尾高度不等）：绕路线中心转半圈藏到身后
     m.geometry.translate(-c.x, 0, -c.z); m.position.set(c.x, 0, c.z); m.rotation.y = Math.PI;
+    // 山脊边缘光：沿山脊一条加色渐变带（顶亮底 0）：夜里冷蓝月光 #6f86c8，天亮变暖
+    const P = m.geometry.attributes.position, bp = [], bc = [], bi = [];
+    for (let k = 0; k < P.count / 2; k++) {
+      const x = P.getX(k * 2 + 1) * 0.997, y = P.getY(k * 2 + 1), z = P.getZ(k * 2 + 1) * 0.997;
+      bp.push(x, y + 0.15, z, x, y - 2.2, z); bc.push(1, 1, 1, 0, 0, 0);
+      if (k) { const b = (k - 1) * 2; bi.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+    }
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3)); bg.setIndex(bi);
+    const rim = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+    rim.renderOrder = -4.5; rim.name = 'ridgeRim'; m.add(rim); m.userData.rim = rim.material;
     return m;
   });
+
+  // 影富士：日出时在云海上投一个三角形暗影，朝太阳反方向（p ≥ 0.9 淡入）
+  const top = ctx.route.P[ctx.route.N], ax = new THREE.Vector3(-sunXZ.x, 0, -sunXZ.z), px = new THREE.Vector3(-ax.z, 0, ax.x);
+  const kp = [top.x + ax.x * 8 + px.x * 42, top.z + ax.z * 8 + px.z * 42, top.x + ax.x * 8 - px.x * 42, top.z + ax.z * 8 - px.z * 42, top.x + ax.x * 330, top.z + ax.z * 330];
+  const kg = new THREE.BufferGeometry();
+  kg.setAttribute('position', new THREE.Float32BufferAttribute([kp[0], 0, kp[1], kp[2], 0, kp[3], kp[4], 0, kp[5]], 3));
+  kg.setAttribute('color', new THREE.Float32BufferAttribute([0.16, 0.1, 0.2, 0.9, 0.16, 0.1, 0.2, 0.9, 0.2, 0.14, 0.24, 0.25], 4));
+  const kage = new THREE.Mesh(kg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+  kage.position.y = -7.85; kage.name = 'kageFuji'; kage.renderOrder = -0.5; kage.visible = false; scene.add(kage);
 
   // 云海：2 层半透明噪声平面，缓慢流动
   const clouds = [], CU = { lit: col(), shade: col(), haze: col() };
@@ -142,6 +161,8 @@ export function buildSky(scene, ctx, fwd, sunXZ) {
       CU.lit.value.copy(K.cloudLit); CU.shade.value.copy(K.cloudShade); CU.haze.value.copy(K.cloudHaze);
       for (const u of clouds) u.t.value = t % 3600;
       ridges[0].material.color.copy(K.ridge1); ridges[1].material.color.copy(K.ridge2);
+      for (const r of ridges) r.userData.rim.color.copy(K.rim);
+      kage.material.opacity = K.kage * 0.55; kage.visible = K.kage > 0.01;
       return dir;
     },
   };

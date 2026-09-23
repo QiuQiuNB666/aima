@@ -41,7 +41,7 @@ export function buildFar(scene, ctx, B, C) {
         vec2 v = normalize(wp.xz - cam.xz);
         float g = pow(max(dot(v, sunXZ), 0.), 8.) * n2(wp.xz * 0.6 + vec2(t * 0.3, 0.)) * isSea;   // 朝太阳那边的海面闪光
         c += glint * g * 0.35;
-        c = mix(c, haze, smoothstep(60., 330., dist) * 0.85);
+        c = mix(c, haze, smoothstep(60., 330., dist) * mix(0.8, 0.42, isSea));   // 海少混雾：深蓝海湾和天分得开
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -77,9 +77,14 @@ export function buildFar(scene, ctx, B, C) {
     const h = (kind === 1 ? 14 + 12 * R() : 3 + 8 * R()) * (0.55 + 0.6 * mid) * (core ? 1 : 0.7) + 3;   // 城区平面在山下 30：从山上看楼在脚下，最高的几栋顶到地平线
     const w = kind === 2 ? 8 + 6 * R() : 4 + 4 * R();
     const k = (r - 165) / 60;
-    col.copy(cols[(R() * cols.length) | 0]).lerp(haze, 0.2 + 0.3 * k);
+    col.copy(cols[(R() * cols.length) | 0]).lerp(haze, 0.08 + 0.2 * k);
     items[kind].push({ p: [p.x, LAND_Y - 1, p.z], ry: Math.atan2(p.x - c.x, p.z - c.z) + (R() - 0.5) * 0.5, s: [w, h + 1, kind === 2 ? w : w * (0.8 + R() * 0.4)], color: col.clone() });
     n++;
+  }
+  for (let k = 0; k < 7; k++) {          // 福田 CBD 一撮超高层（约 2.5 倍）：通用退台方塔，不做任何可认出的地标细节
+    const th = THREE.MathUtils.degToRad(14 + 16 * R()), r = 180 + R() * 22, p = c.clone().addScaledVector(dirAt(th), r), w = 5.5 + R() * 3;
+    col.copy(cols[(R() * cols.length) | 0]).lerp(haze, 0.16);
+    items[k % 3 === 2 ? 0 : 1].push({ p: [p.x, LAND_Y - 1, p.z], ry: Math.atan2(p.x - c.x, p.z - c.z) + (R() - 0.5) * 0.4, s: [w, 36 + R() * 12, w * (0.85 + R() * 0.3)], color: col.clone() });
   }
   const bMat = new THREE.MeshBasicMaterial({ vertexColors: true, map: winTex, fog: false });
   [geoA, geoB, geoC].forEach((g, i) => { if (!items[i].length) return; const m = util.instanced(g, bMat, items[i]); m.name = 'skyline'; m.renderOrder = -3; scene.add(m); });
@@ -102,7 +107,7 @@ export function buildFar(scene, ctx, B, C) {
 
   // 谷雾：两层水平噪声平面，在路右侧山谷里（路面以下），离镜头近处淡出
   const mistUs = [];
-  [[-8, 0.36, 0.05], [-16, 0.5, 0.035]].forEach(([y, op, sc], k) => {
+  [[-8, 0.62, 0.05], [-16, 0.78, 0.035]].forEach(([y, op, sc], k) => {
     const u = { t: { value: 0 }, op: { value: op }, sc: { value: sc }, cam: { value: ctx.camera.position }, col: { value: new THREE.Color(C.mist) }, cen: { value: new THREE.Vector2(c.x, c.z) } };
     const m = new THREE.Mesh(new THREE.PlaneGeometry(260, 260).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
       uniforms: u, transparent: true, depthWrite: false, fog: false,
@@ -110,7 +115,7 @@ export function buildFar(scene, ctx, B, C) {
       fragmentShader: `uniform float t, op, sc; uniform vec3 cam, col; uniform vec2 cen; varying vec3 wp; ${NOISE}
         void main(){ vec2 p = wp.xz * sc + vec2(t * 0.012, t * 0.004);
           float d = fbm(p + fbm(p * 0.6 - t * 0.003));
-          float a = smoothstep(0.35, 0.75, d) * op;
+          float a = smoothstep(0.3, 0.68, d) * op;
           float dist = length(wp.xz - cam.xz);
           a *= smoothstep(8., 26., dist) * (1. - smoothstep(95., 128., length(wp.xz - cen)));
           gl_FragColor = vec4(col, a);
@@ -131,8 +136,18 @@ export function buildFar(scene, ctx, B, C) {
     const a = ctx.route.at(s, lat), y = B.hAt(a.pos.x, a.pos.z) + 1.2 + R() * 2.5, w = 10 + R() * 12;
     puffs.push({ p: [a.pos.x, y, a.pos.z], ry: Math.atan2(-D.x, -D.z) + (R() - 0.5) * 0.6, s: [w, w * 0.35, 1] });
   }
-  const puffMat = new THREE.MeshBasicMaterial({ map: puffTex, color: C.mist, transparent: true, opacity: 0.32, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const puffMat = new THREE.MeshBasicMaterial({ map: puffTex, color: C.mist, transparent: true, opacity: 0.42, depthWrite: false, fog: false, side: THREE.DoubleSide });
   const puffMesh = util.instanced(new THREE.PlaneGeometry(1, 1), puffMat, puffs); puffMesh.name = 'forestMist'; puffMesh.renderOrder = 3; scene.add(puffMesh);
+  // 谷中云带：观景台、山脊往右看，山谷里横着一条白云（大块柔边片，路面以下几米）
+  const band = [], NN = ctx.route.N;
+  for (let k = 0; k < 16; k++) {        // 前 8 块沿右侧山谷，后 8 块在山顶和城市之间（观景台 / 山脊往右前看的那片谷）
+    const a = k < 8 ? ctx.route.at(12 + k * (NN - 10) / 7 + (R() - 0.5) * 3, -(20 + R() * 24)).pos
+      : ctx.route.P[NN].clone().addScaledVector(dirAt(THREE.MathUtils.degToRad(10 + 55 * R())), 30 + R() * 40);
+    const y = Math.max(B.hAt(a.x, a.z) + 2.5, ctx.route.hmax - 6 - R() * 4), w = 28 + R() * 18;
+    band.push({ p: [a.x, y, a.z], ry: Math.atan2(-D.x, -D.z) + (R() - 0.5) * 0.5, s: [w, w * 0.26, 1] });
+  }
+  const bandMesh = util.instanced(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: puffTex, color: C.mist, transparent: true, opacity: 0.72, depthWrite: false, fog: false, side: THREE.DoubleSide }), band);
+  bandMesh.name = 'valleyCloud'; bandMesh.renderOrder = 3; scene.add(bandMesh);
 
   // 穿林光柱：细长加色片，长轴 = 阳光方向，片面朝下山方向（镜头看得到）
   const rayTex = util.canvasTexture(64, 256, (g, w, h) => {
@@ -149,7 +164,7 @@ export function buildFar(scene, ctx, B, C) {
   for (const [s, lat] of spots) {
     const a = ctx.route.at(s, lat), y = B.hAt(a.pos.x, a.pos.z), len = 8 + R() * 3;
     const base = a.pos.clone().setY(y).addScaledVector(L, len * 0.5);   // 光柱下端落在地面
-    rays.push({ p: base.toArray(), q: qRay, s: [0.9 + R() * 1.1, len, 1], color: new THREE.Color(C.ray).multiplyScalar(0.7 + R() * 0.3) });
+    rays.push({ p: base.toArray(), q: qRay, s: [1.4 + R() * 1.4, len, 1], color: new THREE.Color(C.ray).multiplyScalar(0.7 + R() * 0.3) });
   }
   const rayMat = new THREE.MeshBasicMaterial({ map: rayTex, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, toneMapped: false });
   const rayMesh = util.instanced(new THREE.PlaneGeometry(1, 1), rayMat, rays); rayMesh.name = 'sunRays'; rayMesh.renderOrder = 4; scene.add(rayMesh);
@@ -160,8 +175,9 @@ export function buildFar(scene, ctx, B, C) {
   wing.computeVertexNormals();
   const birds = [], BN = 14;
   for (let k = 0; k < BN; k++) {
-    const flock = k < 8 ? 0 : 1, a = ctx.route.at(flock ? 26 : 12, flock ? -26 : -18);
-    birds.push({ cx: a.pos.x + (R() - 0.5) * 6, cz: a.pos.z + (R() - 0.5) * 6, y: (flock ? 9 : 6) + R() * 3, r: 7 + R() * 5, w: (0.18 + R() * 0.08) * (R() < 0.5 ? 1 : -1), ph: R() * 6.28, f: 5 + R() * 2, s: 0.9 + R() * 0.5 });
+    const flock = k < 8 ? 0 : 1;        // 0：山脊前方右上（离镜头 ~15–25 m）；1：好汉坡上段右侧
+    const a = flock ? ctx.route.at(31, -15).pos : ctx.route.P[ctx.route.N].clone().addScaledVector(D, 14).addScaledVector(RT, 9), y0 = flock ? ctx.route.heightAt(31) : ctx.route.hmax;
+    birds.push({ cx: a.x + (R() - 0.5) * 3, cz: a.z + (R() - 0.5) * 3, y: y0 + 1.2 + R() * 1.6, r: 2 + R() * 2.5, w: (0.35 + R() * 0.12) * (flock ? -1 : 1), ph: R() * 6.28, f: 5 + R() * 2, s: 1.0 + R() * 0.4 });
   }
   const birdMesh = new THREE.InstancedMesh(wing, new THREE.MeshBasicMaterial({ color: C.bird, side: THREE.DoubleSide }), BN);
   birdMesh.name = 'birds'; birdMesh.frustumCulled = false; scene.add(birdMesh);
@@ -171,7 +187,7 @@ export function buildFar(scene, ctx, B, C) {
     update(t) {
       const tt = t % 3600;
       bayU.t.value = tt; for (const u of mistUs) u.t.value = tt;
-      rayMat.opacity = 0.26 + 0.08 * Math.sin(tt * 0.35) + 0.04 * Math.sin(tt * 1.3);
+      rayMat.opacity = 0.44 + 0.08 * Math.sin(tt * 0.35) + 0.04 * Math.sin(tt * 1.3);
       birds.forEach((b, i) => {
         const a = b.ph + tt * b.w;
         bp.set(b.cx + Math.cos(a) * b.r, b.y + Math.sin(tt * 0.5 + b.ph) * 0.6, b.cz + Math.sin(a) * b.r);

@@ -1,5 +1,6 @@
 // 神社段：朱红鸟居（石阶下一座大的、石阶顶一座小的）、石灯笼（夹着石阶）、两侧杉树影、山顶拝殿。
 import * as THREE from 'three';
+import { shade } from './lib.js';
 
 const VERM = '#d8401e', BLACK = '#17110f', STONE = '#7a776f';
 let toriis = [];
@@ -95,7 +96,7 @@ export function buildShrine(scene, ctx, E) {
   const lamMesh = new THREE.Mesh(util.merged(lam), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#0c0a0a' })); lamMesh.name = 'shrineProps';
   const litMesh = new THREE.Mesh(util.merged(lit), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })); litMesh.name = 'shrineLit';
   const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(haloPts, 3)); hg.setAttribute('color', new THREE.Float32BufferAttribute(haloCol, 3));
-  const halo = new THREE.Points(hg, new THREE.PointsMaterial({ size: 1.1, map: E.radial, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const halo = new THREE.Points(hg, shade(new THREE.PointsMaterial({ size: 1.1, map: E.radial, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), { addFog: true, mask: true }));
   halo.name = 'shrineHalos';
   scene.add(lamMesh, litMesh, halo);
 }

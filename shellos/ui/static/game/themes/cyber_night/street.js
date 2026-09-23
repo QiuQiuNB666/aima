@@ -2,7 +2,7 @@
 //   天桥（桥下挖出一条大街：挡土墙、车道线、车流；桥上栏杆 + 霓虹灯带、桥墩）。
 import * as THREE from 'three';
 import { ROAD_W } from '../../path.js';
-import { quads, glowMat } from './lib.js';
+import { quads, glowMat, streakTex, shade } from './lib.js';
 
 const TRENCH = [10.8, 19.2], FLOOR = -1.6;         // 天桥下的大街：这段步数范围的地面挖到 FLOOR
 const XWALK = [6.7, 10.3];                         // 横穿马路（斑马线）
@@ -90,9 +90,9 @@ export function buildStreet(scene, ctx, E) {
     }
   }
 
-  // ---- 步行者信号灯（斑马线对面、路左侧离路 3：右侧已有引擎的车用信号灯；左侧 3 以内不能高过 1.5）----
+  // ---- 步行者信号灯（斑马线对面、路左侧离路 3.6：右侧已有引擎的车用信号灯；左侧是镜头这边，离远点不糊镜头）----
   {
-    const a = L(pedGo + 3.4, 3.0), ry = -a.heading - Math.PI / 2, g = new THREE.Group();
+    const a = L(pedGo + 3.4, 3.6), ry = -a.heading - Math.PI / 2, g = new THREE.Group();
     g.position.copy(a.pos); g.position.y = 0; g.rotation.y = ry; g.name = 'pedSignal';
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.76, 0.2), new THREE.MeshLambertMaterial({ color: '#22252e' }));
     box.position.y = 2.05;
@@ -116,7 +116,39 @@ export function buildStreet(scene, ctx, E) {
     g.add(box, pole, red, grn, bar, barBack); scene.add(g);
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), glowMat(E.radial, { vertexColors: false }));
     glow.position.set(0, 2.23, 0.12); g.add(glow);
-    sig = { redM, grnM, bar, glow, pedGo, wait };
+    // 信号灯在湿路面上的倒影：从灯脚斜拉向镜头（红灯时红、放行变绿），落在斑马线前的路面上
+    const f = L(pedGo - 8, 1.4).pos, b = a.pos, d = new THREE.Vector3(f.x - b.x, 0, f.z - b.z), len = Math.min(5.5, d.length() - 0.5);
+    d.normalize();
+    const rq = quads(); rq.add(new THREE.Vector3(b.x + d.x * len / 2, 0.02, b.z + d.z * len / 2), new THREE.Vector3(-d.z, 0, d.x).multiplyScalar(0.28), d.clone().multiplyScalar(len / 2), '#ffffff');
+    const refl = rq.mesh(glowMat(streakTex(util), { ground: true, vertexColors: false, opacity: 0.75 }), 'signalReflection'); refl.renderOrder = 1;
+    scene.add(refl);
+    sig = { redM, grnM, bar, glow, pedGo, wait, refl };
+  }
+
+  // ---- 坂道：浅色混凝土路面 + 每步一道深色防滑横纹；两侧扶手（立柱 + 扶手 + 灯带）顺着坡往上，坡度一眼可读 ----
+  const up = route.segs.find(sg => sg.kind === 'up');
+  if (up) {
+    const g = quads(), s0 = up.start, s1 = up.start + up.steps;
+    const strip = (sa, sb, lat0, lat1, y, color) => {
+      const A = L(sa), B = L(sb), la = (lat0 + lat1) / 2, hwid = (lat1 - lat0) / 2;
+      const pa = A.pos.clone().addScaledVector(A.left, la), pb = B.pos.clone().addScaledVector(B.left, la); pa.y += y; pb.y += y;
+      g.add(pa.clone().add(pb).multiplyScalar(0.5), A.left.clone().add(B.left).normalize().multiplyScalar(hwid), pb.sub(pa).multiplyScalar(0.5), color);
+    };
+    for (let i = s0; i < s1; i++) { strip(i, i + 1, -hw, hw, 0.006, '#56506c'); strip(i + 0.3, i + 0.7, -hw, hw, 0.012, '#3a2a50'); }
+    const gm = g.mesh(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 'slopeRoad');
+    scene.add(gm);
+    const RH = 0.85;
+    for (const side of [1, -1]) {
+      const lat = side * (hw + 0.35), P = [];
+      for (let s = s0; s <= s1 + 3.01; s += 0.5) { const a = L(s, lat); P.push(a.pos.clone()); }
+      P.forEach((p, k) => { if (k % 2 === 0) lam.push({ geo: new THREE.BoxGeometry(0.05, RH, 0.05), p: [p.x, p.y + RH / 2 - 0.03, p.z], color: '#7d8398' }); });
+      for (let k = 0; k + 1 < P.length; k++) {
+        const a = P[k], b = P[k + 1], len = a.distanceTo(b), qq = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), v.subVectors(b, a).normalize());
+        const mid = a.clone().add(b).multiplyScalar(0.5);
+        lam.push({ geo: new THREE.BoxGeometry(len + 0.02, 0.05, 0.06), p: [mid.x, mid.y + RH, mid.z], q: qq, color: '#9aa0b8' });
+        lit.push({ geo: new THREE.BoxGeometry(len + 0.01, 0.03, 0.02), p: [mid.x, mid.y + RH - 0.06, mid.z], q: qq, color: side > 0 ? acc[1] : acc[0] });
+      }
+    }
   }
 
   // ---- 车流：车身（暗色方块）+ 车灯拖尾（加色）；大街一直有车，横穿马路只在行人红灯时有车 ----
@@ -142,7 +174,7 @@ export function buildStreet(scene, ctx, E) {
   scene.add(body, tr, lamp);
 
   const lamMesh = new THREE.Mesh(util.merged(lam), new THREE.MeshLambertMaterial({ vertexColors: true })); lamMesh.name = 'streetProps';
-  const litMesh = new THREE.Mesh(util.merged(lit), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })); litMesh.name = 'streetLit';
+  const litMesh = new THREE.Mesh(util.merged(lit), shade(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), { mask: true })); litMesh.name = 'streetLit';
   scene.add(lamMesh, litMesh);
   updateStreet(0, { pos: 0, terrain: null });
 }
@@ -159,7 +191,7 @@ export function updateStreet(dt, st) {
     segs = still == null ? 8 : Math.max(0, Math.ceil(8 * (1 - Math.min(1, still / need))));
   }
   sig.bar.count = segs;
-  sig.glow.position.y = green ? 1.87 : 2.23; sig.glow.material.color.set(green ? '#2dffa0' : '#ff2a2a');
+  sig.glow.position.y = green ? 1.87 : 2.23; sig.glow.material.color.set(green ? '#2dffa0' : '#ff2a2a'); sig.refl.material.color.copy(sig.glow.material.color);
   // 车：横穿马路的车只在行人红灯时开（排在数组最后，绿灯时 count 截掉）
   const n = green ? nAll - nCross : nAll;
   cars.body.count = cars.tr.count = cars.lamp.count = n;

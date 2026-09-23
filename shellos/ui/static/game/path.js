@@ -26,13 +26,14 @@ export function makeRoute(route, seed = 1) {
   });
   const N = steps.length, r = rng(seed);
   // 朝向：台阶段保持直线；坡/平地轻微拐弯；有 turns 的段走 Z 字；每步最多转 0.35 rad 保证路面连续
+  //   Z 字：每折 ±0.55 rad（±31°）、至少 3 步（2 步转不到位就反向，富士山 8 步 4 折实测只有 ±20° 小扭）→ 折数 = min(turns, steps/3)
   const H = []; let hd = 0, base = 0;
   for (const sg of segs) {
     const stairs = sg.kind.startsWith('stairs');
     if (!stairs) base = clamp(base + (r() - 0.5) * 0.9, -0.6, 0.6);
     for (let k = 0; k < sg.steps; k++) {
       let target = stairs ? hd : base;
-      if (sg.turns > 1) target = base + ((Math.floor(k / (sg.steps / sg.turns)) % 2) ? -0.8 : 0.8);
+      if (sg.turns > 1) { const nt = Math.max(2, Math.min(sg.turns, Math.floor(sg.steps / 3))); target = base + ((Math.floor(k / (sg.steps / nt)) % 2) ? -0.55 : 0.55); }
       hd += clamp(target - hd, -0.35, 0.35);
       H.push(hd);
     }
@@ -104,7 +105,7 @@ export function nearest(route, x, z) {
 // 路面：平地/坡 = 连续带；台阶 = InstancedMesh 方块；刻度线 + 路沿线；红灯段 = 停止线 + 信号灯；起点营地；山顶旗
 // mats（可选，主题模块 export pathMaterials(ctx) 给的）：{ road, stairs } 替换缺省材质；
 //   引擎仍会在 road 上加 polygonOffset / DoubleSide，在 stairs 上开 vertexColors（踏面/立面明暗）。
-// theme.stairs（世界 JSON，可选）= 台阶踏面颜色，缺省用 theme.path。
+// theme.stairs（世界 JSON，可选）= 台阶踏面颜色，缺省用 theme.path；theme.stairsRiser = 立面亮度系数（缺省 0.6，踏面 1.0）。
 export function buildPathMeshes(scene, route, theme, mats = {}) {
   const { N, steps, P, at } = route;
   const acc = (theme.accent || ['#ffffff', '#88ccff', '#ffd000']).map(c => new THREE.Color(c));
@@ -141,7 +142,8 @@ export function buildPathMeshes(scene, route, theme, mats = {}) {
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), c = new THREE.Vector3(), yAx = new THREE.Vector3(0, 1, 0);
   // 踏面 1.0、立面 0.6 的顶点色（和 instanceColor 相乘）：暗色主题里台阶也能一眼看出一级一级
   const box = new THREE.BoxGeometry(1, 1, 1), bn = box.attributes.normal, bc = new Float32Array(bn.count * 3);
-  for (let v = 0; v < bn.count; v++) bc.fill(bn.getY(v) > 0.5 ? 1 : 0.6, v * 3, v * 3 + 3);
+  const riser = theme.stairsRiser ?? 0.6;
+  for (let v = 0; v < bn.count; v++) bc.fill(bn.getY(v) > 0.5 ? 1 : riser, v * 3, v * 3 + 3);
   box.setAttribute('color', new THREE.BufferAttribute(bc, 3));
   const stairMat = mats.stairs || new THREE.MeshLambertMaterial({ color: 0xffffff });
   stairMat.vertexColors = true;

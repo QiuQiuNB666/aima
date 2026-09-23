@@ -4,7 +4,7 @@
 // 截图/自检：出错写进 <pre id="errlog">（game.html），第一帧画完 <body data-ready="1" data-calls data-tris data-scene-tris>；scripts/dom.sh 读。
 import * as THREE from 'three';
 import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP, ROAD_W } from './path.js';
-import { loadAvatar, flexFromFrame } from './avatar.js';
+import { loadAvatar, flexFromFrame, preloadAvatar } from './avatar.js';
 import { makeStepper, makeGhost } from './ghost.js';
 import { makeCamera, defaultRig } from './camera.js';
 import { makeHud } from './hud.js';
@@ -63,6 +63,7 @@ async function waitForTerrain(hud) {
 const isPuppet = S => !!(S && !S.terrain && S.ctl && S.ctl.name === 'puppet');
 
 async function main() {
+  preloadAvatar();                           // glb 和 worlds.json / 主题并行下载
   const worlds = await fetch('/worlds.json').then(r => r.json()).catch(() => []);
   const bannerOnly = { banner: h => { const b = document.getElementById('banner'); b.style.display = h ? 'block' : 'none'; b.innerHTML = h; } };
   let S, world;
@@ -111,7 +112,11 @@ async function main() {
 
   const ghOp = theme.ghostOpacity || 0.4;
   const ghLat = -Math.min(ROAD_W / 2 - 0.4, Math.abs(theme.ghostLat ?? GH_LAT));   // build 之后读：主题可以在 build 里改 ctx.theme
-  const [av, gh] = await Promise.all([loadAvatar({ look: theme.avatar }), loadAvatar({ ghost: true, color: theme.ghost || '#bff3ff', opacity: ghOp })]);
+  const [av, gh] = await Promise.all([loadAvatar({ look: theme.avatar }),
+    loadAvatar({ ghost: true, color: theme.ghost || '#bff3ff', opacity: ghOp, rim: theme.ghostRim, halo: !!theme.ghostHalo })]);
+  const tagLift = theme.ghostTagLift ?? 0.6;   // 影子标签底边 = 脖子关节上方 0.6（头顶上方约 0.3）
+  document.body.classList.toggle('sc-left', theme.summitCard === 'left');
+  if (PREVIEW) document.body.classList.add('preview');   // 预览：登顶卡不做 2 s 延迟淡入，截图时刻稳定
   scene.add(av.group, gh.group);
   const ghost = makeGhost(gh, hud);
   const cam = makeCamera(camera, route, camRig);
@@ -214,6 +219,7 @@ async function main() {
       gyaw = gyaw === null ? -G.heading : lerpAng(gyaw, -G.heading, 1 - Math.exp(-dt * 6));
       gh.group.rotation.y = gyaw;
     }
+    if (themeMod.rigFor && !themeErr) try { themeMod.rigFor(s, camRig, summit); } catch (e) { themeErr = true; err(`主题 ${theme.style} rigFor 出错`, e); }
     if (!window.__camHold) cam.update(dt, A, summit ? 'summit' : 'follow', PREVIEW || cut, s);   // __camHold：调试时手动摆镜头
     fx.update(dt, t);
     if (themeMod.update && !themeErr) try { themeMod.update(dt, { t, dt, s, progress: Math.max(0, Math.min(1, s / route.N)), pos: T.pos, total: T.total, avatar: A.pos, heading: A.heading, kind: A.kind, ghost: g ? G.pos : null, terrain: T, summit, preview: !!PREVIEW, camera }); }
@@ -221,15 +227,16 @@ async function main() {
     renderer.render(scene, camera);
     if (!document.body.dataset.ready) {        // 第一帧画完：给 dom.sh / 截图脚本读就绪与预算
       const r = util.stats(renderer), a = util.sceneStats(scene), b = document.body.dataset;
+      if (av.group.getObjectByName('exoStrip')) for (const m of av.exo.bars) m.visible = false;   // 主题自己做了腿侧亮条（富士山）：引擎的连杆/腰带让位
       b.calls = r.calls; b.tris = r.triangles; b.sceneTris = a.triangles; b.sceneObjs = a.objects; b.ready = '1';
     }
 
     if (g) {                                   // 影子头顶标签：投影到屏幕；出画/贴镜头时钉在下缘
       gh.headWorld(head);
-      const fade = Math.max(0, Math.min(1, (GH_FADE[1] - (s - g.s)) / (GH_FADE[1] - GH_FADE[0])));
+      const fade = summit ? 1 : Math.max(0, Math.min(1, (GH_FADE[1] - (s - g.s)) / (GH_FADE[1] - GH_FADE[0])));   // 登顶环绕镜头不在影子正后方：别淡掉
       for (const m of gh.mats) m.opacity = ghOp * fade;
       gh.group.visible = fade > 0;
-      head.y += 0.35; head.project(camera);
+      head.y += tagLift; head.project(camera);
       const vis = fade >= 1 && head.z < 1 && Math.abs(head.x) < 1.1 && Math.abs(head.y) < 1.1;
       const rel = PREVIEW ? relText(T) : g.rel;
       hud.ghostTag((head.x + 1) / 2 * innerWidth, (1 - head.y) / 2 * innerHeight, true, T.ghost_who || '无名', rel, !vis);

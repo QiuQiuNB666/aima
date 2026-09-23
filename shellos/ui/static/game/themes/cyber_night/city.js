@@ -2,39 +2,47 @@
 //   坂道两侧低层商铺、电线杆与电线、路灯与光晕、自动贩卖机、大屏、楼顶航空灯。
 import * as THREE from 'three';
 import { STEP } from '../../path.js';
-import { quads, glowMat, streakTex, axisX, axisZ, UP } from './lib.js';
+import { quads, glowMat, streakTex, shade, axisX, axisZ, UP } from './lib.js';
 
-const WIN_W = 6.4, WIN_H = 16;              // 窗格贴图一张 = 8 列 × 16 行窗对应的世界尺寸
+const WIN_W = 6.4, WIN_H = 9.6;             // 窗格贴图一张 = 32 列 × 32 层窗对应的世界尺寸（窗距 0.2 × 0.3）；远景楼再 ×TOWER_K
+const TOWER_K = 1.7;
 const GAP = [6.2, 19.8];                    // 斑马线路口 + 天桥下的大街：这一段不盖临街楼
 const SLOPE = [19.8, 28.2];                 // 坂道 + 巷子：低层商铺
 const SIGNS = ['渋谷', 'ラーメン', '薬', 'カラオケ', '自販機', '酒', '居酒屋', '焼鳥', '喫茶', '質', 'ホテル', '占い', '餃子', '寿司', '宇田川町', '珈琲', '雀荘', '本', 'BAR', '二十四時'];
 const SHOP = ['中華そば', 'たばこ', '定食', 'やきとり', '古着', 'コインランドリー', '理容', '文具', 'おでん', '銭湯'];
 let screenTex = null, aviMat = null, T = 0;
 
-function windowsTex(util, rand) {
-  return util.canvasTexture(512, 512, (g, w, h) => {
-    g.fillStyle = '#10121e'; g.fillRect(0, 0, w, h);
-    const lit = ['#ffc47a', '#ffdca8', '#b8d4ff', '#8fc4ff', '#ff7ab4', '#6ff0ff'];
-    for (let r = 0; r < 16; r++) {
-      const floorOn = rand() < 0.75;                        // 整层亮 / 整层暗，比逐格随机更像楼
-      for (let c = 0; c < 8; c++) {
-        const x = c * 64, y = r * 32, on = floorOn ? rand() < 0.6 : rand() < 0.1;
-        g.fillStyle = on ? lit[Math.floor(Math.pow(rand(), 1.8) * lit.length)] : '#151a2a';
-        g.globalAlpha = on ? 0.3 + rand() * 0.55 : 1;
-        g.fillRect(x + 16, y + 9, 32, 14);
+// 窗格：32 列 × 32 层，小窗密排；亮窗约 30%（暖白 / 冷白，整层亮暗有起伏），其余深灰蓝；
+//   belts = 横向霓虹腰线 + 空调外机小方块（临街楼用；远景楼不要，免得一栋楼上十几道）
+function windowsTex(util, rand, belts) {
+  return util.canvasTexture(1024, 1024, (g, w, h) => {
+    g.fillStyle = '#0b0e18'; g.fillRect(0, 0, w, h);
+    const warm = ['#ffd9a0', '#ffe6bf', '#f2c68a'], cool = ['#bfe0ff', '#d6ebff', '#a9cff5'];
+    for (let r = 0; r < 32; r++) {
+      const y = r * 32, p = rand() < 0.3 ? 0.62 : rand() < 0.5 ? 0.28 : 0.1, pal = rand() < 0.55 ? warm : cool;   // 整层偏亮 / 一般 / 偏暗
+      g.fillStyle = '#121626'; g.fillRect(0, y + 27, w, 3);                                      // 楼层线
+      for (let c = 0; c < 32; c++) {
+        const x = c * 32, on = rand() < p;
+        g.fillStyle = on ? pal[Math.floor(rand() * 3)] : '#141a2a';
+        g.globalAlpha = on ? 0.55 + rand() * 0.45 : 1;
+        g.fillRect(x + 7, y + 6, 18, 17);
         g.globalAlpha = 1;
+        if (belts && !on && rand() < 0.12) { g.fillStyle = '#3a3f4e'; g.fillRect(x + 9, y + 20, 14, 8); g.fillStyle = '#23262f'; g.fillRect(x + 12, y + 22, 8, 4); }   // 空调外机
       }
+    }
+    if (belts) for (const [r, col] of [[9, '#ff2e88'], [23, '#29e7ff']]) {                         // 霓虹腰线（发光带 + 外晕）
+      const y = r * 32 + 28; g.fillStyle = col; g.globalAlpha = 0.35; g.fillRect(0, y - 5, w, 14); g.globalAlpha = 1; g.fillRect(0, y, w, 4);
     }
   }, { repeat: true });
 }
 
 // 单位方块，uv 按楼的尺寸放大（窗子大小不随楼变形）；顶/底面取贴图角上的墙色
-function boxUV(w, h, d, u0, v0) {
+function boxUV(w, h, d, u0, v0, k = 1) {
   const g = new THREE.BoxGeometry(1, 1, 1), uv = g.attributes.uv;
   for (let v = 0; v < uv.count; v++) {
     const f = Math.floor(v / 4);                            // 0 px, 1 nx, 2 py, 3 ny, 4 pz, 5 nz
     if (f === 2 || f === 3) { uv.setXY(v, 0.002, 0.002); continue; }
-    uv.setXY(v, u0 + uv.getX(v) * (f < 2 ? d : w) / WIN_W, v0 + uv.getY(v) * h / WIN_H);
+    uv.setXY(v, u0 + uv.getX(v) * (f < 2 ? d : w) / (WIN_W * k), v0 + uv.getY(v) * h / (WIN_H * k));
   }
   return g;
 }
@@ -42,18 +50,18 @@ function boxUV(w, h, d, u0, v0) {
 export function buildCity(scene, ctx, E) {
   const { route, util, theme, rand } = ctx;
   const acc = theme.accent, N = route.N;
-  const bParts = [], lam = [], lit = [], signs = [], halos = quads(), refl = quads(), pools = quads(), haloPts = [], haloCol = [];
+  const bParts = [], tParts = [], lam = [], lit = [], signs = [], halos = quads(), refl = quads(), pools = quads(), haloPts = [], haloCol = [];
   const gy = (x, z) => util.nearestRoute(route, x, z).y - 0.06;       // 与 kit.terrain 同一规则的地面高度
   const nx = new THREE.Vector3(), nz = new THREE.Vector3(), c = new THREE.Vector3(), tmp = new THREE.Vector3();
   const inGap = (a, b) => b > GAP[0] && a < GAP[1];
 
   // ---- 楼：临街一排（左 4.2、右 3.2 起）+ 后排 + 远景 ----
-  const building = (s, lat, w, d, h, color) => {
+  const building = (s, lat, w, d, h, color, far = false) => {
     const a = route.at(s, lat), y0 = gy(a.pos.x, a.pos.z);
-    bParts.push({ geo: boxUV(w, h + 1, d, Math.floor(rand() * 8) / 8, 0), p: [a.pos.x, y0 + h / 2 - 0.5, a.pos.z], ry: -a.heading, s: [w, h + 1, d], color });
+    (far ? tParts : bParts).push({ geo: boxUV(w, h + 1, d, Math.floor(rand() * 32) / 32, Math.floor(rand() * 32) / 32, far ? TOWER_K : 1), p: [a.pos.x, y0 + h / 2 - 0.5, a.pos.z], ry: -a.heading, s: [w, h + 1, d], color });
     return { a, y0 };
   };
-  const tint = () => new THREE.Color('#8c95c8').offsetHSL((rand() - 0.5) * 0.08, 0, (rand() - 0.5) * 0.25);
+  const tint = () => new THREE.Color('#b4b8d4').offsetHSL((rand() - 0.5) * 0.06, 0, (rand() - 0.5) * 0.2);   // 近中性：暖白/冷白窗不被染紫
   const near = [], rear = [];
   for (const side of [1, -1]) {
     const front = side > 0 ? 5.6 : 4.4;                        // 出发的街宽一点（涩谷站前），镜头不贴楼
@@ -74,34 +82,51 @@ export function buildCity(scene, ctx, E) {
       s += ds + 0.4;
     }
   }
+  // 远景高楼（天际线）：两侧 22–95 外 + 神社后方正前方一片，高 30–120（鸟居 ≈3）；雾浓度 ×0.18 → 越远越淡、但整片天际线始终压在头顶
   const towers = [];
-  for (let k = 0; k < 170; k++) {                            // 远景高楼：路两侧 14–70 外，避开路口/大街走廊
-    const side = k % 2 ? 1 : -1, s = -40 + rand() * (N + 100), lat = side * (14 + Math.pow(rand(), 0.7) * 56);
+  const tower = (s, lat) => {
     const a = route.at(s, lat), n = util.nearestRoute(route, a.pos.x, a.pos.z);
-    if (n.s > GAP[0] - 1 && n.s < GAP[1] + 1 && Math.abs(s - n.s) < 3) continue;
-    const w = 3 + rand() * 5, h = 8 + Math.pow(rand(), 1.6) * 42;
-    building(s, lat, w, w * (0.7 + rand() * 0.6), h, tint().multiplyScalar(0.9));
-    if (h > 24) towers.push([a.pos.x, h + 0.3, a.pos.z]);
-  }
-  const winMat = new THREE.MeshBasicMaterial({ map: windowsTex(util, rand), vertexColors: true });
+    if (n.s > GAP[0] - 1 && n.s < GAP[1] + 1 && Math.abs(s - n.s) < 3) return;   // 路口/大街走廊留空
+    if (n.d < 16) return;
+    const w = 5 + rand() * 9, h = 30 + Math.pow(rand(), 1.5) * 90;
+    building(s, lat, w, w * (0.7 + rand() * 0.6), h, new THREE.Color('#9a98c0').multiplyScalar(0.55 + rand() * 0.35), true);
+    if (h > 55) towers.push([a.pos.x, a.pos.y + h + 0.6, a.pos.z]);
+  };
+  for (let k = 0; k < 150; k++) { const side = k % 2 ? 1 : -1; tower(-50 + rand() * (N + 160), side * (22 + Math.pow(rand(), 0.8) * 73)); }
+  for (let k = 0; k < 40; k++) tower(N + 40 + rand() * 120, (rand() - 0.5) * 110);
+  const winMat = new THREE.MeshBasicMaterial({ map: windowsTex(util, rand, true), vertexColors: true });
   const bmesh = new THREE.Mesh(util.merged(bParts), winMat); bmesh.name = 'buildings'; scene.add(bmesh);
+  const twrMat = shade(new THREE.MeshBasicMaterial({ map: windowsTex(util, rand, false), vertexColors: true }), { fogK: 0.18 });
+  const tmesh = new THREE.Mesh(util.merged(tParts), twrMat); tmesh.name = 'skyline'; scene.add(tmesh);
 
   // ---- 竖排霓虹招牌（突き出し看板）：挂在临街楼正面，朝迎面走来的人 ----
   const leftCols = [acc[0], acc[1], acc[2], '#ff8a2a', '#b46bff'], rightCols = [acc[0], acc[2], '#ff8a2a', '#ff4040', '#ffffff'];
   let si = Math.floor(rand() * SIGNS.length);
+  // 湿地面倒影条：从灯/招牌脚下斜着拉向「它在画面正中时镜头所在处」（镜头在 11 步前、路左 1.4）——
+  //   倒影在画面上正好落在招牌正下方，一路拖进画面下三分之一。台阶上不铺（坂道的倒影不拖进天桥台阶）
+  const bv = new THREE.Vector3(), tv = new THREE.Vector3(), dv = new THREE.Vector3();
+  const streak = (x, z, color, wd, L) => {
+    const nb = util.nearestRoute(route, x, z);
+    if (nb.s > 29.3 || (nb.s > 9.6 && nb.s < 20.2)) return;
+    const f = route.at(nb.s - 11, 1.4).pos;
+    dv.set(f.x - x, 0, f.z - z); L = Math.min(L, dv.length() * 0.8); dv.normalize();   // 反射点在灯脚和镜头之间偏镜头一侧
+    let nt = util.nearestRoute(route, x + dv.x * L, z + dv.z * L);
+    const floor = nb.s >= 20.2 ? 20.4 : -1e9;
+    if (nt.s < floor) { L *= (nb.s - floor) / Math.max(0.01, nb.s - nt.s); if (L < 0.8) return; nt = util.nearestRoute(route, x + dv.x * L, z + dv.z * L); }
+    bv.set(x, nb.y + 0.015, z); tv.set(x + dv.x * L, nt.y + 0.015, z + dv.z * L);
+    refl.add(c.addVectors(bv, tv).multiplyScalar(0.5), nx.set(-dv.z, 0, dv.x).multiplyScalar(wd / 2), tmp.subVectors(tv, bv).multiplyScalar(0.5), color);
+  };
   const addSign = (text, p, ry, h, color, vertical = true) => {
     signs.push({ text, p: p.clone(), ry, h, color, vertical, bg: '#0c0612', border: color, glow: 1, weight: 900 });
     const aspect = vertical ? (96 * 1.15 + 58) / ([...text].length * 104 + 58) : null;   // drawText 的版面（size 96、pad 0.3）
     const w = vertical ? h * aspect : h * ([...text].length * 92 + 58) / 173;
     halos.add(c.copy(p).addScaledVector(axisZ(ry, nz), -0.04), axisX(ry, nx).multiplyScalar(w * 1.1 + 0.35), tmp.copy(UP).multiplyScalar(h * 0.62 + 0.3), color);
-    const y0 = gy(p.x, p.z) + 0.03, L = 2.2 + h * 0.9;     // 倒影：从招牌脚下往镜头一侧（-dir）拉长
-    const a = route.at(util.nearestRoute(route, p.x, p.z).s);
-    refl.add(c.set(p.x, y0, p.z).addScaledVector(a.dir, -L / 2), axisX(ry, nx).multiplyScalar(w * 0.55), tmp.copy(a.dir).multiplyScalar(-L / 2), new THREE.Color(color).multiplyScalar(0.8));
+    streak(p.x, p.z, color, Math.min(0.65, Math.max(0.35, w * 0.5)), 4 + Math.min(1.5, h * 0.4));
     return w;
   };
   for (const b of near) {
     if (rand() > 0.85) continue;
-    const text = SIGNS[si++ % SIGNS.length], h = 1.2 + [...text].length * 0.42 + rand() * 0.4;
+    const text = SIGNS[si++ % SIGNS.length], h = Math.min(b.side < 0 ? 2.3 : 9, 1.2 + [...text].length * 0.42 + rand() * 0.4);   // 右侧近处的竖招牌贴着画面右缘，封顶 2.3
     const along = b.sc + (rand() - 0.5) * b.ds * 0.4, lat = b.side * (b.front - 0.38);
     const a = route.at(along, lat), y = b.y0 + Math.max(h / 2 + 1.0, Math.min(b.h - h / 2 - 0.2, 1.7 + h / 2 + rand() * 1.4));
     const cols = b.side > 0 ? leftCols : rightCols;
@@ -112,7 +137,7 @@ export function buildCity(scene, ctx, E) {
   for (const b of [...corner, ...rear.filter(q => q.sc > GAP[1] - 1)]) {
     const k = b.sc > GAP[1] ? 2 : 1, cols = b.side > 0 ? leftCols : rightCols;
     for (let j = 0; j < k; j++) {
-      const text = SIGNS[si++ % SIGNS.length], h = 1.4 + [...text].length * 0.5;
+      const text = SIGNS[si++ % SIGNS.length], h = Math.min(b.side < 0 && b.sc < GAP[0] ? 2.3 : 9, 1.4 + [...text].length * 0.5);
       const a = route.at(b.sc + (j / Math.max(1, k - 1) - 0.5) * b.ds * 0.7, b.side * (b.front - 0.4));
       addSign(text, a.pos.clone().setY(b.y0 + Math.min(b.h - h / 2, 1.9 + h / 2 + j * 0.9 + rand())), -a.heading - Math.PI / 2, h, cols[Math.floor(rand() * cols.length)]);
     }
@@ -215,6 +240,7 @@ export function buildCity(scene, ctx, E) {
       lit.push({ geo: new THREE.BoxGeometry(0.34, 0.06, 0.16), p: [hx, y0 + 3.22, hz], ry: -a.heading, color: '#fff1d6' });
       haloPts.push(hx, y0 + 3.18, hz); haloCol.push(1, 0.85, 0.6);
       pools.add(c.set(hx, y0 + 0.04, hz), tmp.set(1.4, 0, 0), nz.set(0, 0, 1.4), '#7a6040');   // 地上光斑
+      streak(hx, hz, '#c89a60', 0.5, 5);
     }
   }
 
@@ -233,18 +259,20 @@ export function buildCity(scene, ctx, E) {
   });
   const vend = [];
   for (const [s, side] of [[2.4, -1], [3.8, -1], [5.0, 1], [5.9, 1], [22.9, -1], [27.2, 1], [26.7, -1]]) {
-    const lat = side > 0 ? 3.2 : (s < GAP[0] ? -2.9 : -2.05), a = route.at(s, lat), y0 = gy(a.pos.x, a.pos.z), ry = side > 0 ? -a.heading : -a.heading + Math.PI;
-    vend.push({ a, y0, ry, col: ['#d8dde6', '#c8102e', '#1b4fd8'][vend.length % 3] });
+    // 街上的往外挪（左侧 = 镜头这一侧，贴着楼面放，不占前景）；坂道的贴着店面
+    const lat = side > 0 ? (s < GAP[0] ? 5.3 : 3.2) : (s < GAP[0] ? -3.7 : -2.05), a = route.at(s, lat), y0 = gy(a.pos.x, a.pos.z), ry = side > 0 ? -a.heading : -a.heading + Math.PI;
+    vend.push({ a, y0, ry, col: ['#b9bfcc', '#8e1a2a', '#2c3c78'][vend.length % 3] });
   }
-  const vbody = util.instanced(new THREE.BoxGeometry(0.72, 1.42, 0.55), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#202028' }),
-    vend.map(v => ({ p: [v.a.pos.x, v.y0 + 0.71, v.a.pos.z], ry: v.ry, color: v.col })));
-  const vfront = util.instanced(new THREE.PlaneGeometry(0.6, 1.3), new THREE.MeshBasicMaterial({ map: vendTex, toneMapped: false }),
-    vend.map(v => ({ p: [v.a.pos.x + axisZ(v.ry, nz).x * 0.28, v.y0 + 0.72, v.a.pos.z + nz.z * 0.28], ry: v.ry })));
+  // 机身 1.25 高（化身约 1.4）、0.62 宽；侧面压暗，不再是一大块纯色
+  const vbody = util.instanced(new THREE.BoxGeometry(0.62, 1.25, 0.5), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#101014' }),
+    vend.map(v => ({ p: [v.a.pos.x, v.y0 + 0.625, v.a.pos.z], ry: v.ry, color: v.col })));
+  const vfront = util.instanced(new THREE.PlaneGeometry(0.52, 1.13), shade(new THREE.MeshBasicMaterial({ map: vendTex, toneMapped: false, color: '#d8d8d8' }), { mask: true }),
+    vend.map(v => ({ p: [v.a.pos.x + axisZ(v.ry, nz).x * 0.255, v.y0 + 0.64, v.a.pos.z + nz.z * 0.255], ry: v.ry })));
   vbody.name = 'vendBody'; vfront.name = 'vendFront'; scene.add(vbody, vfront);
   for (const v of vend) {
     axisZ(v.ry, nz);
-    refl.add(c.set(v.a.pos.x, v.y0 + 0.035, v.a.pos.z).addScaledVector(nz, 1.2), axisX(v.ry, nx).multiplyScalar(0.45), tmp.copy(nz).multiplyScalar(0.95), '#9fb8d8');
-    haloPts.push(v.a.pos.x + nz.x * 0.4, v.y0 + 0.9, v.a.pos.z + nz.z * 0.4); haloCol.push(0.55, 0.65, 0.8);
+    streak(v.a.pos.x + nz.x * 0.3, v.a.pos.z + nz.z * 0.3, '#a8c4ea', 0.5, 4);
+    haloPts.push(v.a.pos.x + nz.x * 0.4, v.y0 + 0.8, v.a.pos.z + nz.z * 0.4); haloCol.push(0.45, 0.55, 0.7);
   }
 
   // ---- 大屏（左侧楼顶，朝路口）：画布上画渐变 + 大字，uv 横向滚动 ----
@@ -258,22 +286,22 @@ export function buildCity(scene, ctx, E) {
   }, { repeat: true });
   {
     const b = near.filter(q => q.side > 0).reduce((m, q) => Math.abs(q.sc - 3.5) < Math.abs(m.sc - 3.5) ? q : m), a = route.at(b.sc, b.front + 1.5);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 1.7), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 1.7), shade(new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }), { mask: true }));
     scr.position.set(a.pos.x, b.y0 + b.h + 1.1, a.pos.z); scr.rotation.y = -a.heading - Math.PI / 4; scr.name = 'bigScreen'; scene.add(scr);
     halos.add(c.copy(scr.position).addScaledVector(axisZ(scr.rotation.y, nz), -0.05), axisX(scr.rotation.y, nx).multiplyScalar(4.2), tmp.copy(UP).multiplyScalar(1.5), '#8a3aff');
   }
   // ---- 合并出网格 ----
   const lamMesh = new THREE.Mesh(util.merged(lam), new THREE.MeshLambertMaterial({ vertexColors: true })); lamMesh.name = 'cityProps';
-  const litMesh = new THREE.Mesh(util.merged(lit), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })); litMesh.name = 'cityLit';
-  const signMesh = util.textSigns(signs, { size: 96 });
+  const litMesh = new THREE.Mesh(util.merged(lit), shade(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), { mask: true })); litMesh.name = 'cityLit';
+  const signMesh = util.textSigns(signs, { size: 96 }); shade(signMesh.material, { mask: true });
   const haloMesh = halos.mesh(glowMat(radial, { opacity: 0.55 }), 'signHalos');
-  const reflMesh = refl.mesh(glowMat(streakTex(util), { ground: true, opacity: 0.7 }), 'wetReflections');
+  const reflMesh = refl.mesh(glowMat(streakTex(util), { ground: true, opacity: 0.5 }), 'wetReflections');
   const poolMesh = pools.mesh(glowMat(radial, { ground: true, opacity: 0.8 }), 'lampPools');
   reflMesh.renderOrder = poolMesh.renderOrder = 1;
   scene.add(lamMesh, litMesh, signMesh, haloMesh, reflMesh, poolMesh);
   // 路灯/灯笼/贩卖机的光晕：Points（1 次绘制）；楼顶航空灯（红，闪）
   const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(haloPts, 3)); hg.setAttribute('color', new THREE.Float32BufferAttribute(haloCol, 3));
-  const haloP = new THREE.Points(hg, new THREE.PointsMaterial({ size: 1.3, map: radial, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const haloP = new THREE.Points(hg, shade(new THREE.PointsMaterial({ size: 1.3, map: radial, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), { mask: true, addFog: true }));
   haloP.name = 'lampHalos'; scene.add(haloP);
   const ag = new THREE.BufferGeometry(); ag.setAttribute('position', new THREE.Float32BufferAttribute(towers.flat(), 3));
   aviMat = new THREE.PointsMaterial({ size: 1.6, map: radial, color: '#ff2030', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });

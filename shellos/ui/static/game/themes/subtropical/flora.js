@@ -47,7 +47,7 @@ function broadleaf(util, R, blobs, o) {
 
 // 榕树：模板高约 7.5，冠幅半径约 5
 function banyan(util, R, blobs) {
-  const P = [], bark = '#6e6353', root = '#8b7f6b', v = (x, y, z) => new THREE.Vector3(x, y, z);
+  const P = [], bark = '#6e6353', v = (x, y, z) => new THREE.Vector3(x, y, z);
   const fork = v(0, 2.6, 0);
   for (let k = 0; k < 6; k++) {                                     // 主干 = 6 股绞在一起
     const a = k / 6 * 6.28, b = v(Math.cos(a) * 0.42, -0.2, Math.sin(a) * 0.42);
@@ -69,14 +69,25 @@ function banyan(util, R, blobs) {
     const s = 1.25 + R() * 0.7;
     P.push({ geo: blobs[k % blobs.length], p: [Math.cos(a) * rr, y, Math.sin(a) * rr], s: [s, s * 0.62, s], color: ['#28502a', '#2f5e2c', '#3a6c32', '#24462a'][k % 4] });
   }
-  for (let k = 0; k < 64; k++) {                                    // 气根：从枝和冠底垂下，一簇 2–3 根；少数落地变成支柱根
-    const src = k % 3 === 0 ? tips[(R() * tips.length) | 0].clone() : (() => { const a = R() * 6.28, rr = 0.9 + R() * 3.5; return v(Math.cos(a) * rr, 3.9 + R() * 0.5 - rr * 0.1, Math.sin(a) * rr); })();
-    const ground = R() < 0.18, len = ground ? src.y + 0.2 : 1.0 + R() * 2.4;
-    const n = 1 + ((R() * 3) | 0);
-    for (let j = 0; j < n; j++) {
-      const a = src.clone().add(v((R() - 0.5) * 0.25, 0, (R() - 0.5) * 0.25)), b = a.clone().add(v((R() - 0.5) * 0.15, -len * (0.8 + 0.2 * R()), (R() - 0.5) * 0.15));
-      P.push(limb(a, b, ground ? 0.07 : 0.03, ground ? 0.06 : 0.012, root, 4));
+  // 气根：只从树冠下沿、离树干 3 m 以内垂下（上端藏在冠里，不会有悬空的棍子）；前面（局部 +x，摆放时朝路）垂得密。
+  //   每簇 2–3 根细须，每根 3–4 节、略弯，半径 0.03 → 0.015
+  const rootC = '#6b5a45';
+  for (let k = 0; k < 25; k++) {
+    const a = R() < 0.7 ? (R() - 0.5) * 2.4 : R() * 6.28, rr = 0.9 + R() * 2.1;
+    const top = v(Math.cos(a) * rr, 4.35 - rr * 0.12, Math.sin(a) * rr), len = 1.1 + R() * 1.5, ns = 2 + (R() < 0.5 ? 1 : 0);
+    for (let j = 0; j < ns; j++) {
+      let p0 = top.clone().add(v((R() - 0.5) * 0.22, R() * 0.1, (R() - 0.5) * 0.22));
+      const bx = (R() - 0.5) * 0.35, bz = (R() - 0.5) * 0.35, L = len * (0.75 + 0.3 * R()), n = 3 + (R() < 0.5 ? 1 : 0);
+      for (let q = 0; q < n; q++) {
+        const t0 = q / n, t1 = (q + 1) / n, p1 = top.clone().setY(p0.y - L / n);
+        p1.x = p0.x + bx * (t1 * t1 - t0 * t0); p1.z = p0.z + bz * (t1 * t1 - t0 * t0);   // 越往下越偏：一道缓弯
+        P.push(limb(p0, p1, 0.03 - 0.015 * t0, 0.03 - 0.015 * t1, rootC, 4)); p0 = p1;
+      }
     }
+  }
+  for (let k = 0; k < 4; k++) {                                     // 支柱根：大枝中段落到地上（两头都连着东西）
+    const m = tips[(k * 2 + 2) % tips.length], a = m.clone().add(v(0, -0.1, 0)), b = v(m.x * 0.95, -0.2, m.z * 0.95);
+    P.push(limb(a, b, 0.07, 0.09, bark, 5));
   }
   return finish(util, P, 0, 5.5);
 }
@@ -127,7 +138,10 @@ export function buildFlora(scene, ctx, B) {
 
   // 榕树：指定位置（一眼认出）
   const bGeo = banyan(util, R, blobs), bItems = [];
-  for (const [s, lat, sc, ry] of B.banyans) { const a = route.at(s, lat); bItems.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z), a.pos.z], ry, s: sc }); }
+  for (const [s, lat, sc] of B.banyans) {                           // 局部 +x（气根密的一面）朝向路
+    const a = route.at(s, lat), r = route.at(s).pos, dx = r.x - a.pos.x, dz = r.z - a.pos.z;
+    bItems.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z), a.pos.z], ry: Math.atan2(-dz, dx), s: sc });
+  }
   const bm = util.instanced(bGeo, vc, bItems); bm.name = 'banyan'; out.push(bm);
 
   // 蕨 + 灌丛：路两边（路沿外 0.4 起）+ 林下
