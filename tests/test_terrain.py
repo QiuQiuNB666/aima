@@ -66,7 +66,7 @@ def test_flat_and_standing_give_zero():
     ctl.force = "stairs_up"
     peak_ph = (T.HS_PHASE + ctl.p("t_step") / 100) % 1.0
     assert ctl.step(None, gait(moving=False, phase=peak_ph)) == (0.0, 0.0)
-    assert ctl.step(None, gait(moving=True, phase=peak_ph))[0] > 1.0
+    assert abs(ctl.step(None, gait(moving=True, phase=peak_ph))[0]) > 1.0   # 上台阶现在是阻力（负）
 
 
 def test_red_light_wait(monkeypatch):
@@ -169,3 +169,15 @@ def test_switching_worlds_keeps_each_worlds_memory():
     assert (ctl.ghost, ctl.ghost_who, ctl.best) == ([1.0, 2.0], "球球", 30.0)
     ctl.set_preset("taishan_18pan")
     assert (ctl.ghost, ctl.ghost_who, ctl.best) == ([5.0], "评委-A", 99.0)
+
+
+def test_stairs_up_resists_stairs_down_assists_with_impact():
+    """9/23 球球真机反馈：上楼要阻力、下楼要助力、落阶那一下要有顿挫。"""
+    c = T.Terrain(strength=2.0)
+    at = lambda k, pct: c.pulse(k, (T.HS_PHASE + pct / 100) % 1.0)
+    assert at("stairs_up", c.p("t_step")) < -2.0                 # 支撑期往屈曲拉（阻力，×1.2）
+    assert max(at("stairs_up", p) for p in range(30, 90)) <= 0   # 摆动期不压腿（防绊）
+    assert at("stairs_down", 0) < -1.5                           # 脚跟着地：落阶冲击
+    assert max(at("stairs_down", p) for p in range(5, 30)) > 1.5 # 随后伸展助力
+    assert min(at("stairs_down", p) for p in range(60, 76)) < -1.0   # 摆动期帮着迈腿
+    assert at("lift", 68) < -1.0 and at("lift", 10) == 0.0       # 跑酷用：只帮抬腿

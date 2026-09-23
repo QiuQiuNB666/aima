@@ -3,8 +3,10 @@
 穿戴者每走一步（步态估计接受的一个周期）位置前进一步；当前路段决定这一步给什么力：
   up          早支撑伸展脉冲——"有人在后面推"
   down        早支撑制动脉冲——"腿被拖住"（推断）
-  stairs_up   早支撑伸展 + 摆动期屈曲——"抬腿、蹬上去"
-  stairs_down 制动
+  stairs_up   阻力：支撑期往屈曲拉——"腿发沉、一级一级费劲蹬"（9/23 球球真机反馈：上楼要阻力）。
+              摆动期不压腿：抬腿时往下压会让脚尖勾台阶（pulse_plot 的「30–90% 不许抗屈」就是防这个）
+  stairs_down 助力：早支撑伸展推 + 摆动期帮着迈腿；**落阶冲击**：脚跟着地那一下一个短促屈曲脉冲——"身子往下一沉"
+  lift        只在摆动期帮着抬腿（跑酷起跳前用；以前借的是 stairs_up，那时它是助力）
   wait        红灯：走着会被轻轻拉住、位置不前进；两腿静下来 1.5 s 放行（从停步算起中位约 2 s），最多 6 s
   flat        0
 脉冲式而不是持续顶：发热小、电量省、人对变化更敏感。正 = 伸展（9/22 数据推断，待穿上验证）。
@@ -30,7 +32,10 @@ WAIT_STILL_S = 1.5
 STILL_DPS = 20.0
 WAIT_CAP_S = 6.0
 CAP = 3.0        # 控制律自己也不出软限（Guard 仍按 --cap 再裁一次）；main 启动时改成 --cap 的值
-MULT = {"up": 1.0, "down": -0.8, "stairs_up": 1.2, "stairs_down": -1.0, "wait": -0.5}   # 主脉冲峰值 = MULT × strength
+MULT = {"up": 1.0, "down": -0.8, "stairs_up": -1.2, "stairs_down": 1.0, "wait": -0.5, "lift": 0.0}   # 主脉冲峰值 = MULT × strength
+SWING = 0.8      # 摆动期帮着迈腿 / 抬腿（68%，屈曲方向）占 strength 的比例：下台阶、lift
+IMPACT = 1.0     # 下台阶落阶冲击峰值 = IMPACT × strength（Guard 的 50 Nm/s 斜率限制会把它削成约 60 ms 的顿挫，安全上不会是尖刺）
+IMPACT_W = 10.0  # 落阶冲击底宽 % 周期（脚跟着地前后 ±5%；文献脉冲宽下限 10%）
 LEGACY = {"台阶": "train_stairs", "长坡": "train_slope", "山的记忆": "taishan_18pan"}
 RISE = {"flat": 0.0, "up": 0.08, "down": -0.08, "stairs_up": 0.12, "stairs_down": -0.12, "wait": 0.0}
 PRESETS = {wid: [(s["kind"], s["steps"]) for s in w["route"]] for wid, w in W.WORLDS.items()}   # 兼容旧接口
@@ -57,7 +62,7 @@ class Terrain(Controller):
             # 中心限在 0–20%：宽 20% 时伸展脉冲也不会进 30–60%（摆动中段不抗屈，scripts/pulse_plot.py 核对）
             "t_push":   [11.0, 0.0, 20.0],        # 上坡伸展脉冲中心：早支撑 5–17%（脚跟着地=0%）
             "t_brake":  [10.0, 0.0, 20.0],        # 制动脉冲中心：5–15%
-            "t_step":   [6.0, 0.0, 20.0],         # 台阶伸展脉冲：0–12%；摆动期屈曲脉冲固定在 68%
+            "t_step":   [6.0, 0.0, 20.0],         # 上台阶支撑期阻力脉冲中心；摆动期脉冲固定在 68%；下台阶助力用 t_brake
             "width":    [12.0, 10.0, 20.0],       # 脉冲底宽 % 周期（文献 10–20%）
         }
         self.force = None                         # 强制路段（2AFC / 演示）
@@ -170,9 +175,13 @@ class Terrain(Controller):
         s, w = self.p("strength"), self.p("width")
         x = ((phase - HS_PHASE) % 1.0) * 100.0           # 估计器相位 → 文献相位（脚跟着地=0%）
         center = self.p({"up": "t_push", "stairs_up": "t_step"}.get(kind, "t_brake"))   # wait：走着就轻轻拉住
+        if kind == "stairs_down":                        # 助力脉冲排在落阶冲击后面，中间留 1% 过零，不直接正负翻转
+            center = max(center, IMPACT_W / 2 + w / 2 + 1.0)
         t = MULT[kind] * s * _bump(x, center, w)
-        if kind == "stairs_up":
-            t -= 0.8 * s * _bump(x, 68.0, w)             # 摆动期屈曲：帮着抬腿
+        if kind in ("stairs_down", "lift"):
+            t -= SWING * s * _bump(x, 68.0, w)           # 摆动期屈曲：帮着迈腿 / 抬腿
+        if kind == "stairs_down":
+            t -= IMPACT * s * _bump(x, 0.0, IMPACT_W)    # 落阶冲击：脚跟着地一瞬间往下一沉
         return max(-CAP, min(CAP, t))
 
     # ---- 给游戏 / 仪表盘 ----
