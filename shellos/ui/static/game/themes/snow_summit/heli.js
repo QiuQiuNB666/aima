@@ -21,7 +21,7 @@ export function buildHeli(ctx, { Z, pad, LOW, onTouchdown }) {
   bg.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3));
   const beam = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide, toneMapped: false }));
   beam.name = 'heliBeam'; beam.renderOrder = 6; scene.add(beam);
-  for (const m of [body, beam]) m.frustumCulled = false;
+  beam.frustumCulled = false;
   const spray = LOW ? null : kit.particles(ctx, { color: '#f4f8ff', alpha: 0.75, n: 300, gravity: 0.5, name: 'heliSnow' });
   const snd = kit.sfxLoop('rotor');
 
@@ -102,7 +102,7 @@ export function buildHeli(ctx, { Z, pad, LOW, onTouchdown }) {
       // ---- 画 ----
       const on = H.mode !== 'none';
       g.scale.setScalar(on ? 1 : 1e-6); g.position.copy(H.pos); g.rotation.y = H.yaw;
-      body.castShadow = on;                                                                       // 不在场时不投影（省阴影那遍绘制）
+      for (const m of M.meshes) m.castShadow = on;                                               // 不在场时不投影（省阴影那遍绘制）
       H.rot += dt * 16 * H.rs; H.tr += dt * 38 * H.rs; M.setSpin(H.rot, H.tr);
       if (beamOn) {
         g.updateMatrixWorld(); tmp.copy(nose).applyMatrix4(g.matrixWorld);                         // 灯在机头下

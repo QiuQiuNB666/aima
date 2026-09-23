@@ -373,16 +373,17 @@ export function build(scene, ctx) {
   let people = null;
   if (Z.queue) {
     // 登山者：一个 InstancedMesh（climber_model.js），羽绒服 / 背包颜色、跺脚 / 搓手 / 抬头 / 走都是实例属性
-    const n = LOW ? 3 : 5, geo = climberGeo(), CM = climberMaterials(revealable, revTop);
-    const SUIT = ['#e0402c', '#f2b01e', '#3a7bd8', '#2f9c55', '#7a3fc0'], PK = ['#2b2f36', '#d63b2a', '#2b2f36', '#e8781c', '#3a5a8a'];
+    const n = LOW ? 3 : 5, geos = [0, 1, 2].map(l => climberGeo(l)), geo = geos[0], CM = climberMaterials(revealable, revTop);   // LOD 三级：离镜头最近那人 < 10 全细节、< 24 中、再远粗
+    // 美术范式 §10.6：路人一律低饱和中性色（不穿琥珀 / 冰青 / 钴蓝，和峰哥、影子、捷风分开）
+    const SUIT = ['#9a4a3e', '#6f7650', '#5d6672', '#7a6680', '#9a8c6a'], PK = ['#2b2f36', '#6a3a32', '#3a3c40', '#5a5040', '#40464e'];
     const suitA = new Float32Array(n * 3), packA = new Float32Array(n * 3), anim = new Float32Array(n * 4), c = new THREE.Color();
     for (let k = 0; k < n; k++) { suitA.set(c.set(SUIT[k]).toArray(), k * 3); packA.set(c.set(PK[k]).toArray(), k * 3); }
-    geo.setAttribute('aSuit', new THREE.InstancedBufferAttribute(suitA, 3)); geo.setAttribute('aPack', new THREE.InstancedBufferAttribute(packA, 3));
-    const aAnim = new THREE.InstancedBufferAttribute(anim, 4); geo.setAttribute('aAnim', aAnim);
+    const aSuit = new THREE.InstancedBufferAttribute(suitA, 3), aPk = new THREE.InstancedBufferAttribute(packA, 3), aAnim = new THREE.InstancedBufferAttribute(anim, 4);
+    for (const gg of geos) { gg.setAttribute('aSuit', aSuit); gg.setAttribute('aPack', aPk); gg.setAttribute('aAnim', aAnim); }
     const sm = new THREE.InstancedMesh(geo, CM.mat, n); sm.customDepthMaterial = CM.depth;
     sm.frustumCulled = false; sm.name = 'queue'; scene.add(sm); hideTop.push(sm);
     const q0 = Z.queue.start;
-    people = { sm, n, anim, aAnim, ph: Array.from({ length: n }, (_, k) => k * 1.7), wk: new Array(n).fill(0), rb: new Array(n).fill(0), lk: new Array(n).fill(0), ps: new Array(n).fill(null), s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
+    people = { sm, n, anim, aAnim, geos, lod: 0, ph: Array.from({ length: n }, (_, k) => k * 1.7), wk: new Array(n).fill(0), rb: new Array(n).fill(0), lk: new Array(n).fill(0), ps: new Array(n).fill(null), s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
       red: k => q0 + 1.3 + k * 1.3, go: k => N + 4 + k * 1.1, sig: M.signals.find(g => g.seg.start === q0), wt: 0, aside: false, asideS: 0 };
     people.cl = people.lat.slice();                                          // 当前横向位置（让路时往右挪）
   }
@@ -549,6 +550,11 @@ export function update(dt, st) {
       P.anim.set([P.ph[k], P.wk[k], P.rb[k], P.lk[k]], k * 4);
     }
     P.sm.instanceMatrix.needsUpdate = true; P.aAnim.needsUpdate = true;
+    if (st.camera) {                                                               // LOD：按离镜头最近那人算，带回差
+      let dmin = 1e9; for (let k = 0; k < P.n; k++) { route.at(P.s[k], P.cl[k], A); dmin = Math.min(dmin, st.camera.position.distanceTo(A.pos)); }
+      const want = dmin < (P.lod === 0 ? 11 : 9) ? 0 : dmin < (P.lod === 1 ? 26 : 22) ? 1 : 2;
+      if (want !== P.lod) { P.lod = want; P.sm.geometry = P.geos[want]; }
+    }
   }
 }
 
