@@ -40,6 +40,7 @@ export async function makeAssistant(scene) {
   return {
     av, group: av.group, name: 名字, body, head, pose: av.pose, statue: false, model: false,
     animate(dt, t, d) { av.animate(dt, t, d); sway(d); },
+    point: pointer(av),
     headWorld: (out = tmp) => av.headWorld(out),
     stance: () => false, update(dt) { swing(dt); }, burst() {}, resetTrail() {},
     set visible(v) { av.group.visible = v; }, get visible() { return av.group.visible; },
@@ -103,3 +104,17 @@ function makeSwing(av, head, hem) {
     }
   };
 }
+
+// ---- 第 5 轮：指路——A2 摆完之后，右上臂绕人物的左右轴往前上抬（权重 w 0..1，渐入渐出）；轴每帧按骨骼当前朝向换算 ----
+function pointer(av) {
+  const arm = av.bones['Skeleton_arm_joint_R']; if (!arm) return () => {};
+  const ax = new THREE.Vector3(), qb = new THREE.Quaternion(), q = new THREE.Quaternion(), D = Math.PI / 180;
+  return w => {
+    if (!(w > 0.01)) return;
+    arm.parent.updateWorldMatrix(true, false); arm.updateWorldMatrix(false, false);
+    ax.set(0, 0, 1).applyQuaternion(av.group.getWorldQuaternion(qb));          // 人物的左右轴（世界）
+    ax.applyQuaternion(arm.getWorldQuaternion(qb).invert()).normalize();       // → 上臂自己的坐标
+    arm.quaternion.multiply(q.setFromAxisAngle(ax, POINT_DEG * D * w));
+  };
+}
+export const POINT_DEG = 80;               // 往前上抬多少度（正负按截图对过）
