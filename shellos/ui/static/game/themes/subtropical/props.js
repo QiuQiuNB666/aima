@@ -72,25 +72,44 @@ export function buildProps(scene, ctx, B) {
   railRun(-L / 2, z1, L / 2, z1);
   railRun(-L / 2, z0 + 0.5, -L / 2, z1);
   railRun(L / 2, z0 + 0.5, L / 2, z1);
-  // 投币望远镜：立柱 + 头（双筒），朝前右（城市方向）
-  const tx = D.tele[0], tz = z0 + D.tele[1], tr = D.tele[2];
-  dp(new THREE.CylinderGeometry(0.07, 0.11, 1.05, 8), tx, 0.52, tz, '#3d4a52');
-  dp(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 10), tx, 0.03, tz, '#3d4a52');
+  // 投币望远镜：平台前沿栏杆内（离「观景台」牌腿 ≥ 1.5；临崖外角在 pos22 正好被站牌挡住），立柱 + 芥黄色镜头（双筒），
+  //   镜筒朝前右（城市方向），衬在城和海前面；比真的大 1.3 倍，3 米外认得出
+  const tx = L / 2 - 0.35, tz = z0 + 0.6, tr = D.tele;
+  dp(new THREE.CylinderGeometry(0.09, 0.14, 1.2, 8), tx, 0.6, tz, '#3d4a52');
+  dp(new THREE.CylinderGeometry(0.26, 0.26, 0.07, 10), tx, 0.035, tz, '#3d4a52');
   const head = (geo, lx, ly, lz, color) => {                          // 头的局部坐标：+x = 镜筒朝向
     const c = Math.cos(tr), s = Math.sin(tr);
-    dp(geo, tx + lx * c - lz * s, 1.1 + ly, tz + lx * s + lz * c, color, -tr);
+    dp(geo, tx + lx * c - lz * s, 1.3 + ly, tz + lx * s + lz * c, color, -tr);
   };
-  head(new THREE.BoxGeometry(0.34, 0.26, 0.36), 0, 0, 0, '#2f7d6a');
-  for (const lz of [-0.09, 0.09]) head(new THREE.CylinderGeometry(0.07, 0.08, 0.34, 10).rotateZ(Math.PI / 2), 0.28, 0.05, lz, '#1f2a30');
-  head(new THREE.BoxGeometry(0.06, 0.1, 0.3), -0.2, 0.06, 0, '#1f2a30');
+  head(new THREE.BoxGeometry(0.44, 0.34, 0.46), 0, 0, 0, '#e0a83a');
+  head(new THREE.BoxGeometry(0.46, 0.08, 0.48), 0, 0.2, 0, '#3d4a52');          // 顶盖
+  for (const lz of [-0.12, 0.12]) head(new THREE.CylinderGeometry(0.09, 0.1, 0.44, 10).rotateZ(Math.PI / 2), 0.38, 0.06, lz, '#1f2a30');
+  head(new THREE.BoxGeometry(0.08, 0.13, 0.38), -0.27, 0.07, 0, '#1f2a30');
+  // 解说牌：平台外沿栏杆内侧，斜面朝来路（镜头看得到），浅色板面 + 字
+  const ix = 0.1, iz = z1 - 0.45;
+  for (const dz of [-0.32, 0.32]) dp(new THREE.BoxGeometry(0.07, 0.8, 0.07), ix, 0.4, iz + dz, '#5c4028');
+  const tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, hd - Math.PI / 2, 0, 'YXZ')).multiply(new THREE.Quaternion().setFromAxisAngle(X, -0.55));
+  parts.push({ geo: new THREE.BoxGeometry(0.86, 0.56, 0.05), p: local(ix, 0.95, iz).toArray(), q: tilt, color: '#5c4028' });
   // 长凳（平台后侧，背朝路）
   dp(new THREE.BoxGeometry(1.1, 0.06, 0.38), -L / 2 + 0.9, 0.45, z0 + 1.3, '#a87a50');
   for (const x of [-0.45, 0.45]) dp(new THREE.BoxGeometry(0.07, 0.45, 0.34), -L / 2 + 0.9 + x, 0.22, z0 + 1.3, '#5c4028');
 
   // —— 刻字石（红字）/ 木牌：石头 = 压扁的多面体，字贴在朝镜头那面
-  const face = (s, k) => { const a = route.at(s); return a.left.clone().multiplyScalar(-k).addScaledVector(a.dir, -(1 - k)).normalize(); };   // 朝下山方向、偏向路
+  // 字面朝向：k = 老参数（朝下山方向、偏向路）；fa = 直接给角度（度，从「正对来路」往左转为正）
+  const face = S => { const a = route.at(S.s); if (S.fa == null) return a.left.clone().multiplyScalar(-S.k).addScaledVector(a.dir, -(1 - S.k)).normalize();
+    const t = THREE.MathUtils.degToRad(S.fa); return a.dir.clone().multiplyScalar(-Math.cos(t)).addScaledVector(a.left, Math.sin(t)).normalize(); };
   for (const S of B.stones) {
-    const a = route.at(S.s, S.lat), g = S.deck ? route.heightAt(S.s) - 0.03 : Math.min(hAt(a.pos.x, a.pos.z), route.heightAt(S.s)), f = face(S.s, S.k);
+    const a = route.at(S.s, S.lat), f = face(S);
+    let g = S.deck ? route.heightAt(S.s) - 0.03 : Math.min(hAt(a.pos.x, a.pos.z), route.heightAt(S.s)) - (S.sink || 0);
+    if (S.plinth) {                                                   // 毛石基座：几块压扁的石头垒成台，石头坐在台上
+      const ry0 = Math.atan2(f.x, f.z), rt = new THREE.Vector3(Math.cos(ry0), 0, -Math.sin(ry0));
+      for (let k = 0; k < 7; k++) {
+        const u = (k % 4 - 1.5) / 1.5, row = k < 4 ? 0 : 1, sc = [S.w * 0.2, S.plinth * 0.42, S.d * 0.5];
+        const pp = a.pos.clone().setY(g + S.plinth * (row ? 0.72 : 0.3)).addScaledVector(rt, u * S.w * (row ? 0.28 : 0.36) + (row ? S.w * 0.14 : 0));
+        parts.push({ geo: rockGeo(k % 2 ? '#8f887b' : '#9d968a'), p: pp.toArray(), ry: ry0 + k, s: sc });
+      }
+      g += S.plinth;
+    }
     const ry = Math.atan2(f.x, f.z);
     const base = a.pos.clone().setY(g);
     if (S.board) {                                                    // 木牌：两根柱 + 板
@@ -108,6 +127,12 @@ export function buildProps(scene, ctx, B) {
       texts.push({ text: S.text, p: at.toArray(), ry, h: S.th, color: '#d4231c', weight: 900, pad: 0.12 });
     }
   }
+  {                                                                  // 解说牌字：贴在板面前方 3 cm
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, hd - Math.PI / 2, 0, 'YXZ')).multiply(new THREE.Quaternion().setFromAxisAngle(X, -0.55));
+    const n = new THREE.Vector3(0, 0, 1).applyQuaternion(q), at = local(ix, 0.95, iz).addScaledVector(n, 0.035);
+    texts.push({ text: '深圳湾 · 福田\n城市眺望', p: at.toArray(), q, h: 0.42, color: '#2a3a2a', bg: '#efe6cf', weight: 800, pad: 0.18 });
+  }
+
   const pmesh = new THREE.Mesh(util.merged(parts), vc); pmesh.name = 'deckAndStones'; scene.add(pmesh);
   const signs = util.textSigns(texts, { size: 128 }); signs.renderOrder = 1; scene.add(signs);
 }

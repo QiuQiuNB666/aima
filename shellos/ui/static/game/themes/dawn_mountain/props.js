@@ -145,9 +145,9 @@ export function scatter(ctx, spots, mats) {
 
 // 花岗岩配色（崖壁、陡坡共用）：基色 / 层理暗带 / 受光面，外加竖向裂隙
 export const GRANITE = { base: '#7f7a70', dark: '#5c574f', lit: '#a8a092', crack: '#3f3b35' };
-export function graniteColor(kit, out, x, y, z, lit, crack = 0) {
+export function graniteColor(kit, out, x, y, z, lit, crack = 0, bandK = 0.7) {
   const n = kit.fbm(x * 0.35 + z * 0.35, y * 0.6, 3), band = smooth(0.55, 0.85, 0.5 + 0.5 * Math.sin(y * 1.9 + n * 4));
-  out.set(GRANITE.base).lerp(C_DARK, band * 0.7).lerp(C_LIT, Math.max(0, Math.min(1, lit)) * (0.55 + 0.45 * n));
+  out.set(GRANITE.base).lerp(C_DARK, band * bandK).lerp(C_LIT, Math.max(0, Math.min(1, lit)) * (0.55 + 0.45 * n));
   if (crack > 0) out.lerp(C_CRACK, crack);
   out.multiplyScalar(0.92 + 0.16 * kit.noise2(x * 1.7 + z * 1.3, y * 1.9));
   return out;
@@ -189,9 +189,9 @@ export function cliff(ctx, { side, s0, s1, lat, hOf, seed, lean = 0, rough = 1.3
 
 // 刻字：slab = 石板颜色（碑）；不给 slab 就只刻在崖面上（文字板贴着崖面）
 // face = 字面朝向的水平向量
-export function carving(ctx, text, at, face, { w = 1.3, h = 3.0, d = 0.9, charH, color = '#b8261c', slab = null } = {}) {
+export function carving(ctx, text, at, face, { w = 1.3, h = 3.0, d = 0.9, charH, color = '#b8261c', slab = null, vertical } = {}) {
   const ry = Math.atan2(face.x, face.z);
   const slabPart = slab ? { geo: new THREE.BoxGeometry(w, h, d), p: at.clone().addScaledVector(face, 0.03 - d / 2).toArray(), ry, color: slab } : null;
-  const txt = { text, p: at.clone().addScaledVector(face, 0.04), ry, h: charH || h * 0.86, color, vertical: [...text].length > 1 && h > w, weight: 900, pad: 0.12, font: '"Songti SC","STSong","Noto Serif CJK SC",serif' };
+  const txt = { text, p: at.clone().addScaledVector(face, 0.04), ry, h: charH || h * 0.86, color, vertical: vertical ?? ([...text].length > 1 && h > w), weight: 900, pad: 0.12, font: '"Songti SC","STSong","Noto Serif CJK SC",serif' };
   return { slabPart, txt };
 }

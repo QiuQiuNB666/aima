@@ -49,7 +49,27 @@ export function pathMaterials({ THREE, util, kit }) {
       #include <opaque_fragment>`);
   };
   stairs.customProgramCacheKey = () => 'subtropical-stairs';
-  return { road: new THREE.MeshLambertMaterial({ color: '#a39684' }), stairs };
+  return { road: new THREE.MeshLambertMaterial({ color: '#ffffff', map: paveTex(util, kit) }), stairs };
+}
+
+// 路面：花岗岩铺砖（#B9B2A4 砖面、#8F887B 砖缝、错缝、少量苔点），和石阶一套材质。
+//   路面 uv：u = 横向（-1.1…1.1）、v = 沿路距离（单位）→ 一张图 = 2.2 × 2.2：横 4 块 × 纵 6 排
+function paveTex(util, kit) {
+  const t = util.canvasTexture(256, 256, (g, w, h) => {
+    const im = g.createImageData(w, h), cols = 4, rows = 6, cw = w / cols, rh = h / rows, J = 3;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const r = Math.floor(y / rh), xo = (x + (r % 2) * cw / 2) % w, c = Math.floor(xo / cw);
+      const jx = Math.min(xo - c * cw, (c + 1) * cw - xo), jy = Math.min(y - r * rh, (r + 1) * rh - y), joint = Math.min(jx, jy) < J / 2 + 0.5;
+      const tone = 0.93 + 0.1 * kit.hash2(c * 7 + r, r * 13 + c), n = 0.94 + 0.07 * kit.noise2(x * 0.12, y * 0.12) + 0.07 * (kit.hash2(x, y) - 0.5);
+      const moss = !joint && Math.min(jx, jy) < 7 && kit.noise2(x * 0.21 + 9, y * 0.21) > 0.72 && kit.hash2(x + 3, y) > 0.35;
+      const i = (y * w + x) * 4;
+      const [R, G, B] = joint ? [143, 136, 123] : moss ? [118, 132, 86] : [185 * tone * n, 178 * tone * n, 164 * tone * n];
+      im.data[i] = R; im.data[i + 1] = G; im.data[i + 2] = B; im.data[i + 3] = 255;
+    }
+    g.putImageData(im, 0, 0);
+  }, { repeat: true });
+  t.repeat.set(1 / 2.2, 1 / 2.2);
+  return t;
 }
 
 export function build(scene, ctx) {
@@ -115,18 +135,24 @@ export function build(scene, ctx) {
   const SC = route.at(N + 1.2).pos;                // 登顶环绕镜头中心（半径 5.2）
   const B = {
     c, D, R: RT, sunDir, hAt, landY: LAND_Y,
-    banyans: [[2.2, -5.4, 1.0, 0.4], [12.5, 8.2, 0.95, 1.9], [29.5, 8.5, 0.9, 3.1], [-9, -6.5, 0.85, 2.4]],
+    // 榕树 [s, lat, 缩放]。山脚那棵：往前挪到 s 4（右侧地面往下掉，再往右树冠会落到视平线上把海挡死），
+    //   朝路方向的冠幅压到 0.62：pos0 只在右缘露树干 + 冠，右侧中段露出海湾；pos6 已在镜头侧后方
+    banyans: [[4.0, -5.6, [0.62, 0.95, 0.9]], [12.5, 8.2, 0.95], [29.5, 8.5, 0.9], [-9, -6.5, 0.85]],
     rails: [[-1, 8, -1], [8, obs.start - 1, 1], [8, obs.start - 3, -1], [obs.start + obs.steps, N - 5, 1], [obs.start + obs.steps + 2, N - 1, -1]],
-    deck: { s: deckS, len: 2.4, w: 3.4, tele: [0.6, 2.4, 0.3] },
+    deck: { s: deckS, len: 2.4, w: 3.4, tele: 0.45 },                // tele = 镜筒往右转（弧度，朝城区）
+    wutong: null,
     stones: [
       // 刻字石：th = 字块高（字形约 0.7 th）。梧桐山在山脚左前（s 1.0、路左 3.85、字面朝山下（镜头来的方向）：山脚看得到，走到缓坡时已在镜头后面，不从左下角 HUD 下面露出来）；好汉坡石往右挪（不在影子正后方）
       { text: '梧桐山', s: 1.0, lat: 3.85, k: 0.12, tx: 0.32, w: 2.7, h: 1.4, d: 1.1, th: 0.66 },          // 路左 3.85（矮于 1.5，不挡镜头）
-      { text: '好汉坡', s: 8.2, lat: -4.6, k: -0.6, w: 2.5, h: 1.4, d: 1.0, th: 0.66 },
+      { text: '好汉坡', s: 9.4, lat: -3.9, fa: 36, w: 2.5, h: 1.4, d: 1.0, th: 0.66 },                        // fa 36° = 老朝向再往镜头转 15°；往前 1.2 步：pos6 整块在画面里
       { text: '好汉坡', s: 17.5, lat: -2.3, k: -0.3, w: 0.62, h: 1.6, board: true, vertical: true, charH: 1.45 },
       { text: '观景台', s: deckS - 1.6, lat: -1.75, k: -0.2, w: 1.3, h: 0.46, board: true, deck: true, charH: 0.36, legs: 1.3 },   // 牌子抬过平台栏杆（以前被栏杆柱挡掉「台」）
-      { text: '鹏城第一峰', s: N + 5.2, lat: -5.2, k: -0.35, w: 4.3, h: 1.75, d: 1.2, th: 0.86, col: '#bdb5a5' },
+      // 鹏城第一峰：路尽头左侧（影子和它的标签在右边），登顶环绕圈（半径 5.2）外。矮、半埋（sink）：字压在离地 0.2–0.8，
+      //   pos14 落在左上信息卡下沿和峰哥头像之间、左栏杆左边；pos22 在左栏杆尽头左边；pos33 在影子标签左边
+      { text: '鹏城第一峰', s: N + 14.5, lat: 2.2, fa: -10, w: 4.6, h: 1.5, d: 1.2, th: 0.92, sink: 0.2, col: '#bdb5a5' },
     ],
   };
+  { const a = route.at(N + 30, 3.0); B.wutong = { p: a.pos.clone().setY(hAt(a.pos.x, a.pos.z)), h: 6.8, ry: 0.6 }; }
   const deckA = route.at(deckS), deckC = deckA.pos.clone().addScaledVector(deckA.left, -(1.1 + B.deck.w / 2));
   const clearOf = (x, z, p, r) => Math.hypot(x - p.x, z - p.z) < r;
   // 放东西的规矩：路左 3 以内不放高的、观景台和它右前方的视野留空、登顶环绕圈留空、榕树周围留空
@@ -138,14 +164,16 @@ export function build(scene, ctx) {
     if (stoneP.some(p => clearOf(x, z, p, kind === 'low' ? 1.5 : 3.2))) return false;
     if (clearOf(x, z, SC, kind === 'low' ? 5.9 : 8)) return false;
     if (clearOf(x, z, deckC, kind === 'low' ? 2.6 : 5.5)) return false;
+    if (clearOf(x, z, B.wutong.p, kind === 'low' ? 1.2 : 9)) return false;
     if (kind === 'tree') {
       if (lat > 0 && lat < 4.5) return false;
       if (banyanP.some(p => clearOf(x, z, p, 4.6))) return false;
       // 好汉坡中段往上的右侧、登顶平台往前：只留树顶低于路面的（谷底林海），城市露出来
-      const ahead = (x - PN.x) * DN.x + (z - PN.z) * DN.z > 2 && lat < 14;        // 山顶往前（镜头正前方）
+      const ahead = (x - PN.x) * DN.x + (z - PN.z) * DN.z > 2 && lat < 45;        // 山顶往前（镜头正前方；左边远坡也算：大梧桐背后要是天）
       if (((lat < 0 && s > 14) || ahead) && hAt(x, z) + 11 > route.heightAt(Math.min(s, N)) - 0.8) return false;   // 11 = 最高的树模板 × 最大缩放
       if (lat < 0 && lat > -6 && s > -3 && s < 8) return false;                   // 山脚右侧：给榕树和城市留缝
       if (s > N - 5 && Math.abs(lat) < 10) return false;                          // 山脊：只有芒草和矮灌
+      if (s > N - 12 && lat > 0 && lat < 13) return false;                        // 山脊左坡：不留高树（pos33 顶部 HUD 后面不透出树冠，大梧桐的剪影干净）
     }
     return true;
   };

@@ -28,10 +28,10 @@ export function zigzag(u0, u1, v0, v1, legs, rot = 0) {
 }
 
 // nf = 1 的光点走近化身 3–5.5 单位内渐隐（走在本路上的人给化身让路，不和化身/影子叠）
-const VS = `attribute vec3 color; attribute float sz; attribute float nf; uniform float op; uniform vec3 av; varying vec3 vC;
+const VS = `attribute vec3 color; attribute float sz; attribute float nf; attribute float vis; uniform float op; uniform vec3 av; varying vec3 vC;
   void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
     gl_PointSize = clamp(sz * 560. / -mv.z, 4., sz * 22.);
-    vC = color * op * mix(1., smoothstep(3., 5.5, distance(position, av)), nf); }`;
+    vC = color * op * vis * mix(1., smoothstep(3., 5.5, distance(position, av)), nf); }`;
 const FS = `varying vec3 vC; void main(){ float r = length(gl_PointCoord - 0.5) * 2.;
     float core = 1. - smoothstep(0.0, 0.32, r), glow = 1. - smoothstep(0.15, 1.0, r);
     gl_FragColor = vec4(vC * (core * 1.3 + glow * glow * 0.75), 1.0); }`;
@@ -60,7 +60,8 @@ export function headlamps(ctx, trails) {
   dots.forEach((d, i) => { U.u[i] = d.u; c.set(d.c); colA.set([c.r, c.g, c.b], i * 3); szA[i] = d.sz; nfA[i] = T[d.ti].fade; });
   const g = new THREE.BufferGeometry();
   const pa = new THREE.BufferAttribute(pos, 3); pa.setUsage(THREE.DynamicDrawUsage);
-  g.setAttribute('position', pa); g.setAttribute('color', new THREE.BufferAttribute(colA, 3)); g.setAttribute('sz', new THREE.BufferAttribute(szA, 1)); g.setAttribute('nf', new THREE.BufferAttribute(nfA, 1));
+  const visA = new Float32Array(n).fill(1), va = new THREE.BufferAttribute(visA, 1); va.setUsage(THREE.DynamicDrawUsage);
+  g.setAttribute('position', pa); g.setAttribute('color', new THREE.BufferAttribute(colA, 3)); g.setAttribute('sz', new THREE.BufferAttribute(szA, 1)); g.setAttribute('nf', new THREE.BufferAttribute(nfA, 1)); g.setAttribute('vis', va);
   const uni = { op: { value: 1 }, av: { value: new THREE.Vector3(0, -1e4, 0) } };
   const mesh = new THREE.Points(g, glowMat(uni)); mesh.name = 'headlamps'; mesh.frustumCulled = false;
 
@@ -76,8 +77,25 @@ export function headlamps(ctx, trails) {
     }
     pa.needsUpdate = true;
   }
+  // 剪影剔除：从镜头穿过光点再往后 8 单位都碰不到地面 = 光点背后是天（悬在山脊剪影之上，像 UFO）→ 渐隐。
+  //   只查镜头视平线以上的点（往下看的点背后一定是坡或云海）。k = 本帧渐变比例（预览 1 = 直接到位）
+  const dv = new THREE.Vector3();
+  function cull(cam, hAt, k) {
+    const C = cam.position;
+    for (let i = 0; i < n; i++) {
+      dv.set(pos[i * 3] - C.x, pos[i * 3 + 1] - C.y, pos[i * 3 + 2] - C.z);
+      const L = dv.length(); dv.divideScalar(L);
+      let want = 1;
+      if (dv.y > -0.06) {
+        want = 0;
+        for (let t = L + 0.6; t < L + 8; t += 0.8) if (hAt(C.x + dv.x * t, C.z + dv.z * t) >= C.y + dv.y * t) { want = 1; break; }
+      }
+      visA[i] += (want - visA[i]) * Math.min(1, k * 3);
+    }
+    va.needsUpdate = true;
+  }
   place(0);
-  return { mesh, uni, count: n, update: place };
+  return { mesh, uni, count: n, update: place, cull };
 }
 
 // 静态暖光点：items [{ p: Vector3, c, sz }]
@@ -86,7 +104,7 @@ export function glows(items) {
   items.forEach((it, i) => { pos.set([it.p.x, it.p.y, it.p.z], i * 3); c.set(it.c || '#ffc46a'); colA.set([c.r, c.g, c.b], i * 3); szA[i] = it.sz || 2; });
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(colA, 3)); g.setAttribute('sz', new THREE.BufferAttribute(szA, 1));
-  g.setAttribute('nf', new THREE.BufferAttribute(new Float32Array(n), 1));
+  g.setAttribute('nf', new THREE.BufferAttribute(new Float32Array(n), 1)); g.setAttribute('vis', new THREE.BufferAttribute(new Float32Array(n).fill(1), 1));
   const uni = { op: { value: 1 }, av: { value: new THREE.Vector3() } };
   const mesh = new THREE.Points(g, glowMat(uni)); mesh.name = 'glows';
   return { mesh, uni };

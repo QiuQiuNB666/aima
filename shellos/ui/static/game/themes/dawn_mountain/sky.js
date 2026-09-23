@@ -78,13 +78,36 @@ export function buildSky(scene, ctx, sunXZ, C) {
     m.position.set(c.x, y, c.z); m.name = 'cloudSea'; m.renderOrder = -1; scene.add(m); clouds.push(u);
   });
 
+  // 低模云团：30 团二十面体（每团 4 个球拼），浮在云海平面上，打破「平灰面 = 湖」的感觉。顶面暖色边（#ffd6a8），1 次绘制
+  {
+    const R = ctx.rand, U = ctx.util, aN = ctx.route.at(ctx.route.N), fwd = aN.dir, right = aN.left.clone().negate();
+    const blob = U.merged([[0, 0, 0, 1], [0.95, -0.18, 0.25, 0.72], [-0.9, -0.22, -0.1, 0.7], [0.25, 0.32, -0.35, 0.62], [-0.3, -0.1, 0.55, 0.6]]
+      .map(([x, y, z, r]) => ({ geo: new THREE.IcosahedronGeometry(r, 1), p: [x, y, z] })));
+    const nrm = blob.attributes.normal, col = blob.attributes.color, cc = new THREE.Color();
+    const lo = new THREE.Color('#e2d6cf'), mid = new THREE.Color('#fff1e0'), warm = new THREE.Color(C.cloudRim);
+    for (let i = 0; i < nrm.count; i++) {
+      const ny = nrm.getY(i), t = Math.max(0, Math.min(1, (ny + 0.3) / 0.6));
+      cc.copy(lo).lerp(mid, t).lerp(warm, Math.max(0, Math.min(1, (ny - 0.45) / 0.45)) * 0.75);
+      col.setXYZ(i, cc.r, cc.g, cc.b);
+    }
+    const items = [];
+    for (let k = 0; k < 60 && items.length < 32; k++) {
+      const th = (-30 + R() * 170) * Math.PI / 180, d = 45 + Math.pow(R(), 0.8) * 110;
+      const x = c.x + (fwd.x * Math.cos(th) + right.x * Math.sin(th)) * d, z = c.z + (fwd.z * Math.cos(th) + right.z * Math.sin(th)) * d;
+      const w = 5 + R() * 9 + d * 0.03;
+      items.push({ p: [x, -5.6 + R() * 1.6, z], ry: R() * 6.28, s: [w, w * (0.28 + R() * 0.14), w * (0.6 + R() * 0.3)] });
+    }
+    const puffs = U.instanced(blob, new THREE.MeshBasicMaterial({ vertexColors: true }), items);
+    puffs.name = 'cloudPuffs'; scene.add(puffs);
+  }
+
   const dir = new THREE.Vector3();
   return {
     ridges, sky: U,
     // p = 爬升进度 0..1；summit = 登顶画面
     update(t, p, summit) {
       const k = summit ? 1 : Math.max(0, Math.min(1, (p - 0.15) / 0.85)), e = k * k * (3 - 2 * k);
-      const el = -0.035 + 0.075 * e + (summit ? 0.012 : 0);          // 太阳高度角：山脚在地平线下，登顶约 +3°（贴着云海）
+      const el = 0.075 + 0.04 * e + (summit ? 0.01 : 0);            // 太阳高度角：山脚已露出远山（约 4.3°，爬坡段画面右侧看得到日轮），登顶约 7°
       dir.set(sunXZ.x * Math.cos(el), Math.sin(el), sunXZ.z * Math.cos(el)).normalize();
       U.sunDir.value.copy(dir); U.halo.value = 0.3 + 0.7 * e + (summit ? 0.35 : 0);
       sun.position.set(c.x + dir.x * 400, dir.y * 400, c.z + dir.z * 400);

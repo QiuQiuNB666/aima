@@ -15,11 +15,11 @@ const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a
 // 调色关键帧（p = 爬升进度；1.12 = 登顶画面）
 const KEYS = [
   { p: 0.0, zenith: '#02030d', mid: '#070b24', hzCool: '#141a3a', hzWarm: '#1b1838', below: '#080a1a', sunGlow: '#ff9a50', warm: 0.0, halo: 0.0, stars: 1.0, milky: 1.0,
-    fog: '#0e1128', ridge1: '#070a16', ridge2: '#0e1228', rim: '#3a4878', cloudLit: '#46528a', cloudShade: '#161c38', cloudHaze: '#141a3a',
+    fog: '#0e1128', ridge1: '#070a16', ridge2: '#0e1228', rim: '#3a4a78', cloudLit: '#46528a', cloudShade: '#161c38', cloudHaze: '#141a3a',
     hemiSky: '#7282e0', hemiGnd: '#221828', hemiI: 0.95, sunCol: '#8fa4ff', sunI: 0.6, lamp: 1.0, glow: 1.0, fogN: 2.5, fogF: 16 },
   { p: 0.25, fogN: 3, fogF: 19 },
   { p: 0.42, zenith: '#03061c', mid: '#0b1032', hzCool: '#1d2250', hzWarm: '#4a2a4c', warm: 0.55, halo: 0.0, stars: 0.95, milky: 0.8,
-    fog: '#14152f', ridge1: '#0a0b1e', ridge2: '#191a36', rim: '#3c3e6a', cloudLit: '#4a5084', cloudShade: '#1b1d3e', cloudHaze: '#22244c',
+    fog: '#14152f', ridge1: '#0a0b1e', ridge2: '#191a36', rim: '#3a4a78', cloudLit: '#4a5084', cloudShade: '#1b1d3e', cloudHaze: '#22244c',
     hemiSky: '#747ad0', hemiGnd: '#221628', hemiI: 0.95, sunCol: '#a090d8', sunI: 0.6, lamp: 1.0, glow: 1.0, fogN: 5, fogF: 27 },
   { p: 0.75, zenith: '#0f1a46', mid: '#2a2c66', hzCool: '#634676', hzWarm: '#de6238', warm: 1.0, halo: 0.3, stars: 0.5, milky: 0.3,
     fog: '#352a48', ridge1: '#181226', ridge2: '#46304e', rim: '#8a4c48', cloudLit: '#d48878', cloudShade: '#46385c', cloudHaze: '#86586a',
@@ -38,6 +38,7 @@ function palette(p) {
   const a = KEYS[i], b = KEYS[i + 1], f = Math.max(0, Math.min(1, (p - a.p) / (b.p - a.p)));
   for (const n in K) if (n !== 'p' && n in a) { if (K[n].isColor) K[n].copy(a[n]).lerp(b[n], f); else K[n] = a[n] + (b[n] - a[n]) * f; }
   K.kage = smooth(0.9, 1.0, p);                                         // 影富士
+  K.rimK = 0.33 * smooth(0.3, 0.45, p) + 0.3 * smooth(0.7, 1.0, p);      // 远山边缘光：p < 0.3 关，夜里只有 1/3，天亮后随色键慢慢暖起来
   return K;
 }
 
@@ -75,18 +76,21 @@ function revealable(mat, U) {
   return mat;
 }
 
-let sky = null, lamps = null, lightsR = null, scn = null, torch = null, SCp = null, sunXZ = null, CEN = null, groups = [], dressed = false, rigR = null;
+let sky = null, lamps = null, lightsR = null, scn = null, torch = null, SCp = null, sunXZ = null, CEN = null, groups = [], dressed = false;
+let trails = null, hAtR = null, baseF = null, ghostAt = null, avLook = null, ghostObj = null, avObj = null;
+const RIM_NIGHT = new THREE.Color('#9fdcff'), RIM_DAWN = new THREE.Color('#ffb070');
 
 export function build(scene, ctx) {
   const { route, kit, util, lights, meshes: M } = ctx, N = route.N, R = ctx.rand;
-  scn = scene; lightsR = lights; groups = []; dressed = false; rigR = ctx.camRig;
+  scn = scene; lightsR = lights; groups = []; dressed = false; baseF = { ...ctx.camRig.follow }; ghostObj = avObj = avLook = null;
   const c = kit.routeCenter(route); CEN = c;
   const D = new THREE.Vector3().subVectors(route.P[N], route.P[0]).setY(0).normalize();
   const Lg = new THREE.Vector3(D.z, 0, -D.x);                           // 全局左（山坡往上那一侧）
   SCp = route.at(N + 1.2).pos.clone();                                 // 登顶环绕中心（化身站的地方）
+  ghostAt = route.at(N + 1.2, -1.2).pos.clone();                        // 登顶时影子站在化身右边、同样面朝鸟居（环绕镜头把两人一起框进去）
 
   // ---- 登顶构图：镜头在化身身后、偏左 32°（化身站在鸟居右柱外，不挡鸟居），太阳方位 = 镜头 → 山顶鸟居中轴
-  const TOR = route.at(N + 15).pos.clone(), TOR_H = 4.4, TOR_HW = 2.2;
+  const TOR = route.at(N + 27).pos.clone(), TOR_H = 3.8, TOR_HW = 2.0;   // 往后挪 6、降到 3.8：九合目镜头里笠木落在 HUD 下沿下面
   const u = TOR.clone().sub(SCp).setY(0).normalize(), uL = new THREE.Vector3(u.z, 0, -u.x);
   const camDir = u.clone().multiplyScalar(-Math.cos(0.56)).addScaledVector(uL, Math.sin(0.56)).normalize();
   const SR = ctx.camRig.summit; SR.radius = 5.2; SR.height = 1.6; SR.lookY = 1.6; SR.speed = 0.02;
@@ -120,9 +124,11 @@ export function build(scene, ctx) {
       const x = p.getX(i), z = p.getZ(i), nr = util.nearestRoute(route, x, z), nz = kit.fbm(x * 0.05 + 3, z * 0.05, 3);
       let y = p.getY(i);
       const ramp = Math.max(0, nr.d - 4);
-      if (nr.side > 0) y += Math.min(34, 0.2 * ramp ** 1.4) * (0.8 + 0.45 * nz) * (1 - 0.6 * smooth(N - 8, N + 10, nr.s));
+      const rim = 1 - smooth(76, 108, Math.max(Math.abs(x - c.x), Math.abs(z - c.z)));   // 地面方块外缘 30 单位内山体斜着落下去（不留竖直切边）
+      const along = (x - E.x) * dN.x + (z - E.z) * dN.z;
+      if (nr.side > 0) y += Math.min(34, 0.2 * ramp ** 1.4) * (0.8 + 0.45 * nz) * (1 - 0.8 * smooth(N - 8, N + 10, nr.s)) * rim;
       else y -= Math.min(16, 0.17 * ramp * smooth(0, 3, ramp)) * (0.85 + 0.3 * nz);
-      const along = (x - E.x) * dN.x + (z - E.z) * dN.z, past = smooth(-3, 2, along) * (nr.side < 0 ? 1 : 1 - smooth(8, 18, nr.d));
+      const past = smooth(-3, 2, along);   // 过了山顶平台尽头两侧一起往下落：落差线横在镜头前方（像山脊），不再是顺着视线的一道竖直切边
       if (past > 0) y = y * (1 - past) + Math.min(y, E.y - 0.5 * Math.max(0, along + 1)) * past;
       // 山顶平台：P[N] 往后、离平台中心 9 以内齐路面，9–13 过渡到原地形，外缘一圈微微隆起（火口缘）
       const aN = (x - PN.x) * dN.x + (z - PN.z) * dN.z, dP = Math.hypot(x - Pc.x, z - Pc.z);
@@ -145,16 +151,18 @@ export function build(scene, ctx) {
   const onGround = (s, lat) => { const o = side(s, lat); o.p.y = Math.max(route.heightAt(s), hAt(o.p.x, o.p.z)); return o; };
 
   // ---- 头灯光带：两侧山坡上的 Z 字小路（u = 沿路前进距离，v = 全局左偏）
-  const toWorld = ([uu, v]) => { const a = route.at(uu / STEP).pos; const x = a.x + Lg.x * v, z = a.z + Lg.z * v; return new THREE.Vector3(x, hAt(x, z), z); };
+  // 九合目往后（s > N − 8）的小路只留山顶平台以下那段：镜头快到顶时，别让比山顶还高的头灯链告诉人「山还没到顶」
+  const below = pts => { const out = [[]]; for (const q of pts) { if (q.s < N - 8 || q.y < Pc.y - 0.8) out[out.length - 1].push(q); else if (out[out.length - 1].length) out.push([]); } return out.filter(r => r.length > 4); };
+  const toWorld = ([uu, v]) => { const a = route.at(uu / STEP).pos; const x = a.x + Lg.x * v, z = a.z + Lg.z * v, q = new THREE.Vector3(x, hAt(x, z), z); q.s = uu / STEP; return q; };
   const slopes = [
     zigzag(6, 30, 5.5, 17, 6, -0.12), zigzag(26, 48, 6, 20, 6, -0.12),
     zigzag(0, 14, -30, -9, 7, 0.55), zigzag(17, 32, -40, -9, 8, 0.55), zigzag(35, 50, -46, -11, 8, 0.55),
-  ].map(t => t.map(toWorld));
-  const onRoute = []; for (let s = -14; s <= N + 15; s += 0.25) onRoute.push(route.at(s, 0.55).pos.clone());
+  ].flatMap(t => below(t.map(toWorld)));
+  const onRoute = []; for (let s = -14; s <= N - 0.5; s += 0.25) onRoute.push(route.at(s, 0.55).pos.clone());
   lamps = headlamps(ctx, [...slopes.map(pts => ({ pts, gap: 0.6 })), { pts: onRoute, lift: 1.6, fade: 1, gap: 1.6 }]);
   lamps.mesh.renderOrder = -2; scene.add(lamps.mesh);
   const trailMat = new THREE.MeshLambertMaterial({ color: '#7a5646', side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-  scene.add(trailRibbon(slopes, 0.7, trailMat));
+  trails = trailRibbon(slopes, 0.7, trailMat); scene.add(trails); hAtR = hAt;
 
   // ---- 石垒：黑灰火山石干垒（4 段，台阶段和小屋门前留空）
   const W = stoneWalls(ctx, [
@@ -168,8 +176,8 @@ export function build(scene, ctx) {
   const tin = tinTexture(util);
   const G = {};
   const grp = (key, from) => (G[key] ||= { from, body: [], roof: [], glass: [], red: [], cloth: [], texts: [], glow: [] });
-  const addHut = (g, s, lat, o) => {
-    const { p, ry } = onGround(s, lat), h = hut(o), r = ry + (lat > 0 ? Math.PI : 0);
+  const addHut = (g, s, lat, o, sink = 0) => {
+    const { p, ry } = onGround(s, lat), h = hut(o), r = ry + (lat > 0 ? Math.PI : 0); p.y -= sink;
     place(h.body, p, r, g.body); place(h.roof, p, r, g.roof); place(h.glass, p, r, g.glass); place(h.text, p, r, g.texts);
     for (const gI of place(h.glow, p, r)) g.glow.push({ p: gI.p, c: gI.c, sz: gI.sz });
   };
@@ -178,9 +186,9 @@ export function build(scene, ctx) {
   const addNobori = (g, s, lat, col) => { const o = onGround(s, lat), F = nobori(col); place(F.parts, o.p, o.ry, g.body); place(F.cloth, o.p, o.ry, g.cloth); };
 
   const g0 = grp('base', -99);                                        // 五合目：开局就在
-  addSign(g0, 1.6, -2.7, '吉田口', '五合目'); addLantern(g0, 2.2, 3.2); addLantern(g0, 2.2, -2.6);
-  addSign(g0, 4.4, 3.3, '六合目');                                     // 放左边：右边是影子，头顶标签会叠在牌上
-  addHut(grp('h7', 15), 24.2, -4.8, { name: '七合目', w: 3.2, lit: 3 });
+  addSign(g0, 1.6, -2.7, '吉田口', '五合目'); addLantern(g0, 2.2, 3.2); addLantern(g0, 2.2, -2.6);   // 开局只有这一块站牌
+  addSign(grp('h6', 3), 11.6, 3.4, '六合目');                            // 走起来才淡入；放左边：右边是影子，头顶标签会叠在牌上
+  addHut(grp('h7', 15), 24.2, -4.8, { name: '七合目', w: 3.2, lit: 3 }, 0.3);   // 沉 0.3：坡上不露黑色石基
   const g8 = grp('h8', 23);
   addHut(g8, 29.8, -5.3, { name: '八合目', w: 4.4, lit: 5 });
   addHut(g8, 31.5, 7.6, { w: 3.2, lit: 3 });                           // 八合目上面一层（左坡）
@@ -194,10 +202,10 @@ export function build(scene, ctx) {
   const gT = grp('top', 34);                                          // 山顶：九合目过了才看得见
   place(torii({ hw: TOR_HW, H: TOR_H }), TOR.clone().setY(Math.max(route.heightAt(N), hAt(TOR.x, TOR.z))), -Math.atan2(sunXZ.z, sunXZ.x), gT.red);
   addLantern(gT, N + 16.6, 3.4);
-  { const o = onGround(N + 6, -3.4); place(pillar(), o.p, o.ry, gT.body);
+  { const o = onGround(N + 6.5, -4.3); place(pillar(), o.p, o.ry, gT.body);
     place([{ text: '富士山頂', p: [-0.23, 1.3, 0], ry: -Math.PI / 2 - 0.35, h: 1.3, vertical: true, color: '#1a1410', bg: '#b9b2a8', border: '#5a5450', weight: 900, pad: 0.1 },
       { text: '3776m', p: [-0.48, 0.5, 0], ry: -Math.PI / 2 - 0.35, h: 0.22, color: '#1a1410', bg: '#d8d0c4', weight: 900 }], o.p, o.ry, gT.texts); }
-  addNobori(gT, N + 2.4, -3.2, '#c8361f'); addNobori(gT, N + 3.4, -3.5, '#f0ece0');
+  addNobori(gT, N + 2.6, -4.0, '#c8361f'); addNobori(gT, N + 3.6, -4.3, '#f0ece0');   // 石柱和幟往右让：登顶时影子站在化身右边
 
   for (const [key, g] of Object.entries(G)) {
     const U = { value: g.from < -50 ? 1 : 0 }, meshes = [];
@@ -214,7 +222,7 @@ export function build(scene, ctx) {
 
   // ---- 火山岩：路边碎石 + 岩场大块 + 山顶火口缘一圈；左侧 4.4 以内只放矮的（镜头在左后方）
   const rocks = [], rc = ['#3b2826', '#4c3029', '#2a2022', '#5c3628', '#33292a'];
-  const avoid = [[24.2, -4.8, 3.6], [29.8, -5.3, 3.8], [31.5, 7.6, 3.4], [36.8, -4.4, 3.2], [N + 6, -3.4, 1.2]].map(([s, l, r]) => [route.at(s, l).pos, r]);
+  const avoid = [[24.2, -4.8, 3.6], [29.8, -5.3, 3.8], [31.5, 7.6, 3.4], [36.8, -4.4, 3.2], [N + 6.5, -4.3, 1.2]].map(([s, l, r]) => [route.at(s, l).pos, r]);
   avoid.push([TOR, 3.4]);
   const tryRock = (x, z, sc, lat) => {
     if (!util.offRoad(route, x, z, 0.55 + sc)) return;
@@ -238,6 +246,7 @@ export function build(scene, ctx) {
 
   // ---- 化身配色：纯色机甲（深灰腿、钢蓝躯干、浅色头盔）；发光条在 update 里挂到骨骼上
   ctx.theme.avatar = { leg: '#2a3038', body: '#5b6b80', head: '#e4e8ec', rim: '#9fdcff', rimK: 0.75, self: 0.3, headScale: 0.86 };
+  ctx.theme.summitCard = 'left';                                      // 登顶卡放左下：化身站在画面正中，卡片别挡住腿
 
   // ---- 化身的头灯：一盏跟着化身走的暖色点光，照亮脚下一圈（天亮渐弱）
   torch = new THREE.PointLight('#ffe2b0', 8, 11, 1.6); torch.name = 'torch'; scene.add(torch);
@@ -255,7 +264,7 @@ function dressAvatar() {
   const wq = new THREE.Quaternion(), Yv = new THREE.Vector3(0, 1, 0);
   const local = (bone, v) => v.clone().applyQuaternion(bone.getWorldQuaternion(wq).invert());
   const avQ = av.getWorldQuaternion(new THREE.Quaternion());
-  const leftW = new THREE.Vector3(0, 0, -1).applyQuaternion(avQ), fwdW = new THREE.Vector3(1, 0, 0).applyQuaternion(avQ);
+  const leftW = new THREE.Vector3(0, 0, -1).applyQuaternion(avQ);
   for (const [sd, sgn] of [['L', 1], ['R', -1]]) {
     for (const [a, b, rad] of [[`leg_joint_${sd}_1`, `leg_joint_${sd}_2`, 0.072], [`leg_joint_${sd}_2`, `leg_joint_${sd}_3`, 0.056]]) {
       const bone = B[a], child = B[b]; if (!bone || !child) continue;
@@ -273,12 +282,68 @@ function dressAvatar() {
     belt.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), ax); belt.position.copy(ax).multiplyScalar(0.03); belt.name = 'exoBelt'; pel.add(belt);
   }
   const head = B.Skeleton_neck_joint_2;
-  if (head) {
-    const f = local(head, fwdW).normalize(), upL = local(head, new THREE.Vector3(0, 1, 0)).normalize();
-    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), lamp);
-    hl.position.copy(f).multiplyScalar(0.105).addScaledVector(upL, 0.07); hl.name = 'exoHeadlamp'; head.add(hl);
-  }
+  const fg = av.userData.fengge;                                       // 引擎换了峰哥头：头盔让位，头灯挂到峰哥帽檐正前方
+  if (head && fg) { const hl = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), lamp); hl.position.copy(fg.lamp); hl.name = 'exoHeadlamp'; head.add(hl); }
+  else if (head) helmet(av, head, lamp);                              // ?fengge=0 / 峰哥头没加载上：白头盔
   return true;
+}
+
+// 头盔：略拉长的白壳（前后 1、上下 1.1、左右 1.05）+ 同心球冠面罩（只朝前 110° × 50°，背后看只有白壳）
+//   + 后脑一道橙色自发光竖条（和腿上橙条呼应，背后镜头认得出「你」）+ 额头小头灯。
+//   在化身本地坐标（+X 前、+Y 上、−Z 左）按蒙皮后的头部包围盒摆好，再 attach 到头骨跟着动；引擎的方块面罩藏掉。
+function helmet(av, head, lampMat) {
+  for (const o of head.children) if (o.name === 'exo') o.visible = false;
+  let sk = null; av.traverse(o => { if (o.isSkinnedMesh && !sk) sk = o; });
+  if (!sk) return;
+  // 整颗头（蒙皮权重主要在头骨上的顶点）的包围盒 → 头盔把它整个罩住（只取脖子以上会漏出下半个头）
+  const P = sk.geometry.attributes.position, SI = sk.geometry.attributes.skinIndex, SW = sk.geometry.attributes.skinWeight;
+  const hb = sk.skeleton.bones.indexOf(head), v = new THREE.Vector3(), bb = new THREE.Box3(), bind = new THREE.Box3();
+  for (let i = 0; i < P.count; i++) {
+    let w = 0; for (let k = 0; k < 4; k++) if (SI.getComponent(i, k) === hb) w += SW.getComponent(i, k);
+    if (w > 0.5) { bind.expandByPoint(v.fromBufferAttribute(P, i)); sk.getVertexPosition(i, v); bb.expandByPoint(av.worldToLocal(sk.localToWorld(v))); }
+  }
+  if (bb.isEmpty()) return;
+  // CesiumMan 的头是个平后脑的「罐子」，球壳罩不住（后脑平面从壳里顶出来一圈）→ 化身材质里把头部片元丢掉，只留头盔。
+  //   按绑定姿态：脖子以上（z > 头骨下沿 + 1 cm）且在头部水平范围内（不碰 T 字姿态平伸的手臂）
+  const bc = bind.getCenter(new THREE.Vector3()), br = Math.max(bind.max.x - bc.x, bind.max.y - bc.y) + 0.02, zCut = bind.min.z + 0.01;
+  const hm = sk.material, ob = hm.onBeforeCompile;
+  hm.onBeforeCompile = (sh, r) => {
+    ob.call(hm, sh, r);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vXY;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvXY = position.xy;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vXY;')
+      .replace('#include <color_fragment>', `if (vZ > ${zCut.toFixed(3)} && distance(vXY, vec2(${bc.x.toFixed(4)}, ${bc.y.toFixed(4)})) < ${br.toFixed(3)}) discard;\n#include <color_fragment>`);
+  };
+  hm.customProgramCacheKey = () => 'ntd-headless'; hm.needsUpdate = true;
+  const look = sk.material.userData.look || {}, h = bb.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  const R = Math.max(h.x, h.y / 1.1, h.z / 1.05) * 1.04, sc = [R, R * 1.1, R * 1.05];
+  const c = bb.getCenter(new THREE.Vector3());
+  const pointScaled = THREE.ShaderChunk.lights_fragment_begin.replace('getPointLightInfo( pointLight, geometryPosition, directLight );', '$&\n\t\tdirectLight.color *= uPointK;');
+  const shell = new THREE.MeshLambertMaterial({ color: '#e4e8ec', emissive: '#e4e8ec', emissiveIntensity: 0.3 });
+  shell.onBeforeCompile = sh => {                                     // 和身体同一套菲涅尔轮廓光 + 点光折减（共用引擎的 uniform，天亮变暖一起变）
+    Object.assign(sh.uniforms, { uRim: look.uRim || { value: new THREE.Color('#9fdcff') }, uRimK: look.uRimK || { value: 0.75 }, uPointK: look.uPointK || { value: 0.35 } });
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimK, uPointK;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nfloat fr = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));\ntotalEmissiveRadiance += uRim * pow(fr, 2.2) * uRimK;')
+      .replace('#include <lights_fragment_begin>', pointScaled);
+  };
+  shell.customProgramCacheKey = () => 'ntd-helmet';
+  const D = Math.PI / 180, ell = (g, k = 1) => g.scale(sc[0] * k, sc[1] * k, sc[2] * k);
+  const G = new THREE.Group(); G.name = 'ntdHelmet'; G.position.copy(c);
+  const add = (geo, mat, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; G.add(m); return m; };
+  add(ell(new THREE.SphereGeometry(1, 32, 20, 0, Math.PI * 2, 0, 150 * D)), shell, 'helmetShell');                 // 底部开口（脖子）
+  // 球面：x = −cos φ · sin θ → φ = π 朝前（+X）、φ = 0 朝后
+  add(ell(new THREE.SphereGeometry(1, 24, 10, Math.PI - 55 * D, 110 * D, 68 * D, 50 * D), 1.02), new THREE.MeshBasicMaterial({ color: '#1a2230' }), 'helmetVisor');
+  add(ell(new THREE.SphereGeometry(1, 3, 16, -7 * D, 14 * D, 22 * D, 100 * D), 1.015), new THREE.MeshBasicMaterial({ color: '#ff8a3c', toneMapped: false, fog: false }), 'helmetStrip');
+  const hl = add(new THREE.SphereGeometry(0.026, 10, 8), lampMat, 'exoHeadlamp');
+  hl.position.set(sc[0] * Math.sin(48 * D) * 1.02, sc[1] * Math.cos(48 * D) * 1.02, 0);
+  av.add(G); av.updateMatrixWorld(true); head.attach(G);
+}
+
+// 九合目往上（s 34–39.5）：看点最高抬到 1.2、镜头高 +0.3、往后拉 1——山顶鸟居整个落在 HUD 下面，化身的脚还在画里
+export function rigFor(s, rig) {
+  if (!baseF) return;
+  const f = smooth(34, 39.5, s), F = rig.follow;
+  F.lookY = baseF.lookY + (1.2 - baseF.lookY) * f; F.height = baseF.height + 0.3 * f;
+  F.back = baseF.back + f; F.backStairs = baseF.backStairs + f;
 }
 
 export function update(dt, st) {
@@ -304,8 +369,13 @@ export function update(dt, st) {
     for (const m of g.meshes) m.visible = g.U.value > 0.002;
     if (g.gl) g.gl.uni.op.value = k.glow * g.U.value;
   }
-  // 九合目往上看点慢慢抬高：山顶鸟居整个落在 HUD 上沿下面
-  if (rigR) rigR.follow.lookY = 0.95 + 0.5 * smooth(34, 39.5, st.s ?? 0);
+  // 登顶：路外小路和头灯全藏（环绕镜头会扫到左边坡上的小路纸带）；影子摆到化身身边入画；化身轮廓光随天亮变暖
+  trails.visible = lamps.mesh.visible = !st.summit;
+  if (st.camera && !st.summit) lamps.cull(st.camera, hAtR, st.preview || !dt ? 1 : dt);
+  avObj ||= scn.getObjectByName('avatar'); ghostObj ||= scn.getObjectByName('ghost');
+  if (st.summit && st.ghost && ghostObj && avObj) { ghostObj.position.copy(ghostAt); ghostObj.rotation.y = avObj.rotation.y; }
+  if (!avLook && avObj) avObj.traverse(o => { if (o.isSkinnedMesh && o.material.userData.look) avLook = o.material.userData.look; });
+  if (avLook) { const w = smooth(0.7, 1.12, p); avLook.uRim.value.copy(RIM_NIGHT).lerp(RIM_DAWN, w); avLook.uRimK.value = 0.75 + 0.35 * w; }
   torch.intensity = 8 * k.lamp;
   if (st.avatar) {
     const h = st.heading || 0;

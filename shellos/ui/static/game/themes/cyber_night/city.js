@@ -2,13 +2,15 @@
 //   坂道两侧低层商铺、电线杆与电线、路灯与光晕、自动贩卖机、大屏、楼顶航空灯。
 import * as THREE from 'three';
 import { STEP } from '../../path.js';
-import { quads, glowMat, streakTex, shade, axisX, axisZ, UP } from './lib.js';
+import { quads, glowMat, streakTex, shade, axisX, axisZ, UP, hudProbe } from './lib.js';
 
 const WIN_W = 6.4, WIN_H = 9.6;             // 窗格贴图一张 = 32 列 × 32 层窗对应的世界尺寸（窗距 0.2 × 0.3）；远景楼再 ×TOWER_K
 const TOWER_K = 1.7;
 const GAP = [6.2, 19.8];                    // 斑马线路口 + 天桥下的大街：这一段不盖临街楼
 const SLOPE = [19.8, 28.2];                 // 坂道 + 巷子：低层商铺
 const SIGNS = ['渋谷', 'ラーメン', '薬', 'カラオケ', '自販機', '酒', '居酒屋', '焼鳥', '喫茶', '質', 'ホテル', '占い', '餃子', '寿司', '宇田川町', '珈琲', '雀荘', '本', 'BAR', '二十四時'];
+const BOX = ['焼鳥', 'おでん', '餃子', '酒'];
+let bxi = 0;
 const SHOP = ['中華そば', 'たばこ', '定食', 'やきとり', '古着', 'コインランドリー', '理容', '文具', 'おでん', '銭湯'];
 let screenTex = null, aviMat = null, T = 0;
 
@@ -116,10 +118,17 @@ export function buildCity(scene, ctx, E) {
     bv.set(x, nb.y + 0.015, z); tv.set(x + dv.x * L, nt.y + 0.015, z + dv.z * L);
     refl.add(c.addVectors(bv, tv).multiplyScalar(0.5), nx.set(-dv.z, 0, dv.x).multiplyScalar(wd / 2), tmp.subVectors(tv, bv).multiplyScalar(0.5), color);
   };
-  const addSign = (text, p, ry, h, color, vertical = true) => {
-    signs.push({ text, p: p.clone(), ry, h, color, vertical, bg: '#0c0612', border: color, glow: 1, weight: 900 });
+  // 关键帧（pos 0 / 5 / 11）里会压进 HUD 面板的招牌：先往下挪（底边不低于地面 +1.9，别压店面），还压着就不挂
+  const hud = hudProbe(route, ctx.camRig, [0, 5, 11]);
+  const addSign = (text, p, ry, h, color, vertical = true, free = false) => {
     const aspect = vertical ? (96 * 1.15 + 58) / ([...text].length * 104 + 58) : null;   // drawText 的版面（size 96、pad 0.3）
     const w = vertical ? h * aspect : h * ([...text].length * 92 + 58) / 173;
+    if (!free) {
+      p = p.clone(); const floor = gy(p.x, p.z) + 1.9 + h / 2, ax = axisX(ry, nx).multiplyScalar(w / 2 + 0.2);
+      while (hud(p, ax, h / 2 + 0.2) && p.y - 0.5 >= floor) p.y -= 0.5;
+      if (hud(p, ax, h / 2 + 0.2)) return 0;
+    }
+    signs.push({ text, p: p.clone(), ry, h, color, vertical, bg: '#0c0612', border: color, glow: 1, weight: 900 });
     halos.add(c.copy(p).addScaledVector(axisZ(ry, nz), -0.04), axisX(ry, nx).multiplyScalar(w * 1.1 + 0.35), tmp.copy(UP).multiplyScalar(h * 0.62 + 0.3), color);
     streak(p.x, p.z, color, Math.min(0.65, Math.max(0.35, w * 0.5)), 4 + Math.min(1.5, h * 0.4));
     return w;
@@ -129,8 +138,8 @@ export function buildCity(scene, ctx, E) {
     const text = SIGNS[si++ % SIGNS.length], h = Math.min(b.side < 0 ? 2.3 : 9, 1.2 + [...text].length * 0.42 + rand() * 0.4);   // 右侧近处的竖招牌贴着画面右缘，封顶 2.3
     const along = b.sc + (rand() - 0.5) * b.ds * 0.4, lat = b.side * (b.front - 0.38);
     const a = route.at(along, lat), y = b.y0 + Math.max(h / 2 + 1.0, Math.min(b.h - h / 2 - 0.2, 1.7 + h / 2 + rand() * 1.4));
-    const cols = b.side > 0 ? leftCols : rightCols;
-    addSign(text, a.pos.clone().setY(y), -a.heading - Math.PI / 2, h, cols[Math.floor(rand() * cols.length)]);
+    const cols = b.side > 0 ? leftCols : rightCols, col = cols[Math.floor(rand() * cols.length)];
+    addSign(text, a.pos.clone().setY(y), -a.heading - Math.PI / 2, h, text === '薬' ? '#3fd8ff' : col);   // 薬 = 药妆店的青
   }
   // 路口两角的楼、坂道后面的杂居楼：一栋挂 2–3 块（镜头在路中间往前看，招牌要在画面中段）
   const corner = [1, -1].map(sd => near.filter(q => q.side === sd).reduce((m, q) => q.sc > m.sc ? q : m));
@@ -158,9 +167,17 @@ export function buildCity(scene, ctx, E) {
     lit.push({ geo: new THREE.PlaneGeometry(w * 0.84, 1.05), p: [fa.pos.x, y0 + 0.62, fa.pos.z], ry, color: new THREE.Color(col).multiplyScalar(0.62) });
     refl.add(c.copy(fa.pos).setY(y0 + 0.035).addScaledVector(a.left, -side * 0.9), axisX(ry, nx).multiplyScalar(w * 0.45), tmp.copy(a.left).multiplyScalar(-side * 0.9), new THREE.Color(col).multiplyScalar(0.55));
     const aw = route.at(sc, side * (front - 0.32));                     // 雨棚
-    lam.push({ geo: new THREE.BoxGeometry(w * 0.92, 0.05, 0.5), p: [aw.pos.x, y0 + 1.34, aw.pos.z], q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.28, ry, 0, 'YXZ')), color: [acc[0], '#c8102e', '#2a6b52', '#d9d2c0', '#1c2c6b'][Math.floor(rand() * 5)] });
+    const awCol = extras ? ['#c8202a', '#c8202a', '#1c2c6b', '#c8202a', '#2a6b52'][Math.floor(rand() * 5)] : [acc[0], '#c8102e', '#2a6b52', '#d9d2c0', '#1c2c6b'][Math.floor(rand() * 5)];
+    lam.push({ geo: new THREE.BoxGeometry(w * 0.92, 0.05, 0.5), p: [aw.pos.x, y0 + 1.34, aw.pos.z], q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.28, ry, 0, 'YXZ')), color: awCol });
     const text = SHOP[shi++ % SHOP.length], sa = route.at(sc, side * (front - 0.03));
-    signs.push({ text, p: [sa.pos.x, y0 + 1.72, sa.pos.z], ry, h: 0.36, color: '#fff4dc', bg: '#1a0f1e', border: acc[2], glow: 0.6, weight: 800 });
+    if (extras && side > 0) {                                           // 坂道左侧（镜头这边、前景）：雨棚下挂暖簾（深蓝底白字），不再是一块素色平板
+      const na = route.at(sc, side * (front - 0.56));
+      signs.push({ text, p: [na.pos.x, y0 + 1.07, na.pos.z], ry, h: 0.42, color: '#ffffff', bg: '#1c2a5a', glow: 0, weight: 800 });
+    } else signs.push({ text, p: [sa.pos.x, y0 + 1.72, sa.pos.z], ry, h: 0.36, color: '#fff4dc', bg: '#1a0f1e', border: acc[2], glow: 0.6, weight: 800 });
+    if (extras && side < 0) {                                           // 坂道右侧：橱窗换成灯箱（暖白底红字）
+      const t = BOX[bxi++ % BOX.length], la = route.at(sc, side * (front - 0.05));
+      signs.push({ text: t, p: [la.pos.x, y0 + 0.66, la.pos.z], ry, h: 0.78, color: '#d8202a', bg: '#fff1dc', border: '#d8202a', glow: 0, weight: 900 });
+    }
     if (!extras) return;
     if (rand() < 0.55) {                                                // 红灯笼（提灯）挂在店门口两侧
       for (const o of [-0.38, 0.38]) {
@@ -186,11 +203,15 @@ export function buildCity(scene, ctx, E) {
       s += ds + 0.12;
     }
   }
-  // 路口对面（大街那头）的大广告牌 + 第二块大屏：镜头在路口往前看时画面两侧中段是它们
-  for (const [s, side, text, col] of [[21.5, 1, 'カラオケ', acc[0]], [24.5, -1, 'ラーメン', acc[2]], [26.5, 1, '居酒屋', '#ff8a2a']]) {
+  // 大竖招牌（开场帧的「一眼日本」，约 1.3 宽 × 3–4 高）：位置按 pos 0 的镜头算过 —— カラオケ 在左上 HUD 和中间 HUD 之间的
+  //   空档（x 520–630，躲开步行者信号灯），ラーメン / 居酒屋 在中间 HUD 和右上 HUD 之间（x 1240–1460），第四块是近处右侧的青色「薬」。
+  //   ラーメン 是斑马线对面街角的立柱招牌，居酒屋 挂在坂道右侧杂居楼上，カラオケ 是坂顶商铺的突き出し看板（底边离地 2 m）
+  for (const [s, side, lat, text, col, h, y] of [[27, 1, 3.6, 'カラオケ', '#ff3fa4', 3.8, 3.9],
+    [10, -1, 4.2, 'ラーメン', '#ffd23f', 3.4, 2.4], [23, -1, 7.2, '居酒屋', '#ff4a3a', 3.0, 4.2]]) {
     const b = rear.filter(q => q.side === side).reduce((m, q) => Math.abs(q.sc - s) < Math.abs(m.sc - s) ? q : m);
-    const a = route.at(b.sc, side * (b.front - 0.3));
-    addSign(text, a.pos.clone().setY(b.y0 + Math.min(b.h - 1, 4.2 + rand() * 1.5)), -a.heading - Math.PI / 2, 1.3, col, false);
+    const a = route.at(s, side * (lat > 6 ? Math.min(lat, b.front - 0.3) : lat)), g0 = gy(a.pos.x, a.pos.z), ry = -a.heading - Math.PI / 2;
+    addSign(text, a.pos.clone().setY(g0 + y), ry, h, col, true, true);
+    if (y - h / 2 > 0.05) lam.push({ geo: new THREE.BoxGeometry(0.1, y - h / 2, 0.1), p: [a.pos.x, g0 + (y - h / 2) / 2, a.pos.z], color: '#2a2c36' });
   }
   { // 坂名：道玄坂（右侧屋顶，正对上坡的人）
     const a = route.at(20.6, -3.4);
@@ -266,7 +287,7 @@ export function buildCity(scene, ctx, E) {
   // 机身 1.25 高（化身约 1.4）、0.62 宽；侧面压暗，不再是一大块纯色
   const vbody = util.instanced(new THREE.BoxGeometry(0.62, 1.25, 0.5), new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#101014' }),
     vend.map(v => ({ p: [v.a.pos.x, v.y0 + 0.625, v.a.pos.z], ry: v.ry, color: v.col })));
-  const vfront = util.instanced(new THREE.PlaneGeometry(0.52, 1.13), shade(new THREE.MeshBasicMaterial({ map: vendTex, toneMapped: false, color: '#d8d8d8' }), { mask: true }),
+  const vfront = util.instanced(new THREE.PlaneGeometry(0.52, 1.13), shade(new THREE.MeshBasicMaterial({ map: vendTex, toneMapped: false, color: '#d8d8d8' }), { mask: true, neon: true }),
     vend.map(v => ({ p: [v.a.pos.x + axisZ(v.ry, nz).x * 0.255, v.y0 + 0.64, v.a.pos.z + nz.z * 0.255], ry: v.ry })));
   vbody.name = 'vendBody'; vfront.name = 'vendFront'; scene.add(vbody, vfront);
   for (const v of vend) {
@@ -286,14 +307,14 @@ export function buildCity(scene, ctx, E) {
   }, { repeat: true });
   {
     const b = near.filter(q => q.side > 0).reduce((m, q) => Math.abs(q.sc - 3.5) < Math.abs(m.sc - 3.5) ? q : m), a = route.at(b.sc, b.front + 1.5);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 1.7), shade(new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }), { mask: true }));
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 1.7), shade(new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }), { mask: true, neon: true }));
     scr.position.set(a.pos.x, b.y0 + b.h + 1.1, a.pos.z); scr.rotation.y = -a.heading - Math.PI / 4; scr.name = 'bigScreen'; scene.add(scr);
     halos.add(c.copy(scr.position).addScaledVector(axisZ(scr.rotation.y, nz), -0.05), axisX(scr.rotation.y, nx).multiplyScalar(4.2), tmp.copy(UP).multiplyScalar(1.5), '#8a3aff');
   }
   // ---- 合并出网格 ----
   const lamMesh = new THREE.Mesh(util.merged(lam), new THREE.MeshLambertMaterial({ vertexColors: true })); lamMesh.name = 'cityProps';
-  const litMesh = new THREE.Mesh(util.merged(lit), shade(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), { mask: true })); litMesh.name = 'cityLit';
-  const signMesh = util.textSigns(signs, { size: 96 }); shade(signMesh.material, { mask: true });
+  const litMesh = new THREE.Mesh(util.merged(lit), shade(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), { mask: true, neon: true })); litMesh.name = 'cityLit';
+  const signMesh = util.textSigns(signs, { size: 96 }); shade(signMesh.material, { mask: true, neon: true }); signMesh.userData.items = signs;
   const haloMesh = halos.mesh(glowMat(radial, { opacity: 0.55 }), 'signHalos');
   const reflMesh = refl.mesh(glowMat(streakTex(util), { ground: true, opacity: 0.5 }), 'wetReflections');
   const poolMesh = pools.mesh(glowMat(radial, { ground: true, opacity: 0.8 }), 'lampPools');
@@ -301,7 +322,7 @@ export function buildCity(scene, ctx, E) {
   scene.add(lamMesh, litMesh, signMesh, haloMesh, reflMesh, poolMesh);
   // 路灯/灯笼/贩卖机的光晕：Points（1 次绘制）；楼顶航空灯（红，闪）
   const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(haloPts, 3)); hg.setAttribute('color', new THREE.Float32BufferAttribute(haloCol, 3));
-  const haloP = new THREE.Points(hg, shade(new THREE.PointsMaterial({ size: 1.3, map: radial, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), { mask: true, addFog: true }));
+  const haloP = new THREE.Points(hg, shade(new THREE.PointsMaterial({ size: 1.3, map: radial, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), { mask: true, addFog: true, neon: true }));
   haloP.name = 'lampHalos'; scene.add(haloP);
   const ag = new THREE.BufferGeometry(); ag.setAttribute('position', new THREE.Float32BufferAttribute(towers.flat(), 3));
   aviMat = new THREE.PointsMaterial({ size: 1.6, map: radial, color: '#ff2030', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });

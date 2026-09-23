@@ -98,19 +98,20 @@ export function buildSky(scene, ctx, fwd, sunXZ) {
   const ridges = [
     { radius: 210, height: 22, y0: -19, seed: 6 },
     { radius: 300, height: 32, y0: -23, seed: 11 },
-  ].map(r => {
+  ].map((r, ri) => {
     const m = ctx.kit.ridge(ctx, { ...r, color: '#000', jag: 1.1, base: -40 });   // kit.ridge 在 +x 方向有一道接缝（首尾高度不等）：绕路线中心转半圈藏到身后
     m.geometry.translate(-c.x, 0, -c.z); m.position.set(c.x, 0, c.z); m.rotation.y = Math.PI;
-    // 山脊边缘光：沿山脊一条加色渐变带（顶亮底 0）：夜里冷蓝月光 #6f86c8，天亮变暖
-    const P = m.geometry.attributes.position, bp = [], bc = [], bi = [];
+    if (!ri) return m;
+    // 山脊边缘光：只给最远一层，沿山脊一条宽 ~4 单位（300 远处 ≈ 15 px）的柔和加色渐变带，颜色/强度由入口按进度给（夜里暗、天亮变暖）
+    const P = m.geometry.attributes.position, bp = [], bc = [], bi = [], rows = [[0.2, 1], [-1.4, 0.4], [-4, 0]];
     for (let k = 0; k < P.count / 2; k++) {
       const x = P.getX(k * 2 + 1) * 0.997, y = P.getY(k * 2 + 1), z = P.getZ(k * 2 + 1) * 0.997;
-      bp.push(x, y + 0.15, z, x, y - 2.2, z); bc.push(1, 1, 1, 0, 0, 0);
-      if (k) { const b = (k - 1) * 2; bi.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+      for (const [dy, a] of rows) { bp.push(x, y + dy, z); bc.push(a, a, a); }
+      if (k) { const b = (k - 1) * 3; for (const o of [0, 1]) bi.push(b + o, b + o + 1, b + o + 3, b + o + 1, b + o + 4, b + o + 3); }
     }
     const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3)); bg.setIndex(bi);
     const rim = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
-    rim.renderOrder = -4.5; rim.name = 'ridgeRim'; m.add(rim); m.userData.rim = rim.material;
+    rim.renderOrder = -4.5; rim.name = 'ridgeRim'; m.add(rim); m.userData.rim = rim;
     return m;
   });
 
@@ -161,7 +162,7 @@ export function buildSky(scene, ctx, fwd, sunXZ) {
       CU.lit.value.copy(K.cloudLit); CU.shade.value.copy(K.cloudShade); CU.haze.value.copy(K.cloudHaze);
       for (const u of clouds) u.t.value = t % 3600;
       ridges[0].material.color.copy(K.ridge1); ridges[1].material.color.copy(K.ridge2);
-      for (const r of ridges) r.userData.rim.color.copy(K.rim);
+      ridges[1].userData.rim.material.color.copy(K.rim).multiplyScalar(K.rimK); ridges[1].userData.rim.visible = K.rimK > 0.005;
       kage.material.opacity = K.kage * 0.55; kage.visible = K.kage > 0.01;
       return dir;
     },

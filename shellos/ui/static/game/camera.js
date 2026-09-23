@@ -18,6 +18,9 @@ export function defaultRig() {
     // face（Vector3，可选）= 环绕开始时镜头正对着看的点（太阳、山门），不给就从化身背后开始；
     // hold = 先定住几秒再开始转（「鸟居框日出」构图）；speed = 0 + face = 登顶定机位（不转）
     summit: { center: null, radius: 5.2, height: 2.3, lookY: 1.1, speed: 1.0, face: null, hold: 0 },
+    // 正面（V 键 / ?cam=front）：镜头在化身前方倒着走，拍峰哥的脸；side = 侧面平移跟拍
+    front: { dist: 2.4, side: 0.45, height: 1.45, lookY: 1.2, clear: 1.2 },
+    side: { dist: 3.4, back: 0.4, height: 1.3, lookY: 0.95 },
   };
 }
 
@@ -27,7 +30,7 @@ export function makeCamera(camera, route, rig = defaultRig()) {
   const lk = new THREE.Vector3(), ndc = new THREE.Vector3(), tanH = () => Math.tan(camera.fov * Math.PI / 360);
   return {
     rig,
-    // a = route.at(s) 的结果（pos/dir/left/kind）；s = 化身连续步数；mode = 'follow' | 'summit'
+    // a = route.at(s) 的结果（pos/dir/left/kind）；s = 化身连续步数；mode = 'follow' | 'front' | 'side' | 'summit'
     update(dt, a, mode, snap = false, s = 0) {
       const k = a.kind || 'flat', stairs = k.startsWith('stairs'), up = k === 'up' || k === 'stairs_up';
       if (mode === 'summit') {
@@ -38,6 +41,17 @@ export function makeCamera(camera, route, rig = defaultRig()) {
         const base = base0 + orbitA;
         want.set(a.pos.x + Math.cos(base) * R.radius, a.pos.y + R.height, a.pos.z + Math.sin(base) * R.radius);
         wantLook.copy(a.pos).setY(a.pos.y + R.lookY);        // 化身在画面中部偏下，登顶卡在下三分之一、延迟弹出
+      } else if (mode === 'front') {
+        orbitA = 0; base0 = null; held = 0;
+        const R = rig.front;
+        want.copy(a.pos).addScaledVector(a.dir, R.dist).addScaledVector(a.left, R.side); want.y += R.height;
+        want.y = Math.max(want.y, route.heightAt(s + R.dist / STEP) + R.clear);     // 前方是台阶：镜头跟着抬，不钻进台阶里
+        wantLook.copy(a.pos); wantLook.y += R.lookY;
+      } else if (mode === 'side') {
+        orbitA = 0; base0 = null; held = 0;
+        const R = rig.side;
+        want.copy(a.pos).addScaledVector(a.left, R.dist).addScaledVector(a.dir, -R.back); want.y += R.height;
+        wantLook.copy(a.pos); wantLook.y += R.lookY;
       } else {
         orbitA = 0; base0 = null; held = 0;
         const F = rig.follow, back = stairs ? F.backStairs : F.back, side = stairs ? F.sideStairs : F.side;
@@ -51,7 +65,7 @@ export function makeCamera(camera, route, rig = defaultRig()) {
       pos.lerp(want, f); look.lerp(wantLook, g); init = true;
       camera.position.copy(pos); camera.lookAt(look);
       const fm = rig.follow.footMin;
-      if (mode !== 'summit' && fm != null) {             // 脚底出了下限：看点往下压（2 次迭代就够），不改平滑状态 → 不抖
+      if (mode === 'follow' && fm != null) {             // 脚底出了下限：看点往下压（2 次迭代就够），不改平滑状态 → 不抖
         lk.copy(look);
         for (let k = 0; k < 2; k++) {
           camera.updateMatrixWorld(); ndc.copy(a.pos).project(camera);

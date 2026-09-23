@@ -224,7 +224,7 @@ async function main() {
       gh.group.rotation.y = gyaw;
     }
     if (themeMod.rigFor && !themeErr) try { themeMod.rigFor(s, camRig, summit); } catch (e) { themeErr = true; err(`主题 ${theme.style} rigFor 出错`, e); }
-    if (!window.__camHold) cam.update(dt, A, summit ? 'summit' : 'follow', PREVIEW || cut, s);   // __camHold：调试时手动摆镜头
+    if (!window.__camHold) cam.update(dt, A, summit ? 'summit' : (window.__camMode || 'follow'), PREVIEW || cut, s);   // __camHold：调试时手动摆镜头
     fx.update(dt, t);
     if (themeMod.update && !themeErr) try { themeMod.update(dt, { t, dt, s, progress: Math.max(0, Math.min(1, s / route.N)), pos: T.pos, total: T.total, avatar: A.pos, heading: A.heading, kind: A.kind, ghost: g ? G.pos : null, terrain: T, summit, preview: !!PREVIEW, camera }); }
       catch (e) { themeErr = true; err(`主题 ${theme.style} update 出错（之后不再调用）`, e); }

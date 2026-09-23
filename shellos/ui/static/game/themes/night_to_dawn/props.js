@@ -110,7 +110,7 @@ export function tinTexture(util) {
 export function hut({ w = 4.2, d = 2.4, h = 2.0, name, lit = 3 } = {}) {
   const body = [], roof = [], glass = [], glow = [], text = [];
   const wood = '#6a4630', dark = '#2a1b12';
-  body.push({ geo: new THREE.BoxGeometry(w + 0.5, 3.0, d + 0.5), p: [0, -1.42, 0], color: '#3a3431' });          // 石基（埋进坡里）
+  body.push({ geo: new THREE.BoxGeometry(w + 0.5, 3.0, d + 0.5), p: [0, -1.42, 0], color: '#6e3a27' });          // 石基（埋进坡里；火山砂色，下坡那侧露出来也像地面不像黑底座）
   body.push({ geo: new THREE.BoxGeometry(w, h, d), p: [0, h / 2, 0], color: wood });
   for (let k = 0; k < 4; k++) body.push({ geo: new THREE.BoxGeometry(w + 0.02, 0.04, d + 0.02), p: [0, 0.35 + k * 0.45, 0], color: '#553722' });   // 横板缝
   for (const kx of [-1, 1]) for (const kz of [-1, 1]) body.push({ geo: new THREE.BoxGeometry(0.16, h, 0.16), p: [kx * (w / 2 - 0.02), h / 2, kz * (d / 2 - 0.02)], color: dark });

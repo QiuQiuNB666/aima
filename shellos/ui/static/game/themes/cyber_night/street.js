@@ -125,28 +125,44 @@ export function buildStreet(scene, ctx, E) {
     sig = { redM, grnM, bar, glow, pedGo, wait, refl };
   }
 
-  // ---- 坂道：浅色混凝土路面 + 每步一道深色防滑横纹；两侧扶手（立柱 + 扶手 + 灯带）顺着坡往上，坡度一眼可读 ----
+  // ---- 坂道：一整条连续深沥青（#3a3448 + 顺路方向细纵纹），每 2 步一个朝坡上的青色人字箭头；横线一条都不出现（横线只给台阶）。
+  //   两侧扶手 + 灯带各是一根连续倾斜的直杆（坡段一根、坡顶巷子一根），立柱每步一根 ----
   const up = route.segs.find(sg => sg.kind === 'up');
   if (up) {
-    const g = quads(), s0 = up.start, s1 = up.start + up.steps;
-    const strip = (sa, sb, lat0, lat1, y, color) => {
+    const s0 = up.start, s1 = up.start + up.steps, road = quads(), arrows = quads();
+    const strip = (g, sa, sb, lat0, lat1, y, color) => {
       const A = L(sa), B = L(sb), la = (lat0 + lat1) / 2, hwid = (lat1 - lat0) / 2;
       const pa = A.pos.clone().addScaledVector(A.left, la), pb = B.pos.clone().addScaledVector(B.left, la); pa.y += y; pb.y += y;
       g.add(pa.clone().add(pb).multiplyScalar(0.5), A.left.clone().add(B.left).normalize().multiplyScalar(hwid), pb.sub(pa).multiplyScalar(0.5), color);
     };
-    for (let i = s0; i < s1; i++) { strip(i, i + 1, -hw, hw, 0.006, '#56506c'); strip(i + 0.3, i + 0.7, -hw, hw, 0.012, '#3a2a50'); }
-    const gm = g.mesh(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 'slopeRoad');
-    scene.add(gm);
+    for (let k = 0; k < 4 * up.steps; k++) strip(road, s0 + k / 4, s0 + (k + 1) / 4, -hw, hw, 0.006, '#ffffff');   // 细分只为贴合坡面；uv 横向一致 → 看不出接缝
+    for (let s = s0 + 1; s < s1; s += 2) strip(arrows, s - 0.45, s + 0.45, -0.45, 0.45, 0.014, '#ffffff');
+    const slopeTex = util.canvasTexture(256, 64, (c, w, h) => {
+      c.fillStyle = '#3a3448'; c.fillRect(0, 0, w, h);
+      for (let x = 6; x < w; x += 11) { c.fillStyle = x % 2 ? 'rgba(120,112,150,.35)' : 'rgba(20,16,30,.45)'; c.fillRect(x, 0, 2, h); }   // 顺路方向细纵纹
+      c.fillStyle = '#6c648a'; c.fillRect(0, 0, 5, h); c.fillRect(w - 5, 0, 5, h);                                                           // 路沿两道浅边
+    });
+    const rm = road.mesh(new THREE.MeshBasicMaterial({ map: slopeTex, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 'slopeRoad');
+    const chev = util.canvasTexture(128, 128, (c, w, h) => {
+      c.strokeStyle = '#fff'; c.lineWidth = 20; c.lineJoin = 'miter'; c.lineCap = 'butt';
+      for (const y of [40, 88]) { c.beginPath(); c.moveTo(10, y + 34); c.lineTo(64, y - 14); c.lineTo(118, y + 34); c.stroke(); }   // 画布上方 = uv v 大 = 坡上
+    });
+    chev.flipY = true;
+    const am = arrows.mesh(shade(new THREE.MeshBasicMaterial({ map: chev, color: '#3ff0ff', transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
+      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), { neon: true }), 'slopeArrows');
+    am.renderOrder = 1;
+    scene.add(rm, am);
+    // 引擎每步刻度线在坡上收成 0 长度（坡上不要横线）
+    const ln = ctx.meshes && ctx.meshes.lines;
+    if (ln) { const lp = ln.geometry.attributes.position; for (let i = s0 + 1; i <= s1; i++) if (2 * i + 1 < lp.count) lp.setXYZ(2 * i + 1, lp.getX(2 * i), lp.getY(2 * i), lp.getZ(2 * i)); lp.needsUpdate = true; }
     const RH = 0.85;
     for (const side of [1, -1]) {
-      const lat = side * (hw + 0.35), P = [];
-      for (let s = s0; s <= s1 + 3.01; s += 0.5) { const a = L(s, lat); P.push(a.pos.clone()); }
-      P.forEach((p, k) => { if (k % 2 === 0) lam.push({ geo: new THREE.BoxGeometry(0.05, RH, 0.05), p: [p.x, p.y + RH / 2 - 0.03, p.z], color: '#7d8398' }); });
-      for (let k = 0; k + 1 < P.length; k++) {
-        const a = P[k], b = P[k + 1], len = a.distanceTo(b), qq = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), v.subVectors(b, a).normalize());
-        const mid = a.clone().add(b).multiplyScalar(0.5);
-        lam.push({ geo: new THREE.BoxGeometry(len + 0.02, 0.05, 0.06), p: [mid.x, mid.y + RH, mid.z], q: qq, color: '#9aa0b8' });
-        lit.push({ geo: new THREE.BoxGeometry(len + 0.01, 0.03, 0.02), p: [mid.x, mid.y + RH - 0.06, mid.z], q: qq, color: side > 0 ? acc[1] : acc[0] });
+      const lat = side * (hw + 0.35), at = s => { const a = L(s, lat); return a.pos.clone(); };
+      for (let s = s0; s <= s1 + 3.01; s += 1) { const p = at(s); lam.push({ geo: new THREE.BoxGeometry(0.05, RH, 0.05), p: [p.x, p.y + RH / 2 - 0.03, p.z], color: '#7d8398' }); }
+      for (const [a, b] of [[at(s0), at(s1)], [at(s1), at(s1 + 3)]]) {
+        const len = a.distanceTo(b), qq = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), v.subVectors(b, a).normalize()), mid = a.clone().add(b).multiplyScalar(0.5);
+        lam.push({ geo: new THREE.BoxGeometry(len + 0.05, 0.05, 0.06), p: [mid.x, mid.y + RH, mid.z], q: qq, color: '#9aa0b8' });
+        lit.push({ geo: new THREE.BoxGeometry(len + 0.03, 0.035, 0.022), p: [mid.x, mid.y + RH - 0.06, mid.z], q: qq, color: side > 0 ? acc[1] : acc[0] });
       }
     }
   }
@@ -174,7 +190,7 @@ export function buildStreet(scene, ctx, E) {
   scene.add(body, tr, lamp);
 
   const lamMesh = new THREE.Mesh(util.merged(lam), new THREE.MeshLambertMaterial({ vertexColors: true })); lamMesh.name = 'streetProps';
-  const litMesh = new THREE.Mesh(util.merged(lit), shade(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), { mask: true })); litMesh.name = 'streetLit';
+  const litMesh = new THREE.Mesh(util.merged(lit), shade(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), { mask: true, neon: true })); litMesh.name = 'streetLit';
   scene.add(lamMesh, litMesh);
   updateStreet(0, { pos: 0, terrain: null });
 }

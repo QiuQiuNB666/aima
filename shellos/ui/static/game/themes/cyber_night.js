@@ -32,7 +32,7 @@ function asphaltTex(util, rand) {
   }, { repeat: true });
 }
 
-const FOG = '#2a1640', FOG_D = 0.062;
+const FOG = '#2a1640', FOG_D = 0.05;
 let renderer = null, walkLight = null, backLight = null, R = null;
 const la = {};
 
@@ -58,9 +58,9 @@ export function build(scene, ctx) {
   // 跟着人走的低矮青色灯：在化身前 1 单位、路右侧、离地 0.7 → 镜面高光落在化身脚后的湿路面上（画面下三分之一），
   //   化身背对镜头、灯在前方偏右，身上染色很少
   R = route;
-  walkLight = new THREE.PointLight(acc[1], 10, 7, 1.4); walkLight.name = 'walkLight';
+  walkLight = new THREE.PointLight(acc[1], 6, 7, 1.4); walkLight.name = 'walkLight';
   // 第二盏：品红、贴地、在化身身后右侧 → 高光落在画面最下面那段路上（前景湿路面不再一片黑）
-  backLight = new THREE.PointLight(acc[0], 5, 3.4, 1.4); backLight.name = 'backLight';
+  backLight = new THREE.PointLight(acc[0], 2, 3.4, 1.4); backLight.name = 'backLight';
   scene.add(walkLight, backLight);
 
   buildStreet(scene, ctx, E);           // 先挖天桥下的大街（改地面），再摆别的
@@ -70,6 +70,9 @@ export function build(scene, ctx) {
 
   const M = ctx.meshes;
   if (M.camp) M.camp.visible = false;   // 城市里没有帐篷
+  if (M.flag) { const f = route.at(route.N + 2.2, -(ROAD_W / 2 + 2.0)); M.flag.position.x = f.pos.x; M.flag.position.z = f.pos.z; }   // 旗挪到路右沿外 2（鸟居右柱外）：不从鸟居里、影子身上穿过去
+  // 化身：浅灰蓝躯干 + 深色外骨骼腿 + 青色轮廓，和半透明青影子拉开
+  theme.avatar = { ...(theme.avatar || {}), body: '#dfe8f2', leg: '#222a36', rim: '#3ff0ff', self: 0.42 };   // self 调高：紫色环境光不把衣服染成粉紫
   // 台阶：天桥 = 冷钢灰、神社 = 暖灰（不吃光的材质，颜色所见即所得）；每级边缘一条 0.08 宽的黄亮条（台阶 = 腿上脉冲，得让评委看出来）
   const st = M.stairs, idx = M.stairIndex || [];
   if (st && idx.length) {

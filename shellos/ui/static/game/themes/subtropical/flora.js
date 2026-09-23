@@ -64,10 +64,14 @@ function banyan(util, R, blobs) {
     P.push(limb(fork.clone().add(v(0, R() * 0.6, 0)), m, 0.24, 0.16, bark, 6), limb(m, e, 0.16, 0.07, bark, 5));
     tips.push(m, e);
   }
-  for (let k = 0; k < 24; k++) {                                    // 平展树冠
+  for (let k = 0; k < 24; k++) {                                    // 平展树冠（底面 #3F6B3A 上下，不再是一块黑绿）
     const a = R() * 6.28, rr = Math.sqrt(R()) * 4.3, y = 5.0 + (R() - 0.3) * 1.3 - rr * 0.12;
     const s = 1.25 + R() * 0.7;
-    P.push({ geo: blobs[k % blobs.length], p: [Math.cos(a) * rr, y, Math.sin(a) * rr], s: [s, s * 0.62, s], color: ['#28502a', '#2f5e2c', '#3a6c32', '#24462a'][k % 4] });
+    P.push({ geo: blobs[k % blobs.length], p: [Math.cos(a) * rr, y, Math.sin(a) * rr], s: [s, s * 0.62, s], color: ['#3f6b3a', '#48773e', '#55843f', '#3a6436'][k % 4] });
+  }
+  for (let k = 0; k < 9; k++) {                                     // 亮叶团：冠顶和外沿鼓出来的 9 团，打散整块平面
+    const a = k / 9 * 6.28 + R() * 0.5, rr = 2.2 + R() * 2.2, s = 0.8 + R() * 0.45;
+    P.push({ geo: blobs[(k + 1) % blobs.length], p: [Math.cos(a) * rr, 5.55 + R() * 0.6 - rr * 0.1, Math.sin(a) * rr], s: [s, s * 0.7, s], color: k % 3 ? '#5d8f4a' : '#6b9c52' });
   }
   // 气根：只从树冠下沿、离树干 3 m 以内垂下（上端藏在冠里，不会有悬空的棍子）；前面（局部 +x，摆放时朝路）垂得密。
   //   每簇 2–3 根细须，每根 3–4 节、略弯，半径 0.03 → 0.015
@@ -106,6 +110,48 @@ function fernGeo() {
   return parts;
 }
 
+// 大梧桐：光滑灰绿树干 #8A9A7E，离地约 38% 分 3 大枝，伞形冠（压扁的叶团打底）+ 56 片大掌状叶（InstancedMesh，#6FA04A / #8DBA5A）。
+//   返回 [树干 + 冠底团（1 次绘制）, 叶片（1 次绘制）]。B.wutong = { p: Vector3（地面）, h: 总高, ry }
+function wutong(util, R, blobs, B) {
+  const { p, h, ry } = B.wutong, v = (x, y, z) => new THREE.Vector3(x, y, z), bark = '#8a9a7e', P = [];
+  const fork = v(0, h * 0.38, 0), crownY = h * 0.78, crownR = h * 0.42;
+  P.push(limb(v(0, -0.4, 0), fork, h * 0.045, h * 0.034, bark, 10));
+  for (let k = 0; k < 4; k++) { const a = k / 4 * 6.28 + 0.4; P.push(limb(v(0, 0.5, 0), v(Math.cos(a) * h * 0.07, -0.3, Math.sin(a) * h * 0.07), h * 0.03, h * 0.012, bark, 6)); }   // 根颈
+  const tips = [];
+  for (let k = 0; k < 3; k++) {                                      // 3 大枝，斜上张开，再各分 2 小枝
+    const a = k / 3 * 6.28 + 0.5, e = v(Math.cos(a) * crownR * 0.62, crownY - h * 0.06, Math.sin(a) * crownR * 0.62);
+    const m = fork.clone().lerp(e, 0.55).add(v(0, h * 0.05, 0));
+    P.push(limb(fork, m, h * 0.028, h * 0.02, bark, 8), limb(m, e, h * 0.02, h * 0.011, bark, 7));
+    for (const da of [-0.55, 0.55]) { const f = v(Math.cos(a + da) * crownR * 0.85, crownY + h * 0.02, Math.sin(a + da) * crownR * 0.85); P.push(limb(m, f, h * 0.014, h * 0.006, bark, 5)); tips.push(f); }
+    tips.push(e);
+  }
+  for (let k = 0; k < 11; k++) {                                     // 伞形冠打底：压扁叶团，中间高、外沿低
+    const a = k / 11 * 6.28 + R() * 0.4, rr = k === 0 ? 0 : crownR * (0.35 + 0.5 * R()), s = crownR * (0.36 + 0.14 * R());
+    P.push({ geo: blobs[k % blobs.length], p: [Math.cos(a) * rr, crownY + (k === 0 ? h * 0.06 : 0) - rr * 0.18, Math.sin(a) * rr], s: [s, s * 0.45, s], color: k % 2 ? '#5f8f45' : '#557f3f' });
+  }
+  const body = new THREE.Mesh(finish(util, P, 0, crownY), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#18230f' }));
+  body.position.copy(p); body.rotation.y = ry; body.name = 'wutong';
+  // 掌状叶：5 裂的平面叶片（ShapeGeometry，双面），撒在伞冠的上表面和外沿，叶面朝外上方
+  const sh = new THREE.Shape(), lobes = 5;
+  for (let k = 0; k <= lobes * 2; k++) {
+    const t = -1.15 + 2.3 * k / (lobes * 2), r = k % 2 ? 0.42 : (k === lobes ? 1 : 0.8);   // 尖 / 凹 交替，中裂最长
+    const x = Math.sin(t) * r, y = Math.cos(t) * r * 0.9 + 0.1;
+    if (k === 0) sh.moveTo(0, 0); sh.lineTo(x, y);
+  }
+  sh.lineTo(0, 0);
+  const leafGeo = new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2);   // 叶在 xz 平面，叶尖朝 -z
+  const leaves = [], q = new THREE.Quaternion(), e = new THREE.Euler();
+  for (let k = 0; k < 56; k++) {
+    const a = R() * 6.28, rr = crownR * Math.sqrt(0.15 + 0.85 * R()), out = rr / crownR;
+    const lp = v(Math.cos(a) * rr, crownY + crownR * 0.2 * (1 - out * out) + (R() - 0.3) * 0.5, Math.sin(a) * rr).applyAxisAngle(v(0, 1, 0), ry).add(p);
+    e.set(-0.35 - out * 0.6 + (R() - 0.5) * 0.4, -a + ry - Math.PI / 2 + (R() - 0.5) * 0.6, (R() - 0.5) * 0.4, 'YXZ');
+    const s = h * (0.11 + 0.05 * R());
+    leaves.push({ p: lp.toArray(), q: q.setFromEuler(e).clone(), s: [s, s, s], color: R() < 0.55 ? '#6fa04a' : '#8dba5a' });
+  }
+  const lm = util.instanced(leafGeo, new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, emissive: '#1e2e12' }), leaves); lm.name = 'wutongLeaves';
+  return [body, lm];
+}
+
 export function buildFlora(scene, ctx, B) {
   const { route, util, kit } = ctx, R = ctx.rand, N = route.N, { hAt } = B;
   const blobs = [blob(1), blob(7), blob(13)];
@@ -142,7 +188,10 @@ export function buildFlora(scene, ctx, B) {
     const a = route.at(s, lat), r = route.at(s).pos, dx = r.x - a.pos.x, dz = r.z - a.pos.z;
     bItems.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z), a.pos.z], ry: Math.atan2(-dz, dx), s: sc });
   }
-  const bm = util.instanced(bGeo, vc, bItems); bm.name = 'banyan'; out.push(bm);
+  const bm = util.instanced(bGeo, new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#1b3018' }), bItems); bm.name = 'banyan'; out.push(bm);   // 冠底朝下只吃半球光的地面色：补一点自发光
+
+  // 大梧桐（终点地标）
+  if (B.wutong) out.push(...wutong(util, R, blobs, B));
 
   // 蕨 + 灌丛：路两边（路沿外 0.4 起）+ 林下
   const frond = util.canvasTexture(64, 256, (g, w, h) => {

@@ -20,14 +20,15 @@ export function buildFar(scene, ctx, B, C) {
   kit.sky(scene, C.zenith, C.hz, { exponent: 0.55 });
 
   // 对岸淡山（一圈，左侧被梧桐山挡住，右侧在海后面）
-  kit.ridge(ctx, { color: kit.mixHex(C.farHill, C.hz, 0.25), radius: 310, height: 30, y0: -16, base: -45, seed: 5, jag: 0.8 });
-  kit.ridge(ctx, { color: kit.mixHex(C.farHill, C.hz, 0.55), radius: 380, height: 44, y0: -14, base: -45, seed: 11, jag: 0.6 });
+  //   推到海湾外沿以外（r 560 / 640，高度同比放大）：山顶往右前看，城和对岸山之间留一整条海（pos33 约 70–90 px 高）
+  kit.ridge(ctx, { color: kit.mixHex(C.farHill, C.hz, 0.25), radius: 560, height: 52, y0: -22, base: -45, seed: 5, jag: 0.8 });
+  kit.ridge(ctx, { color: kit.mixHex(C.farHill, C.hz, 0.55), radius: 640, height: 74, y0: -18, base: -45, seed: 11, jag: 0.6 });
 
   // 城区平原 + 海湾：一张大平面，离中心 < SHORE 是灰绿城区，外面是海；按离镜头距离混雾色
   const bayU = { t: { value: 0 }, cam: { value: ctx.camera.position }, cen: { value: new THREE.Vector2(c.x, c.z) },
     land: { value: new THREE.Color(C.land) }, sea: { value: new THREE.Color(C.sea) }, haze: { value: new THREE.Color(C.hz) }, glint: { value: new THREE.Color('#fffbe8') },
     sunXZ: { value: new THREE.Vector2(B.sunDir.x, B.sunDir.z).normalize() } };
-  const bay = new THREE.Mesh(new THREE.PlaneGeometry(900, 900, 1, 1).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
+  const bay = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400, 1, 1).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
     uniforms: bayU, fog: false,
     vertexShader: 'varying vec3 wp; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); wp = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader: `uniform float t; uniform vec3 cam, land, sea, haze, glint; uniform vec2 cen, sunXZ; varying vec3 wp; ${NOISE}
@@ -41,7 +42,7 @@ export function buildFar(scene, ctx, B, C) {
         vec2 v = normalize(wp.xz - cam.xz);
         float g = pow(max(dot(v, sunXZ), 0.), 8.) * n2(wp.xz * 0.6 + vec2(t * 0.3, 0.)) * isSea;   // 朝太阳那边的海面闪光
         c += glint * g * 0.35;
-        c = mix(c, haze, smoothstep(60., 330., dist) * mix(0.8, 0.42, isSea));   // 海少混雾：深蓝海湾和天分得开
+        c = mix(c, haze, smoothstep(60., 330., dist) * mix(0.8, 0.3, isSea));    // 海少混雾：深蓝海湾和天分得开
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -74,19 +75,38 @@ export function buildFar(scene, ctx, B, C) {
     const r = 165 + R() * 60, p = c.clone().addScaledVector(dirAt(th), r);
     const mid = Math.exp(-((THREE.MathUtils.radToDeg(th) - 14) ** 2) / 220);   // 14° 那一带是 CBD
     const kind = R() < 0.18 + 0.3 * mid ? 1 : R() < 0.35 ? 2 : 0;
-    const h = (kind === 1 ? 14 + 12 * R() : 3 + 8 * R()) * (0.55 + 0.6 * mid) * (core ? 1 : 0.7) + 3;   // 城区平面在山下 30：从山上看楼在脚下，最高的几栋顶到地平线
+    const h = (kind === 1 ? 12 + 8 * R() : 3 + 8 * R()) * (0.55 + 0.6 * mid) * (core ? 1 : 0.7) + 3;   // 城区平面在山下 30：从山上看楼在脚下，最高的几栋顶到地平线
     const w = kind === 2 ? 8 + 6 * R() : 4 + 4 * R();
     const k = (r - 165) / 60;
     col.copy(cols[(R() * cols.length) | 0]).lerp(haze, 0.08 + 0.2 * k);
     items[kind].push({ p: [p.x, LAND_Y - 1, p.z], ry: Math.atan2(p.x - c.x, p.z - c.z) + (R() - 0.5) * 0.5, s: [w, h + 1, kind === 2 ? w : w * (0.8 + R() * 0.4)], color: col.clone() });
     n++;
   }
-  for (let k = 0; k < 7; k++) {          // 福田 CBD 一撮超高层（约 2.5 倍）：通用退台方塔，不做任何可认出的地标细节
+  for (let k = 0; k < 7; k++) {          // 福田 CBD 一撮高层（20–28）：通用退台方塔，不做任何可认出的地标细节
     const th = THREE.MathUtils.degToRad(14 + 16 * R()), r = 180 + R() * 22, p = c.clone().addScaledVector(dirAt(th), r), w = 5.5 + R() * 3;
     col.copy(cols[(R() * cols.length) | 0]).lerp(haze, 0.16);
-    items[k % 3 === 2 ? 0 : 1].push({ p: [p.x, LAND_Y - 1, p.z], ry: Math.atan2(p.x - c.x, p.z - c.z) + (R() - 0.5) * 0.4, s: [w, 36 + R() * 12, w * (0.85 + R() * 0.3)], color: col.clone() });
+    items[k % 3 === 2 ? 0 : 1].push({ p: [p.x, LAND_Y - 1, p.z], ry: Math.atan2(p.x - c.x, p.z - c.z) + (R() - 0.5) * 0.4, s: [w, 20 + R() * 8, w * (0.85 + R() * 0.3)], color: col.clone() });
   }
   const bMat = new THREE.MeshBasicMaterial({ vertexColors: true, map: winTex, fog: false });
+  // 城市焦点：一栋通用超高层（塔身 60 + 尖肋 9，其余楼最高 ~28 → 两倍多），5 级收分 + 顶上 4 根向内收的尖肋；#D5DBE2，雾只混一半。
+  //   th 9.5°：pos14 在左上信息卡和中间路段卡之间从山脊线上方冒出来，pos22 在卡片下沿以下，pos33 在中间卡和右上卡之间。
+  //   更高（96）在 pos14 / 22 / 33 一定顶进顶部 HUD 面板后面（这三处的顶部空档不在同一个方向上）。不做任何可认出的真实建筑细节
+  {
+    const th = THREE.MathUtils.degToRad(9.5), p = c.clone().addScaledVector(dirAt(th), 188);
+    const tiers = [[9, 24], [7.6, 15], [6.3, 10], [5, 7], [3.8, 4]], parts = [];
+    let y = 0;
+    for (const [w, h] of tiers) { parts.push({ geo: box(w, h, w, y) }); y += h; }
+    const tw = tiers[tiers.length - 1][0] / 2 - 0.3;
+    for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {        // 尖肋：从顶层四角往上收到中心上方
+      const a = new THREE.Vector3(sx * tw, y, sz * tw), b = new THREE.Vector3(sx * 0.4, y + 9, sz * 0.4), d = b.clone().sub(a), len = d.length();
+      parts.push({ geo: new THREE.BoxGeometry(0.55, len, 0.55).translate(0, len / 2, 0), p: a.toArray(), q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()) });
+    }
+    parts.push({ geo: new THREE.CylinderGeometry(0.06, 0.3, 6, 6).translate(0, 3, 0), p: [0, y + 6, 0] });   // 中心天线
+    const g = shade(util.merged(parts)), cc = g.attributes.color, tc = new THREE.Color('#d5dbe2').lerp(haze, 0.08);
+    for (let i = 0; i < cc.count; i++) cc.setXYZ(i, cc.getX(i) * tc.r, cc.getY(i) * tc.g, cc.getZ(i) * tc.b);
+    const m = new THREE.Mesh(g, bMat); m.position.set(p.x, LAND_Y - 1, p.z); m.rotation.y = Math.atan2(p.x - c.x, p.z - c.z) + 0.35;
+    m.name = 'supertall'; m.renderOrder = -3; scene.add(m);
+  }
   [geoA, geoB, geoC].forEach((g, i) => { if (!items[i].length) return; const m = util.instanced(g, bMat, items[i]); m.name = 'skyline'; m.renderOrder = -3; scene.add(m); });
 
   // 积云：一张 canvas 云贴图，12 块广告牌（1 次绘制），离得远、不吃雾
