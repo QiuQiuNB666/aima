@@ -107,7 +107,7 @@ export function tinTexture(util) {
 
 // 山小屋（本地：x 沿路宽 w，z 离路方向深 d，正面在 z = -d/2 朝路）。
 // 返回 { body（lambert 顶点色）, roof（铁皮贴图）, glass（不吃光：窗、门、暖帘、月光屋脊）, glow, text }
-export function hut({ w = 4.2, d = 2.4, h = 2.0, name, lit = 3 } = {}) {
+export function hut({ w = 4.2, d = 2.4, h = 2.0, name, yago, lit = 3 } = {}) {   // yago = 屋号（门楣上的横木牌，真实的吉田口山小屋名）
   const body = [], roof = [], glass = [], glow = [], text = [];
   const wood = '#6a4630', dark = '#2a1b12';
   body.push({ geo: new THREE.BoxGeometry(w + 0.5, 3.0, d + 0.5), p: [0, -1.42, 0], color: '#6e3a27' });          // 石基（埋进坡里；火山砂色，下坡那侧露出来也像地面不像黑底座）
@@ -141,6 +141,10 @@ export function hut({ w = 4.2, d = 2.4, h = 2.0, name, lit = 3 } = {}) {
         const sx = w / 2 + 0.34, sz = front - 0.1;
         body.push({ geo: new THREE.BoxGeometry(0.4, 1.46, 0.07), p: [sx, 1.05, sz + 0.05], color: '#b08a5c' }, { geo: new THREE.BoxGeometry(0.09, 0.4, 0.09), p: [sx, 0.2, sz + 0.05], color: dark });
         text.push({ text: name, p: [sx, 1.05, sz], ry: Math.PI, h: 1.34, vertical: true, color: '#1e120a', bg: '#c49c68', border: '#4a3020', weight: 900, pad: 0.12 });
+      }
+      if (yago) {                                                        // 屋号横牌：门楣上方、檐下
+        body.push({ geo: new THREE.BoxGeometry(0.2 + 0.36 * [...yago].length, 0.44, 0.06), p: [x, 1.74, front - 0.03], color: '#3a2616' });
+        text.push({ text: yago, p: [x, 1.74, front - 0.07], ry: Math.PI, h: 0.36, color: '#f4ead2', bg: '#3a2616', border: '#c9a24a', weight: 900, pad: 0.1 });
       }
       glow.push({ p: [x, 0.8, front - 0.25], c: '#ffbf64', sz: 2.6 });
     } else {

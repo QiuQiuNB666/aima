@@ -186,7 +186,7 @@ export function buildCity(scene, ctx, E) {
         lit.push({ geo: new THREE.SphereGeometry(0.11, 10, 8), p: [la.pos.x, y0 + 1.05, la.pos.z], s: [1, 1.35, 1], color: '#ff4a2a' });
       }
     }
-    if (rand() < 0.6 && (side < 0 || front - 0.4 >= 3)) {              // 店上方的竖招牌（左侧离路 ≥ 3 才能高过 1.5）
+    if (rand() < 0.6 && side < 0) {                                   // 店上方的竖招牌只在右侧（左侧离镜头近，高过 1.5 会糊在画面左缘）
       const ta = route.at(sc + ds * 0.3, side * (front - 0.35)), t2 = SIGNS[si++ % SIGNS.length];
       addSign(t2, ta.pos.clone().setY(y0 + 2.6), -ta.heading - Math.PI / 2, 0.9 + [...t2].length * 0.3, (side > 0 ? leftCols : rightCols)[Math.floor(rand() * 5)]);
     }
@@ -194,7 +194,7 @@ export function buildCity(scene, ctx, E) {
   for (const b of near) shopFront(b.sc, b.ds, b.w, b.side, b.front, b.y0, false);
   // 坂道 / 巷子：低层商铺
   for (const side of [1, -1]) {
-    const front = side > 0 ? 3.3 : 2.3;
+    const front = side > 0 ? 3.8 : 2.3;                       // 左侧 3.3 时雨棚（离路 3.0）从天桥下来就糊在镜头左下角
     for (let s = SLOPE[0]; s < SLOPE[1];) {
       const w = 1.3 + rand() * 0.9, ds = w / STEP, sc = s + ds / 2;
       if (sc + ds / 2 > SLOPE[1] + 0.5) break;

@@ -5,7 +5,7 @@ export const KC = { flat: '#8a95a3', up: '#3ddc84', down: '#4fc3f7', stairs_up: 
 const $ = id => document.getElementById(id);
 const fmt = s => s == null ? '—' : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 const PEAK_S = 1.5;          // 力矩条 = 最近 1.5 s（≥ 一个步态周期）的峰值保持：/state 10 Hz 采样落在脉冲哪里是随机的，瞬时值看不出强弱
-const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner'];   // 影子标签要让开的 HUD 面板
+const AVOID = ['wait', 'tc', 'summit', 'tr', 'tl', 'puppet', 'banner', 'fg'];   // 影子标签要让开的 HUD 面板
 const SAFE = { ACTIVE: ['#3ddc84', '有力'], ARMED: ['#ffc53d', '待命（死人开关松开）'], CONNECTED: ['#ffc53d', '已连接'], PREVIEW: ['#8a95a3', '离线预览'] };
 
 export function makeHud(world) {
