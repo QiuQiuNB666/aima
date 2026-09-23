@@ -7,7 +7,7 @@
 - **蜂群**：教练（Claude）· 地形导演（Claude）· 记忆员（代码）· 安全员（**硬代码，故意不交给大模型**）；仪表盘时间线上看得见每一步的提议 / 同意 / 裁剪 / 否决。名字的巧合：峰哥当年合伙的公司就叫「蜂群文化」
 - **经验卡闭环**：一句话改参数 → 存成卡 → 下一个步频相近的人自动继承 → 删卡立即回退
 - **兜底**：断网或 Claude 不可用时，教练走规则表、造山走关键词模板、峰哥走内置语录；界面上标着来源（`claude` / `rule` / `canned`）。Claude 实连效果待 9/24 上午实测回填
-- **峰哥素材**：照片来自 [talk-to-fengge-live](https://github.com/w466747380/talk-to-fengge-live)（MIT），口吻节选自 [feng-ge-skill](https://github.com/YixiaJack/feng-ge-skill)（MIT）；峰哥本人在活动现场，对外展示前当面征得本人同意
+- **峰哥素材**：照片来自 [talk-to-fengge-live](https://github.com/w466747380/talk-to-fengge-live)（MIT），口吻节选自 [feng-ge-skill](https://github.com/YixiaJack/feng-ge-skill)（MIT）；峰哥本人 9/23 在现场当面口头同意本次黑客松展示使用他的肖像、口吻和 AI 复刻声音；音色的参考音频来自 [talk-to-fengge](https://github.com/YeJe-cpu/talk-to-fengge)（Apache-2.0），合成音频只存本机、不公开发布
 
 EvoTavern 进化酒馆黑客松 · 深圳站（2026-09-21~24）· 01 具身与穿戴硬件赛道（SHELL FORGE）
 设备：Hypershell X MaxS 髋关节外骨骼 · 黑客松专用固件 2.9.99.1 · USB 串口 3 Mbps · 力矩 ±7.5 Nm 硬限
