@@ -35,7 +35,7 @@ h2 small{font-weight:600;letter-spacing:0;color:var(--mute);margin-left:.6rem}
 .sky canvas{position:absolute;inset:0;width:100%;height:100%}
 .sky::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,var(--panel) 100%)}
 .tag{position:absolute;top:.5rem;z-index:1;font-size:.75rem;font-weight:800;color:#fff;background:rgba(0,0,0,.55);padding:.05rem .5rem;border-radius:.35rem;letter-spacing:.1em;font-variant-numeric:tabular-nums}
-.tag.l{left:.6rem}.tag.r{right:.6rem}
+.tag.l{left:.6rem}.tag.r{right:.6rem;font-size:.95rem;background:rgba(0,0,0,.45)}
 .body{padding:.45rem .9rem .7rem;display:flex;flex-direction:column;gap:.3rem;flex:1;min-width:0}
 .name{font-size:1.45rem;font-weight:900;line-height:1.2;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sub{color:var(--dim);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -48,7 +48,8 @@ h2 small{font-weight:600;letter-spacing:0;color:var(--mute);margin-left:.6rem}
 .diff.hard{background:var(--warn)}
 .star{font-size:.72rem;font-weight:900;padding:0 .45rem;border-radius:.3rem;margin-left:.3rem;vertical-align:.25rem;color:#000;background:var(--who-fengge,#ffb03a);letter-spacing:.06em}
 .mix{display:flex;height:.4rem;border-radius:.2rem;overflow:hidden;margin-top:.1rem}
-.rec{font-size:.85rem;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto}.rec b{color:var(--acc);font-variant-numeric:tabular-nums}
+.rec{font-size:.85rem;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto;padding-left:1rem;position:relative}.rec b{color:var(--acc);font-variant-numeric:tabular-nums;font-weight:900}
+.rec::before{content:"";position:absolute;left:.1rem;top:.45em;width:.5rem;height:.5rem;border-radius:50%;background:var(--mute)}.rec.has::before{background:var(--who-ghost,#9fe8ff);box-shadow:0 0 .4rem var(--who-ghost,#9fe8ff)}
 /* 主打卡：占两格，天空更高，海拔大数字，右半放故事 */
 .card.feat{grid-column:span 2;border-color:rgba(255,176,58,.35)}
 .card.feat.sel{border-color:var(--acc)}
@@ -114,7 +115,7 @@ function drawSky(cv,w){
   let h=0;const pts=[];w.route.forEach(s=>{for(let k=0;k<s.steps;k++){pts.push([h,s.kind]);h+=RISE[s.kind]}});
   const hs=pts.map(p=>p[0]),mn=Math.min(...hs),mx=Math.max(...hs,mn+.01);
   const X=i=>W*.06+i/(pts.length-1)*W*.88,Y=v=>H*.92-(v-mn)/(mx-mn)*H*.62;
-  ctx.lineWidth=4*devicePixelRatio;ctx.lineCap='round';
+  ctx.lineWidth=(w.id===FEATURED?5:4)*devicePixelRatio;ctx.lineCap='round';
   for(let i=0;i<pts.length-1;i++){ctx.strokeStyle=SEG[pts[i][1]]||SEG.flat;ctx.beginPath();
     if(pts[i][1].startsWith('stairs')){ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}
     else{ctx.moveTo(X(i),Y(pts[i][0]));ctx.lineTo(X(i+1),Y(pts[i+1][0]))}ctx.stroke()}
@@ -136,7 +137,7 @@ function card(w,i){
    <div class="body"><div class="name">${esc(w.name)}<span class="diff${S.hard?' hard':''}">${S.diff}</span>${w.id===FEATURED?'<span class="star">主打</span>':''}</div><div class="sub">${esc(w.subtitle)}</div>
    <div class="stats"><div><b>${S.n}</b><span>步</span></div><div><b>${S.stairs}%</b><span>台阶</span></div><div><b>${S.waits}</b><span>${S.waitName}</span></div><div><b>${esc(Math.round(w.alt[1]-w.alt[0]))}</b><span>爬升 ${esc(w.unit)}</span></div></div>
    <div class="mix">${mix}</div><div class="legend">${leg}</div>
-   <div class="rec" data-rec>${rec.best!=null?`最佳 <b>${fmt(rec.best)}</b>${rec.who?` · 影子：${esc(rec.who)}`:''}`:'还没人登顶过——第一个爬上去的人会变成影子'}</div>
+   <div class="rec${rec.best!=null?' has':''}" data-rec>${rec.best!=null?`最佳 <b>${fmt(rec.best)}</b>${rec.who?` · 影子：${esc(rec.who)}`:''}`:'还没人登顶过——第一个爬上去的人会变成影子'}</div>
    ${w.story?`<div class="story">${esc(w.story)}</div>`:''}
    ${w.note?`<div class="note">${esc(w.note)}</div>`:''}</div>`;
   d.onclick=()=>pick(d,w);d.ondblclick=()=>{pick(d,w);go()};

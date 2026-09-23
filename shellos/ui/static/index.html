@@ -40,7 +40,7 @@ main>.col{display:flex;flex-direction:column;gap:var(--gap);min-height:0;min-wid
 #gaitPanel .gv{flex:1;display:flex;flex-direction:column;justify-content:space-around;min-height:0}
 .g{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto minmax(2.4rem,1fr);min-height:0;padding:.25rem 0}
 .g+.g{border-top:1px solid var(--line)}
-.g .k{font-size:.8rem;color:var(--dim);letter-spacing:.08em;font-weight:700}
+.g .k{font-size:.8rem;color:var(--dim);letter-spacing:.08em;font-weight:700}.g .k i{font-style:normal;font-size:.7rem}
 .g .v{font-size:2.5rem}
 .g .v small{font-size:.9rem}
 .g .sp{min-height:0;height:100%;position:relative}
@@ -214,7 +214,7 @@ details.dbg>.dbody{position:fixed;left:1rem;right:1rem;top:3.6rem;z-index:8;disp
   <div class="gv">
    <div class="g"><div class="k">步频 <span style="color:var(--mute)">步/分</span></div><div class="v num" id="cad">–</div><div class="sp"><canvas class="spark" id="spCad"></canvas></div></div>
    <div class="g"><div class="k">对称 <span style="color:var(--mute)">左/右活动度比 · 1 = 对称</span></div><div class="v num" id="sym">–</div><div class="sp"><canvas class="spark" id="spSym"></canvas></div></div>
-   <div class="g"><div class="k">活动度 <span style="color:var(--mute)">ROM 左 / 右 °</span></div><div class="v num" id="rom">–</div><div class="sp"><canvas class="spark" id="spRom"></canvas></div></div>
+   <div class="g"><div class="k">活动度 <span style="color:var(--mute)">ROM ° <i style="color:var(--acc)">● 左</i> <i style="color:#f29cc0">● 右</i></span></div><div class="v num" id="rom">–</div><div class="sp"><canvas class="spark" id="spRom"></canvas></div></div>
   </div>
  </div>
  <div class="dp" id="evPanel"><div class="pt">事件</div><div id="events"></div></div>
@@ -362,7 +362,8 @@ function drawTerrain(t,sent){
  ctx.beginPath();ctx.moveTo(0,H-18);p.forEach((x,i)=>{ctx.lineTo(X(i),Y(x.h));ctx.lineTo(X(i+1),Y(x.h))});ctx.lineTo(W,H-18);ctx.closePath();
  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(180,140,255,.22)');g.addColorStop(1,'rgba(180,140,255,.02)');ctx.fillStyle=g;ctx.fill();
  ctx.beginPath();p.forEach((x,i)=>{i?ctx.lineTo(X(i),Y(x.h)):ctx.moveTo(0,Y(x.h));ctx.lineTo(X(i+1),Y(x.h))});ctx.strokeStyle='rgba(232,236,243,.75)';ctx.lineWidth=1.5;ctx.stroke();
- p.forEach((x,i)=>{ctx.fillStyle=KCOL[x.kind]||'#888';ctx.globalAlpha=i<t.pos?0.45:1;ctx.fillRect(X(i)+0.5,H-14,Math.max(1,bw-1.5),9)});ctx.globalAlpha=1;
+ p.forEach((x,i)=>{ctx.fillStyle=KCOL[x.kind]||'#888';ctx.globalAlpha=i<t.pos?0.4:1;ctx.fillRect(X(i)+0.5,H-15,Math.max(1,bw-1.5),11)});ctx.globalAlpha=1;
+ ctx.fillStyle=pulse?'#ffd54f':'rgba(232,236,243,.55)';ctx.fillRect(Math.round(cx+bw/2)-0.5,0,1,H-16);   // 当前步竖针
  // 本圈吃到脉冲的步：路面上方小三角
  ctx.fillStyle='#ffd54f';pulsed.forEach(i=>{if(!p[i])return;const x=X(i)+bw/2,y=Y(p[i].h)-4;ctx.beginPath();ctx.moveTo(x-4,y-7);ctx.lineTo(x+4,y-7);ctx.lineTo(x,y);ctx.fill()});
  // 路段名（空间够才写）
@@ -396,12 +397,12 @@ function renderCards(m){
  if(prev)for(const c of m.cards)if(!prev[c.id])toast(`新经验卡 #${c.id}「${c.quote}」`);
  cardPrev=now}
 // D 线：步态迷你曲线（最近 60 s，10 Hz → 600 点）和腿上的力波形（最近 6 s，颜色 = 路段）的历史，只在这个页面里存
-const SP={cad:[],sym:[],rom:[]},FH=[[],[]],SPN=300;
+const SP={cad:[],sym:[],roml:[],romr:[]},FH=[[],[]],SPN=300;
 function drawVis(s){
  const D=window.__D;if(!D)return;
  const g=s.gait,now=performance.now()/1000,kind=s.terrain?s.terrain.segment:null,c=KCOL[kind]||KCOL.flat,cap=Math.max(1,Math.round(s.safety.cap||3));
- SP.cad.push(g.cadence);SP.sym.push(g.symmetry);SP.rom.push((g.rom_l+g.rom_r)/2);for(const a of Object.values(SP))while(a.length>SPN)a.shift();
- D.spark($('spCad'),SP.cad,{color:'#b48cff',lo:40,hi:150});D.spark($('spSym'),SP.sym,{color:'#b48cff',lo:.5,hi:1.5,base:1});D.spark($('spRom'),SP.rom,{color:'#b48cff',lo:0,hi:60});
+ SP.cad.push(g.cadence);SP.sym.push(g.symmetry);SP.roml.push(g.rom_l);SP.romr.push(g.rom_r);for(const a of Object.values(SP))while(a.length>SPN)a.shift();
+ D.spark($('spCad'),SP.cad,{color:'#b48cff',lo:40,hi:150});D.spark($('spSym'),SP.sym,{color:'#b48cff',lo:.5,hi:1.5,base:1});D.spark($('spRom'),null,{series:[{a:SP.roml,color:'#b48cff'},{a:SP.romr,color:'#f29cc0'}],lo:0,hi:60,unit:'°'});
  $('gaitx').textContent=g.moving?`走动中 · 置信 ${g.conf.toFixed(2)} · ${g.strides} 周期`:'静止';$('gaitx').className='x'+(g.moving?' ok':'');
  const fk=$('fKind');fk.textContent=kind?(KIND[kind]||kind):'共驾';fk.className='chip '+(kind||'flat');
  for(let k=0;k<2;k++){const H=FH[k],v=+s.safety.sent[k]||0;H.push({t:now,v,c});while(H.length>2&&now-H[1].t>6)H.shift();

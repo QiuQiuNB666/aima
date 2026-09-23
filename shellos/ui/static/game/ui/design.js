@@ -95,19 +95,29 @@ export function fit(cv) {
   return [g, w, h];
 }
 
-// 迷你曲线：一条线 + 淡填充 + 末端点。lo/hi 不给就自适应（留 10% 边）
-export function spark(cv, arr, { color = UI.acc, lo, hi, base } = {}) {
-  const [g, w, h] = fit(cv); if (!w || arr.length < 2) return;
+// 迷你曲线：一条或几条线（series = [{a, color}]）+ 淡填充 + 末端点 + 左侧 lo/hi 刻度字。lo/hi 不给就自适应（留 15% 边）
+export function spark(cv, arr, { color = UI.acc, lo, hi, base, series, unit = '' } = {}) {
+  const [g, w, h] = fit(cv); if (!w) return;
+  const S = series || [{ a: arr, color }];
+  if (!S.some(x => x.a.length > 1)) return;
   let mn = lo, mx = hi;
-  if (mn == null || mx == null) { mn = Infinity; mx = -Infinity; for (const v of arr) { if (v < mn) mn = v; if (v > mx) mx = v; } const pad = (mx - mn || 1) * 0.15; mn -= pad; mx += pad; }
-  const X = i => i / (arr.length - 1) * w, Y = v => h - 2 - (Math.max(mn, Math.min(mx, v)) - mn) / (mx - mn) * (h - 4);
-  if (base != null && base >= mn && base <= mx) { g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(0, Math.round(Y(base)), w, 1); }
-  g.beginPath(); arr.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)));
-  g.lineTo(w, h); g.lineTo(0, h); g.closePath();
-  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, color + '55'); gr.addColorStop(1, color + '00'); g.fillStyle = gr; g.fill();
-  g.beginPath(); arr.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)));
-  g.strokeStyle = color; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
-  const v = arr[arr.length - 1]; g.fillStyle = color; g.beginPath(); g.arc(w - 1, Y(v), 3, 0, 7); g.fill();
+  if (mn == null || mx == null) { mn = Infinity; mx = -Infinity; for (const x of S) for (const v of x.a) { if (v < mn) mn = v; if (v > mx) mx = v; } const pad = (mx - mn || 1) * 0.15; mn -= pad; mx += pad; }
+  const fs = Math.max(9, Math.round(parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.6));
+  const Y = v => h - 2 - (Math.max(mn, Math.min(mx, v)) - mn) / (mx - mn) * (h - 4);
+  g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(0, Math.round(Y(mx)) , w, 1); g.fillRect(0, Math.round(Y(mn)), w, 1);
+  if (base != null && base >= mn && base <= mx) { g.fillStyle = 'rgba(255,255,255,.16)'; g.fillRect(0, Math.round(Y(base)), w, 1); }
+  S.forEach((x, si) => {
+    const a = x.a; if (a.length < 2) return; const c = x.color || color, X = i => i / (a.length - 1) * w;
+    if (!si) {                                                    // 只给第一条填充，第二条只画线（两条都填会糊）
+      g.beginPath(); a.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v))); g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+      const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, c + '55'); gr.addColorStop(1, c + '00'); g.fillStyle = gr; g.fill();
+    }
+    g.beginPath(); a.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)));
+    g.strokeStyle = c; g.lineWidth = si ? 1.5 : 2; g.lineJoin = 'round'; g.stroke();
+    const v = a[a.length - 1]; g.fillStyle = c; g.beginPath(); g.arc(w - 1, Y(v), 3, 0, 7); g.fill();
+  });
+  g.font = `700 ${fs}px ${UI.font}`; g.fillStyle = 'rgba(255,255,255,.35)'; g.textBaseline = 'top';
+  g.fillText(`${+mx.toFixed(2)}${unit}`, 2, Y(mx) + 1); g.textBaseline = 'bottom'; g.fillText(`${+mn.toFixed(2)}${unit}`, 2, Y(mn) - 1);
 }
 
 // 腿上的力：和游戏 HUD hud_force 同一种画法——最近 win 秒的力矩波形，颜色 = 出力那一刻的路段，每 1 Nm 一条刻度线，0 线最亮
@@ -117,7 +127,8 @@ export function lane(cv, hist, { cap = 3, win = 6, now }) {
   const y0 = h / 2, sy = (h / 2 - 4) / cap, X = t => w - (now - t) / win * w, Y = v => y0 - Math.max(-cap, Math.min(cap, v)) * sy;
   g.font = `700 ${fs}px ${UI.font}`; g.textBaseline = 'middle';
   for (let n = -Math.floor(cap); n <= cap; n++) { g.fillStyle = n ? 'rgba(255,255,255,.08)' : 'rgba(255,255,255,.3)'; g.fillRect(0, Math.round(Y(n)), w, 1); }
-  g.fillStyle = 'rgba(255,255,255,.45)'; g.fillText(`+${cap}`, 4, Y(cap) + fs * 0.5); g.fillText(`−${cap}`, 4, Y(-cap) - fs * 0.5);
+  for (let k = 1; k < win; k++) { g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(Math.round(X(now - k)), 0, 1, h); }   // 每秒一格
+  g.fillStyle = 'rgba(255,255,255,.45)'; g.fillText(`+${cap}`, 4, Y(cap) + fs * 0.5); g.fillText(`−${cap}`, 4, Y(-cap) - fs * 0.5); g.fillText('0', 4, y0 - fs * 0.6);
   for (let i = 1; i < hist.length; i++) {
     const a = hist[i - 1], b = hist[i], xa = X(a.t), xb = X(b.t); if (xb < 0) continue;
     g.fillStyle = b.c + '40'; g.beginPath(); g.moveTo(xa, y0); g.lineTo(xa, Y(a.v)); g.lineTo(xb, Y(b.v)); g.lineTo(xb, y0); g.fill();
