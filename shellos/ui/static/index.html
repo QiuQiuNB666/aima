@@ -201,7 +201,7 @@ $('say').addEventListener('keydown',e=>{if(e.key==='Enter')$('sayb').click()});
 $('mkb').onclick=async()=>{const t=$('mk').value.trim();if(!t)return;$('mkb').disabled=true;$('mkb').textContent='造山中…';
  try{const r=await (await post('/world/generate',{text:t})).json();if(r.world){toast('造好了：'+r.world.name);$('mk').value=''}}catch(e){}$('mkb').disabled=false;$('mkb').textContent='造山'};
 $('mk').addEventListener('keydown',e=>{if(e.key==='Enter')$('mkb').click()});
-const WHO={'峰哥':'#3ddc84','教练':'#7fd1ff','地形导演':'#d9b8ff','记忆员':'#ffd54f','安全员':'#ff8a65'},VC={'解说':'#3ddc84','否决':'#ff5252','裁剪':'#ff8a65','生效':'#3ddc84','同意':'#9aa7b4','提议':'#7fd1ff'};let swSig='';
+const WHO={'峰哥':'#3ddc84','教练':'#7fd1ff','地形导演':'#d9b8ff','记忆员':'#ffd54f','安全员':'#ff8a65'},VC={'解说':'#3ddc84','否决':'#ff5252','裁剪':'#ff8a65','生效':'#3ddc84','同意':'#9aa7b4','提议':'#7fd1ff'};let swSig='';let S_brainModel='';
 $('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});$('trsel').onchange=()=>post('/terrain',{preset:$('trsel').value});
 $('gameb').onclick=()=>window.open('/game','shellos_game');
 // 演示态 / 累积态：只是操作员习惯，记在本机浏览器
@@ -296,7 +296,7 @@ function renderCards(m){
   const on=m.applied.includes(c.id);now[c.id]={hits:c.hits,on};
   const anim=!prev?'':!prev[c.id]?'new':(c.hits>prev[c.id].hits||(on&&!prev[c.id].on))?'hit':'';
   const cls=!c.enabled?'off':on?'on':'';
-  return `<div class="card ${cls} ${anim}"><button data-id="${c.id}" data-on="${c.enabled?0:1}">${c.enabled?'删除':'恢复'}</button><b>#${c.id}</b> <span class="q">「${esc(c.quote)}」</span> → ${Object.entries(c.delta).map(([k,v])=>esc(k)+' '+(v>0?'+':'')+(+v).toFixed(2)).join(', ')}${on?' <span style="color:var(--ok);font-weight:700">已套用</span>':''}<div class="meta">${esc(c.wearer)} · 步频 ${c.trigger.cadence[0]}–${c.trigger.cadence[1]} · ${esc(c.controller)} · 命中 ${c.hits} · ${esc(c.source)} · ${esc(c.ts)}</div></div>`}).join('');
+  return `<div class="card ${cls} ${anim}"><button data-id="${c.id}" data-on="${c.enabled?0:1}">${c.enabled?'删除':'恢复'}</button><b>#${c.id}</b> <span class="q">「${esc(c.quote)}」</span> → ${Object.entries(c.delta).map(([k,v])=>esc(k)+' '+(v>0?'+':'')+(+v).toFixed(2)).join(', ')}${on?' <span style="color:var(--ok);font-weight:700">已套用</span>':''}<div class="meta">${esc(c.wearer)} · 步频 ${c.trigger.cadence[0]}–${c.trigger.cadence[1]} · ${esc(c.controller)} · 命中 ${c.hits} · ${esc(c.source==='claude'?((S_brainModel||'大模型').split(' / ')[0]):c.source)} · ${esc(c.ts)}</div></div>`}).join('');
  $('cards').querySelectorAll('button').forEach(b=>b.onclick=()=>post(b.dataset.on==='1'?'/memory/enable':'/memory/delete',{id:+b.dataset.id}));
  if(prev)for(const c of m.cards)if(!prev[c.id])toast(`新经验卡 #${c.id}「${c.quote}」`);
  cardPrev=now}
@@ -319,7 +319,7 @@ async function tick(){
   light('lPad',s.pad.connected?(s.pad.r2>0.05?'ok':'warn'):'',s.pad.connected?`手柄 · R2 ${Math.round(s.pad.r2*100)}%`:'手柄未连接');
   const m=s.memory;$('memst').textContent=`${m.wearer} · 步频 ${m.profile.cadence} · ${m.recalled?('已检索，套用 '+(m.applied.length?m.applied.map(i=>'#'+i).join(' '):'0 条')):'走 6 步后检索'}`;
   renderCards(m);
-  const b=s.brain||{};$('brainst').textContent=(b.up===false?'大脑离线 → 规则兜底':b.up&&b.key===false?'大脑在线 · 没配 key → 规则兜底':b.up?'大脑在线 · '+(b.model||'Claude'):'大脑：检测中')+(b.msg&&b.ok!==null?' · 上次：'+b.msg:'');
+  const b=s.brain||{};S_brainModel=b.model||S_brainModel;$('brainst').textContent=(b.up===false?'大脑离线 → 规则兜底':b.up&&b.key===false?'大脑在线 · 没配 key → 规则兜底':b.up?'大脑在线 · '+(b.model||'Claude'):'大脑：检测中')+(b.msg&&b.ok!==null?' · 上次：'+b.msg:'');
   light('lBrain',b.up===false||b.ok===false||b.key===false?'bad':b.up?'ok':'',b.up===false?'大脑离线 → 规则兜底':b.up&&b.key===false?'大脑没 key → 兜底':b.up?'大脑在线':'大脑检测中');
   const fg=s.fengge||{};light('lVoice',fg.source==='claude'?'ok':fg.source?'warn':'',fg.source==='claude'?'峰哥 · 大模型现写':fg.source?'峰哥 · 兜底语录':'峰哥 · 还没开口');
   $('brainst').style.color=(b.ok||(b.up&&b.key))&&b.ok!==false?'var(--ok)':(b.ok===false||b.up===false||b.key===false)?'#ff8a65':'';

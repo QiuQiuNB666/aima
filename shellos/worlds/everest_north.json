@@ -90,10 +90,7 @@
    "queue",
    "survey_beacon",
    "cloud_sea"
-  ],
-  "ghost": "#2c62f0",
-  "ghostOpacity": 0.58,
-  "ghostRim": "#0b1f63"
+  ]
  },
  "id": "everest_north"
 }

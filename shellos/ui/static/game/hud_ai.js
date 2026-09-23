@@ -4,8 +4,8 @@
 //   ShellOS 切世界后引擎会 location.reload()：新页面靠 sessionStorage 标记（或 swarm 里 25 s 内的「已切到」）接着演——
 //   路线剖面逐段画出来 + 安全员的裁剪，再淡出进新世界。game.html 头部的小脚本在模块加载前就把遮罩挂上，重载不闪。
 // 峰哥那一条不上卡（左上头像气泡管）。只读，不调任何接口。
-import { RISE, KIND_NAME } from './path.js';
-import { SEG } from './hud_force.js';
+import { RISE } from './path.js';
+import { SEG, kindName } from './hud_force.js';
 
 const STAGGER = 650, HOLD = 4500, FORGE_MAX = 100e3, FLAG = 'u_forge';
 const WHO = { '教练': '#7fd1ff', '记忆员': '#ffd54f', '安全员': '#9ff0b8', '地形导演': '#d9b8ff' };
@@ -142,7 +142,7 @@ export function makeAi(world) {
       if (j <= m && X(i) - lastX > 120) { g.fillText(`${ls[i]}`, X(i) + 4, Math.max(24, Y(Math.max(...hs.slice(i, j))) - 16)); lastX = X(i); }
     }
     if (p >= 1) { const fx = X(n), fy = Y(hs[n - 1] || 0); g.fillStyle = '#fff'; g.fillRect(fx, fy - 46, 3, 46); g.fillStyle = acc; g.beginPath(); g.moveTo(fx + 3, fy - 46); g.lineTo(fx + 30, fy - 37); g.lineTo(fx + 3, fy - 28); g.fill(); }
-    const segs = R.map(s => `${KIND_NAME[s.kind] || s.kind} ${s.steps}`).join(' · ');
+    const segs = R.map(s => `${kindName(s.kind, s.label)} ${s.steps}`).join(' · ');
     $f('.fs').textContent = `${n} 步 · ${segs}`;
     if (p >= 1 && now - forge.r0 > 5200 && document.body.dataset.ready) forgeOff();
   }

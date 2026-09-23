@@ -102,10 +102,7 @@
    "plank_walk",
    "pines",
    "cloud_sea"
-  ],
-  "ghost": "#2f64e8",
-  "ghostOpacity": 0.56,
-  "ghostRim": "#0b1f63"
+  ]
  },
  "id": "huashan_plank"
 }

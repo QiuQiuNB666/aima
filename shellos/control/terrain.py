@@ -32,9 +32,11 @@ WAIT_STILL_S = 1.5
 STILL_DPS = 20.0
 WAIT_CAP_S = 6.0
 CAP = 3.0        # 控制律自己也不出软限（Guard 仍按 --cap 再裁一次）；main 启动时改成 --cap 的值
+DEFAULT_STRENGTH = 1.5   # 缺省强度 / 脉冲宽：main 启动时按 --strength / --width 改；换人、演示复位新建 Terrain() 也用它（以前写死 1.5，复位就掉回去）
+DEFAULT_WIDTH = 12.0
 MULT = {"up": 1.0, "down": -0.8, "stairs_up": -1.2, "stairs_down": 1.0, "wait": -0.5, "lift": 0.0}   # 主脉冲峰值 = MULT × strength
 SWING = 0.8      # 摆动期帮着迈腿 / 抬腿（68%，屈曲方向）占 strength 的比例：下台阶、lift
-IMPACT = 1.0     # 下台阶落阶冲击峰值 = IMPACT × strength（Guard 的 50 Nm/s 斜率限制会把它削成约 60 ms 的顿挫，安全上不会是尖刺）
+IMPACT = 1.0     # 下台阶落阶冲击峰值缺省 = IMPACT × strength，可调参数 impact（评委「落地太冲 / 没感觉」）（Guard 的 50 Nm/s 斜率限制会把它削成约 60 ms 的顿挫，安全上不会是尖刺）
 IMPACT_W = 10.0  # 落阶冲击底宽 % 周期（脚跟着地前后 ±5%；文献脉冲宽下限 10%）
 LEGACY = {"台阶": "train_stairs", "长坡": "train_slope", "山的记忆": "taishan_18pan"}
 RISE = {"flat": 0.0, "up": 0.08, "down": -0.08, "stairs_up": 0.12, "stairs_down": -0.12, "wait": 0.0}
@@ -55,7 +57,8 @@ def _bump(phase_pct, center_pct, width_pct):
 class Terrain(Controller):
     name = "terrain"
 
-    def __init__(self, preset=W.DEFAULT, strength=1.5):
+    def __init__(self, preset=W.DEFAULT, strength=None):
+        strength = DEFAULT_STRENGTH if strength is None else strength
         super().__init__()
         self.params = {
             "strength": [strength, 0.0, CAP],     # Nm，上坡脉冲峰值（下坡 ×0.8，台阶 ×1.2）；上限 = 软限
@@ -63,7 +66,8 @@ class Terrain(Controller):
             "t_push":   [11.0, 0.0, 20.0],        # 上坡伸展脉冲中心：早支撑 5–17%（脚跟着地=0%）
             "t_brake":  [10.0, 0.0, 20.0],        # 制动脉冲中心：5–15%
             "t_step":   [6.0, 0.0, 20.0],         # 上台阶支撑期阻力脉冲中心；摆动期脉冲固定在 68%；下台阶助力用 t_brake
-            "width":    [12.0, 10.0, 20.0],       # 脉冲底宽 % 周期（文献 10–20%）
+            "width":    [DEFAULT_WIDTH, 10.0, 20.0],   # 脉冲底宽 % 周期（文献 10–20%）
+            "impact":   [IMPACT, 0.0, 1.5],       # 下台阶落阶冲击 = impact × strength（比例，不是 Nm；pulse 末尾仍按 CAP 裁）
         }
         self.force = None                         # 强制路段（2AFC / 演示）
         self.wearer = "anon"
@@ -181,7 +185,7 @@ class Terrain(Controller):
         if kind in ("stairs_down", "lift"):
             t -= SWING * s * _bump(x, 68.0, w)           # 摆动期屈曲：帮着迈腿 / 抬腿
         if kind == "stairs_down":
-            t -= IMPACT * s * _bump(x, 0.0, IMPACT_W)    # 落阶冲击：脚跟着地一瞬间往下一沉
+            t -= self.p("impact") * s * _bump(x, 0.0, IMPACT_W)    # 落阶冲击：脚跟着地一瞬间往下一沉
         return max(-CAP, min(CAP, t))
 
     # ---- 给游戏 / 仪表盘 ----

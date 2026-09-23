@@ -1,6 +1,7 @@
 // 华山的道具：铁链（链环 + 铁桩 + 同心锁 + 红布条）、华山松、玉泉院山门、长空栈道的铁架和保险链、南峰极顶石。
 // 全部 instanced / merged：每类 1 次绘制。
 import * as THREE from 'three';
+import { ROAD_W } from '../../path.js';
 
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -25,6 +26,21 @@ export function show(m, on) {
   if (m.userData.on === on) return;
   if (m.userData.fc === undefined) { m.userData.fc = m.frustumCulled; m.userData.s0 = m.scale.clone(); }   // 记下原来的缩放（有的石头 build 里就缩放过）
   m.userData.on = on; if (on) m.scale.copy(m.userData.s0); else m.scale.setScalar(1e-6); m.frustumCulled = on && m.userData.fc;
+}
+
+// 台阶沿亮条（美术范式 §3 硬规则：有台阶的图每级前缘一条 SEG.stairs_up，白天取窄）。写法同东京 cyber_night；珠峰也用这个
+export function stairNoses(ctx, color, w = 0.06) {
+  const { route, meshes: M } = ctx, idx = M.stairIndex || [];
+  if (!M.stairs || !idx.length) return null;
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(w, 0.035, ROAD_W), p = new THREE.Vector3();
+  const nose = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color }), idx.length);
+  idx.forEach((i, k) => {
+    const S = route.steps[i], up = S.kind === 'stairs_up', e = up ? route.P[i] : route.P[i + 1];   // 上台阶：立面在步起点；下台阶：落差在步终点
+    p.set(e.x, Math.max(S.h0, S.h1) + 0.014, e.z).addScaledVector(route.at(i + (up ? 0 : 1)).dir, up ? 0.04 : -0.04);
+    nose.setMatrixAt(k, m4.compose(p, q.setFromAxisAngle(Y, -route.H[i]), s));
+  });
+  nose.name = 'stairNose';
+  return nose;
 }
 
 // 铁链：沿路 ranges=[[s0,s1],…] 两侧（sides）lat 处，每 every 步一根铁桩，桩间链子下垂；链上随机挂同心锁、红布条

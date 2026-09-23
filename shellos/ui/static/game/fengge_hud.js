@@ -8,7 +8,7 @@
 // 调试：window.__fenggeHud.say(event, text)。
 const Q = new URLSearchParams(location.search);
 const HOLD_MS = 6000, POLL_MS = 1000;
-const EV = { summit: '登顶', red: '红灯', world: '造山', ghost: '影子' };
+const EV = { summit: '登顶', red: '站定', world: '造山', ghost: '影子' };   // red 事件 = 所有「wait」路段（东京红灯、珠峰吸氧 / 排队），统一叫站定
 const CSS = `
 #fg{left:1.4rem;top:10rem;display:flex;align-items:flex-start;gap:.8rem}
 #fg .av{flex:none;width:6rem;height:6rem;border-radius:50%;background:#1a1d24 url(/models/fengge_face.jpg) center 42%/cover;

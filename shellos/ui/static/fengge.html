@@ -7,12 +7,12 @@
 addEventListener('error', e => __err(e.message || ('加载失败：' + (e.target && (e.target.src || e.target.href)))), true);
 addEventListener('unhandledrejection', e => __err('unhandledrejection: ' + (e.reason && e.reason.stack || e.reason)));</script>
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
-</head><body><pre id="errlog" hidden></pre><div id="t"><b>峰哥亡命天涯</b><div>化身预览：?yaw=0 正面 · ?walk=0 站着 · ?zoom=1 头部特写</div></div>
+</head><body><pre id="errlog" hidden></pre><div id="t"><b>峰哥亡命天涯</b><div>化身预览：?yaw=0 正面 · ?walk=0 站着 · ?zoom=1 头部特写 · ?summit=1 登顶 · ?fglod=1 远档</div></div>
 <script type="module">
 import * as THREE from 'three';
 import { loadAvatar } from '/game/avatar.js';
 import { dressFengge } from '/game/fengge.js';
-const q = new URLSearchParams(location.search), fixedYaw = q.get('yaw'), walk = q.get('walk') !== '0', zoom = q.get('zoom') === '1';
+const q = new URLSearchParams(location.search), fixedYaw = q.get('yaw'), walk = q.get('walk') !== '0', zoom = q.get('zoom') === '1', summit = q.get('summit') === '1';
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(devicePixelRatio); r.setSize(innerWidth, innerHeight);
 document.body.appendChild(r.domElement);
 const sc = new THREE.Scene(); sc.background = new THREE.Color('#0b0f14');
@@ -21,10 +21,13 @@ const sun = new THREE.DirectionalLight('#ffffff', 1.4); sun.position.set(3, 4, 2
 const cam = new THREE.PerspectiveCamera(zoom ? 22 : 35, innerWidth / innerHeight, 0.05, 50);
 const av = await loadAvatar(); await dressFengge(av); sc.add(av.group);
 const grid = new THREE.GridHelper(6, 12, '#2a3340', '#1a212a'); sc.add(grid);
-let t0 = performance.now();
+let t0 = performance.now(), last = 0;
 r.setAnimationLoop(() => {
-  const t = (performance.now() - t0) / 1000, ph = t * 2 * Math.PI * 0.9;
-  if (walk) av.pose(25 * Math.sin(ph), 25 * Math.sin(ph + Math.PI)); else av.pose(0, 0);
+  const t = (performance.now() - t0) / 1000, ph = t * 2 * Math.PI * 0.9, dt = t - last; last = t;
+  if ((walk || summit) && av.animate) {           // A2 的全身动作（合成髋角）；站着不登顶时用旧的 pose(0, 0)，截图不会东张西望
+    const a = walk ? 25 : 0, w = a * 2 * Math.PI * 0.9;
+    av.animate(dt, t, { fl: a * Math.sin(ph), fr: a * Math.sin(ph + Math.PI), wl: w * Math.cos(ph), wr: -w * Math.cos(ph), kind: 'flat', summit });
+  } else if (walk) av.pose(25 * Math.sin(ph), 25 * Math.sin(ph + Math.PI)); else av.pose(0, 0);
   const yaw = fixedYaw !== null ? +fixedYaw * Math.PI / 180 : Math.sin(t * 0.4) * 0.5;   // 自动在正面 ±30° 摆
   const d = zoom ? 1.1 : 3.2, y = zoom ? 1.32 : 0.9;
   cam.position.set(Math.cos(yaw) * d, y + 0.1, -Math.sin(yaw) * d); cam.lookAt(0, y, 0);

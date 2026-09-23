@@ -8,9 +8,10 @@
 // 子模块：cliff_path/sky.js（天、云海、秦岭）、rock.js（绝壁、巨石、刻字）、props.js（铁链、松、山门、栈道铁架）。
 import * as THREE from 'three';
 import { STEP, ROAD_W } from '../path.js';
+import { SEG, WHO } from '../style.js';
 import { buildSky } from './cliff_path/sky.js';
 import { cliffWall, boulderGeo, carving, graniteColor } from './cliff_path/rock.js';
-import { chains, pineGeo, gateParts, plankIron, harnessParts, revealable, show } from './cliff_path/props.js';
+import { chains, pineGeo, gateParts, plankIron, harnessParts, revealable, show, stairNoses } from './cliff_path/props.js';
 
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
@@ -147,6 +148,8 @@ export function build(scene, ctx) {
     M.stairIndex.forEach((i, n) => M.stairs.setColorAt(n, tmp.copy(tc).multiplyScalar(n % 2 ? 1 : 0.92)));
     M.stairs.instanceColor.needsUpdate = true;
   }
+  const nose = stairNoses(ctx, SEG.stairs_up); if (nose) scene.add(nose);
+  const sfx = kit.stepFx(ctx, { dust: '#d9ccb6', flash: '#fff0c8' });   // 落阶反馈：花岗岩石阶扬浅灰尘
   for (const k of ['lines', 'edges', 'startLine', 'camp', 'flag']) if (M[k]) M[k].visible = false;
   for (const sg of M.signals) { sg.group.visible = false; sg.stop.visible = false; }
 
@@ -274,15 +277,15 @@ export function build(scene, ctx) {
     const m = kit.signs2(util, list, { size: 96 }); m.name = 'carvings'; revealable(m.material, rev[grp]); add(m, grp);
   }
 
-  // ---------- 化身 / 影子：浅色花岗岩上影子用深蓝 + 深描边 ----------
-  ctx.theme.ghost = ctx.theme.ghost || '#2f64e8';
-  ctx.theme.ghostOpacity = ctx.theme.ghostOpacity || 0.56;
-  if (ctx.theme.ghostRim === undefined) ctx.theme.ghostRim = '#0b1f63';
+  // ---------- 影子：白天浅色花岗岩上用美术范式的深青（不用蓝：撞捷风、撞下坡） ----------
+  ctx.theme.ghost = ctx.theme.ghost || WHO.ghost.bright;
+  ctx.theme.ghostOpacity = ctx.theme.ghostOpacity || 0.55;
+  if (ctx.theme.ghostRim === undefined) ctx.theme.ghostRim = '#063f3a';
 
   // ---------- 镜头 ----------
   Object.assign(ctx.camRig.summit, { radius: 4.3, height: 1.7, lookY: 1.25, speed: 0.2, hold: 1.2, face: route.at(N - 3.6, -2.2).pos.setY(route.heightAt(N) + 1.2) });
 
-  S = { ctx, sky, route, Z, rev, groups, anchors: camAnchors(Z, N), valleyEnd, slotEnd: Z.slotEnd ?? valleyEnd, stoneS, waitKey: '' };
+  S = { ctx, sky, route, Z, rev, groups, anchors: camAnchors(Z, N), valleyEnd, slotEnd: Z.slotEnd ?? valleyEnd, stoneS, sfx };
   rigFor(0, ctx.camRig, false);
   update(0, { t: 0, s: 0, summit: false, preview: ctx.preview, camera: ctx.camera, terrain: null });
 }
@@ -331,11 +334,11 @@ export function rigFor(s, r, summit) {
 }
 
 // ---------- 每帧 ----------
-let waitEl = null;
 export function update(dt, st) {
   if (!S) return;
   const { rev, groups, Z, route } = S, N = route.N, s = st.s;
   S.sky.update(st.t || 0);
+  S.sfx.update(dt, st);
   rev.slot.value = st.summit ? 0 : 1 - smooth(S.slotEnd - 0.5, S.slotEnd + 1.5, s);        // 峡缝 / 峪壁：一出缝就溶（镜头落后 8 步还在缝里，不溶会挡住化身）
   rev.stone.value = S.stoneS === null ? 0 : rev.slot.value * (1 - smooth(S.stoneS + 1.5, S.stoneS + 3.5, s));
   rev.up.value = st.summit ? 1 : smooth(S.slotEnd - 6, S.slotEnd - 1, s);                  // 山上的东西：出了峡缝才露面
@@ -344,6 +347,4 @@ export function update(dt, st) {
     show(m, rev[k].value > 0.001);
     if (m.castShadow || m.userData.cs) { m.userData.cs = true; m.castShadow = rev[k].value > 0.99; }   // 光影线第一帧给开的投影：溶到一半不投（深度图不认 dither）
   }
-  const key = st.terrain && st.terrain.segment === 'wait' ? st.terrain.label || '' : '';   // 红灯面板写段名（● 南天门·扣安全锁）
-  if (key !== S.waitKey) { S.waitKey = key; waitEl = waitEl || document.querySelector('#wait .big'); if (waitEl && key) waitEl.textContent = `● ${key}`; }
 }

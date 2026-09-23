@@ -25,6 +25,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ..agent import brain
 
 HOLD_TTL = 0.3
+
+
+class _Server(ThreadingHTTPServer):
+    """游戏页一打开就并发拉几十个 ES 模块，再加几块屏各 10 Hz 轮询 /state：默认监听队列只有 5，排不下的连接被内核直接 RST，
+    浏览器报 ERR_CONNECTION_RESET、整个游戏「加载失败：engine.js」（9/23 展位 MacBook 上实测）。"""
+    request_queue_size = 128
+    daemon_threads = True
 LOCAL = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
 
@@ -94,6 +101,15 @@ class Dashboard:
                         self.end_headers()
                         return self.wfile.write(data)
                     self.send_response(404); self.end_headers(); return
+                if self.path.startswith("/guide/"):     # G 线峰哥导游：<world>.json = 固定话术；<world>/<i>.wav = 预生成语音（只读缓存，不现场合成）
+                    from ..agent import guide, voice
+                    w, _, i = self.path.split("?")[0][len("/guide/"):].partition("/")
+                    if w.endswith(".json") and not i:
+                        return self._json({"lines": guide.lines(w[:-5])})
+                    ls = guide.lines(w)
+                    if i.endswith(".wav") and i[:-4].isdigit() and int(i[:-4]) < len(ls):
+                        return self._file(voice.path(ls[int(i[:-4])]), "audio/wav")
+                    self.send_response(404); self.end_headers(); return
                 if self.path.startswith("/shots/"):
                     return self._file(os.path.join(dash.app.glasses.shots_dir, os.path.basename(self.path.split("?")[0])), "image/jpeg")
                 self.send_response(200)
@@ -141,7 +157,7 @@ class Dashboard:
 
         for i in range(20):                      # 上一个进程可能还没释放端口
             try:
-                self.httpd = ThreadingHTTPServer(("0.0.0.0", port), H)
+                self.httpd = _Server(("0.0.0.0", port), H)
                 break
             except OSError:
                 if i == 19:

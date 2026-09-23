@@ -216,16 +216,16 @@ export async function loadAvatar({ ghost = false, color = '#9fe8ff', opacity = 0
       const sw = (fr - fl) / 2 * ARM_SWING;       // 手臂和同侧腿反向摆
       arm(armL, sw, ARM_DOWN); arm(armR, sw + ARM_R_OFF, -ARM_DOWN);
     },
-    // A2：每帧调一次（算法见 anim.js）。d = { state: /state（实机：自己跟踪 frame，10 Hz → 60 fps）, 或 fl, fr[, wl, wr]（直接给：影子 / 预览）,
+    // A2：每帧调一次（算法见 anim.js）。d = { state: /state（实机：自己跟踪 frame，10 Hz → 60 fps；safety.sent 用来让撑地膝跟着外骨骼的力弯）, 或 fl, fr[, wl, wr]（直接给：影子 / 预览）,
     //   kind: 当前路段, summit: 登顶中 }
     animate(dt, t, d) {
-      let h = d;
+      let h = d, tq = null;
       if (d.state) {
         const S = d.state, f = S.frame;
         if (S !== lastS && f) track.push(t, S.t, -f.l, -f.r, f.ldps != null ? -f.ldps : null, f.rdps != null ? -f.rdps : null);
-        lastS = S; h = track.sample(t, dt);
+        lastS = S; h = track.sample(t, dt); tq = S.safety && S.safety.sent;   // 外骨骼实际给的力（物理方向，+ = 伸展）
       }
-      const P = body.update(dt, t, { fl: h.fl, fr: h.fr, wl: h.wl, wr: h.wr, kind: d.kind, summit: d.summit });
+      const P = body.update(dt, t, { fl: h.fl, fr: h.fr, wl: h.wl, wr: h.wr, kind: d.kind, summit: d.summit, tq });
       const cl = v => Math.max(-40, Math.min(95, v));
       model.position.set(base.x, base.y + P.bob, base.z + P.sway);
       turn(pel, P.pelvis[0], P.pelvis[1], -P.pelvis[2]);

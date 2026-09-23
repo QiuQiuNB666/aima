@@ -5,7 +5,6 @@
 """
 from __future__ import annotations
 import glob
-import itertools
 import queue
 import threading
 import time
@@ -29,18 +28,16 @@ def find_port() -> str:
 
 class SerialLink:
     def __init__(self, port: str | None = None, on_frame=None):
-        if port is None:                      # 启动时外骨骼没插 / 没开机：等着，插上就接（以前直接抛异常，ShellOS 起不来）
-            for i in itertools.count():
-                try:
-                    port = find_port()
-                    break
-                except RuntimeError as e:
-                    if i % 10 == 0:
-                        print(f"[link] {e} 每秒再找一次…", flush=True)
-                    time.sleep(1.0)
-        self.port = port
-        # timeout 必须设：断线时 readline 才不会永远阻塞
-        self.ser = serial.Serial(self.port, BAUD, timeout=0.05)
+        self.ser = None
+        if port is None:                      # 启动时外骨骼没插 / 没开机：照常启动（仪表盘先起来），读线程每秒找一次，插上就接
+            try:
+                port = find_port()
+            except RuntimeError as e:
+                print(f"[link] {e} 先起 ShellOS，插上自动连", flush=True)
+        self.port = port or "(未连接)"
+        if port:
+            # timeout 必须设：断线时 readline 才不会永远阻塞
+            self.ser = serial.Serial(self.port, BAUD, timeout=0.05)
         self.frames: deque[Frame] = deque(maxlen=2000)   # 10 秒
         self.replies: queue.Queue[str] = queue.Queue()
         self.on_frame = on_frame            # 每帧回调（录制用），在读线程里调，要快
@@ -59,6 +56,10 @@ class SerialLink:
     # ---- 读 ----
     def _reader(self):
         while self._alive:
+            if self.ser is None:                      # 启动时没插：等插上
+                if not self._reconnect():
+                    return
+                continue
             try:
                 raw = self.ser.readline()
             except (serial.SerialException, OSError):
@@ -132,6 +133,8 @@ class SerialLink:
         读线程会发现断线并重开串口；needs_recovery() 为真 → 上层重新 ENABLE。设备 100 ms 没新力矩自己清零。"""
         with self._wlock:
             try:
+                if self.ser is None:
+                    raise serial.SerialException("未连接")
                 self.ser.write((cmd + "\n").encode("ascii"))
             except (serial.SerialException, OSError):
                 self.enabled = False
@@ -172,7 +175,9 @@ class SerialLink:
                 return r
 
     def handshake(self) -> str:
-        """PING → VERSION → ENABLE。返回固件版本。失败抛 RuntimeError。"""
+        """PING → VERSION → ENABLE。返回固件版本。失败抛 RuntimeError。没插着就返回「未连接」，插上后由 recover 补 ENABLE。"""
+        if self.ser is None:
+            return "未连接"
         self.send("PING")
         if not self.wait_reply("PONG"):
             raise RuntimeError("PING 无应答：波特率/端口不对，或设备没进入工作态")
