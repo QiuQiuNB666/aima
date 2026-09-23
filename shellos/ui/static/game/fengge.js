@@ -295,7 +295,7 @@ export async function dressFengge(av, look = {}) {
   }
 
   // 给主题挂头灯用（头骨局部坐标）：帽檐翻边正前方
-  const lamp = head.worldToLocal(H.localToWorld(headAt(edge(0) + 34, 0, new THREE.Vector3(), 1.16, false)));
+  const lamp = head.worldToLocal(H.localToWorld(headAt(edge(0) + 34, 0, new THREE.Vector3(), outfit.lampK || 1.16, false)));
   av.group.userData.fengge = { lamp };
   av.fengge = true;
   // 穿搭的配件（护目镜 / 氧气面罩 / 冰爪 / 安全带 / 背包 / 遮阳帽 / 头灯 …）：静止姿态下按骨骼摆好再挂上去

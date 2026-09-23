@@ -117,7 +117,7 @@ export function buildBody(av, outfit, { tune } = {}) {
       0, side, hipY, X, out, s => s, 0.94);
     // 部位按 s 分：大腿 / 小腿（上面统一写了 0，这里按 t 改）
     const n = 15 * 12, st = o.P.length / 3 - n;
-    for (let v = 0; v < n; v++) { const s = o.t[st + v]; o.reg[st + v] = s < 1 ? REG.thigh : REG.shin; o.t[st + v] = s < 1 ? Math.max(0, s) : s - 1; }
+    for (let v = 0; v < n; v++) o.reg[st + v] = REG.thigh;   // 整条腿都记「大腿」、t 留 s（0..2）：片元里按 s = 1 切成大腿 / 小腿（膝盖那条环带插值才不会串色）
     // 鞋：脚跟 → 脚尖沿 +X 放样，截面在 YZ 平面；鞋底贴地
     const fb = o.P.length / 3, nF = 9, nFA = 10, heel = ank.x - 0.055, tip = Math.max(toe.x + 0.06, ank.x + 0.17);
     for (let j = 0; j < nF; j++) {
@@ -143,9 +143,9 @@ export function buildBody(av, outfit, { tune } = {}) {
     const armW = s => s < 0.1 ? [[bS, ss(-0.22, 0.1, s)], [bC, 1 - ss(-0.22, 0.1, s)]] : s < 1.12 ? [[bS, 1 - ss(0.88, 1.12, s)], [bE, ss(0.88, 1.12, s)]] : [[bE, 1 - ss(1.82, 1.98, s)], [bW, ss(1.82, 1.98, s)]];
     const { base: st, flip: aFlip } = limb(o, [J[root], J[elb], J[wri]], -0.22, 2, 13, 10, s => prof(ARM, s)[0] + inf(s < 1 ? REG.upper : REG.fore, s < 1 ? s : s - 1), armW,
       0, side, hipY, X, out, s => s, 1);
-    for (let v = st; v < o.P.length / 3; v++) { const s = o.t[v]; o.reg[v] = s < 1 ? REG.upper : REG.fore; o.t[v] = s < 1 ? Math.max(0, s) : s - 1; }
+    for (let v = st; v < o.P.length / 3; v++) o.reg[v] = REG.upper;   // 同腿：片元里按 s = 1 切成上臂 / 前臂
     const cIdx = o.P.length / 3, n = 10, last = o.P.length / 3 - n;   // 腕口封上（手套 / 手挡住）
-    pushV(o, J[wri].clone(), [[bW, 1]], REG.fore, 1, J[wri].y - hipY, 0, 0, side);
+    pushV(o, J[wri].clone(), [[bW, 1]], REG.upper, 2, J[wri].y - hipY, 0, 0, side);
     fan(o, cIdx, last, n, aFlip, false);
   }
 
@@ -168,7 +168,12 @@ export function buildBody(av, outfit, { tune } = {}) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvReg = aReg; vT = aT; vH = aH; vSide = aSide; vAng = aAng;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vReg, vT, vH, vSide;\nvarying vec2 vAng;\n' +
         Object.keys(U).map(k => `uniform ${U[k].value.isColor ? 'vec3' : 'float'} ${k};`).join('\n') + '\n' + outfit.glsl)
-      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= fit(floor(vReg + 0.5), vT, vH, normalize(vAng + 1e-5), vSide);');
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  // 部位：躯干 / 脖子（side = 0）按 0 / 6 二分（两段之间只有一条环带，直接 floor 会插出 1..5，脖子被当成四肢各上一遍色）；
+  //   四肢整条记 1（手臂）或 3（腿），t = s（0..2），在关节 s = 1 处切成上 / 下两段，t 各自 0..1；鞋 = 5
+  float fr = abs(vSide) < 0.5 ? (vReg < 3.0 ? 0.0 : 6.0) : floor(vReg + 0.5), ft = vT;
+  if (fr > 0.5 && fr < 4.5) { fr = (fr < 2.5 ? 1.0 : 3.0) + step(1.0, vT); ft = vT < 1.0 ? max(vT, 0.0) : vT - 1.0; }
+  diffuseColor.rgb *= fit(fr, ft, vH, normalize(vAng + 1e-5), vSide);`);
   };
   if (tune) tune(mat, more); else mat.onBeforeCompile = more;
   mat.customProgramCacheKey = () => 'fengge-body-' + outfit.name;
