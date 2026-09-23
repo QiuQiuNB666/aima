@@ -14,6 +14,8 @@ STATIC = os.path.join(os.path.dirname(__file__), "..", "shellos", "ui", "static"
 
 CHECK = r"""
 import { makeLegs, makeLevel, makeRun, forceKind, nextThreat, speedFor, TUNE } from './logic.js';
+import { makeHipTrack } from '../game/anim.js';
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const out = {};
 // 1) 腿：真人走路（屈曲 −10…+30，60 fps，含角速度）不触发；高抬腿触发 1 次；下蹲 = 滑铲
 const walkHip = t => 10 + 20 * Math.sin(2 * Math.PI * t);
@@ -40,6 +42,25 @@ function play(auto, secs, cadence) {
   }
   return { over: S.over, lives: S.lives, dist: Math.round(S.dist), t: +t.toFixed(1), kinds: [...kinds], ev: [...new Set(S.events)], fin: forceKind(S, lv) };
 }
+// 3) 第 5 轮：高抬腿识别延迟。1 Hz 走路（左腿髋最伸在 0.75 s），第 5 个周期左腿高抬（摆动开始后 0.6 s 内多抬 50°）；
+//    lift 在估计器相位 0.18（髋最伸之后 0.18 个周期）出力。老路 = 10 Hz 原始样本到了才判；新路 = A2 的跟踪（外推 + one-euro）60 fps 判，再往前看 JUMP_LEAD
+const hk = t => { const d = t - 5.75; return 10 + 20 * Math.sin(2 * Math.PI * t) + (d > 0 && d < 0.6 ? 50 * Math.sin(Math.PI * d / 0.6) ** 2 : 0); };
+const hkR = t => 10 + 20 * Math.sin(2 * Math.PI * (t + 0.5));
+const dv = (fn, t) => (fn(t + 1e-3) - fn(t - 1e-3)) / 2e-3;
+function detect(kind, fnL, secs) {
+  seed = 11; const pl = []; for (let ts = 0.2; ts < secs; ts += 0.1 + rnd() * 0.01) pl.push({ ts, arr: ts + 0.005 + rnd() * 0.035 });
+  const L = makeLegs(), tr = makeHipTrack(), hits = []; let pi = 0;
+  for (let t = 0.3; t < secs; t += 1 / 60) {
+    while (pi < pl.length && pl[pi].arr <= t) {
+      const p = pl[pi++];
+      if (kind === 'old') { if (L.push(fnL(p.ts), hkR(p.ts), dv(fnL, p.ts), dv(hkR, p.ts)).jump) hits.push(t); }
+      else tr.push(p.arr, p.ts, fnL(p.ts), hkR(p.ts), dv(fnL, p.ts), dv(hkR, p.ts));
+    }
+    if (kind === 'new') { const h = tr.sample(t, 1 / 60); if (h.fl !== 0 && L.push(h.fl + h.wl * TUNE.JUMP_LEAD, h.fr + h.wr * TUNE.JUMP_LEAD, h.wl, h.wr).jump) hits.push(t); }
+  }
+  return hits.map(x => +((x - (5.75 + 0.18)) * 1000).toFixed(0));   // 相对 lift 出力那一刻（毫秒）
+}
+out.hk = { old: detect('old', hk, 8), neu: detect('new', hk, 8), walkNew: detect('new', t => 10 + 20 * Math.sin(2 * Math.PI * t), 20).length };
 out.auto = play(true, 90, 150);
 out.idle = play(false, 120, 110);
 out.stop = play(false, 30, 0);
@@ -61,6 +82,13 @@ def test_legs(res):
     assert res["walk"] == {"jumps": 0, "slides": 0}
     assert res["highknee"] == 1
     assert res["squat"] >= 1
+
+
+def test_highknee_latency(res):
+    h = res["hk"]
+    assert len(h["old"]) == 1 and len(h["neu"]) == 1, h                        # 高抬腿各认出一次
+    assert h["neu"][0] <= h["old"][0] - 40, h                                  # 新路（A2 跟踪 + 往前看）比等 10 Hz 样本至少早 40 ms
+    assert h["walkNew"] == 0, h                                                # 正常走路 20 s 新路不误触发
 
 
 def test_run(res):

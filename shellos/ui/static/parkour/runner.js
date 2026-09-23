@@ -46,7 +46,7 @@ export function makeRunner(av) {
   const W = { crouch: 0, push: 0, tuck: 0, reach: 0, slide: 0 }, WS = { crouch: 0, push: 0, tuck: 0, reach: 0, slide: 0 };
   let roll = 0, rollV = 0, yaw = 0;
   const YS = { y: 0 };
-  const F = {};                                                        // 第 4 轮：推导出来的关节（膝 / 踝 / 肘）的平滑状态
+  const F = {}, hip = { fl: 0, fr: 0, wl: 0, wr: 0 };                                                        // 第 4 轮：推导出来的关节（膝 / 踝 / 肘）的平滑状态
   const info = { v: 0, air: false, vy: 0, h: 0, pre: 0, slide: false, lat: 0, vz: 0 };
   body.update = (dt, t, d) => {
     dt = clamp(dt, 0, 0.1);
@@ -66,6 +66,7 @@ export function makeRunner(av) {
     }
     g = ease(g, 1 + (clamp(RUN.PP(v) / Math.max(pp, 8), 1, RUN.GMAX) - 1) * r, dt, 0.3);
     const dd = { ...d, fl: mean + g * (d.fl - mean), fr: mean + g * (d.fr - mean), wl: (d.wl || 0) * g, wr: (d.wr || 0) * g };
+    hip.fl = d.fl; hip.fr = d.fr; hip.wl = d.wl || 0; hip.wr = d.wr || 0;   // 第 5 轮：A2 跟踪后的真实髋角（放大前），给高抬腿识别用
     const P = orig(dt, t, dd);
     phases(dt, P);
     if (r >= 0.01) runLayer(P, dt, dd);
@@ -105,7 +106,7 @@ export function makeRunner(av) {
   // ---- 第 2 轮：阶段判定（起跳 / 腾空 / 落地弹簧 / 滑铲），权重都平滑过，不硬切 ----
   function phases(dt, P) {
     const air = info.air;
-    if (air && !wasAir) { ts = 0; lead = P.hipL >= P.hipR ? 0 : 1; }             // 起跳：往前那条腿领跳
+    if (air && !wasAir) { ts = 0; lead = hip.wl >= hip.wr ? 0 : 1; }             // 起跳：正在往前抬的那条腿领跳（就是 lift 在帮的那条）
     if (!air && wasAir) { tl = 0; compV -= RUN.LAND_K * clamp(Math.abs(lastVy) / 7.2, 0.4, 1.3); }   // 落地：给弹簧一个往下的冲量
     wasAir = air; if (air) lastVy = info.vy;
     ts += dt; tl += dt;
@@ -156,6 +157,7 @@ export function makeRunner(av) {
   }
   return {
     info, RUN,
+    hip,
     get r() { return r; }, get g() { return g; }, get comp() { return comp; }, get rootDy() { return rootDy; }, get roll() { return roll; }, get yaw() { return yaw; }, W,
     // 每帧 av.animate 之前调：v = 跑速 m/s，air / vy / h（离地高度）/ pre（0..1，前方马上要跳）/ slide
     set(o) { Object.assign(info, o); },
