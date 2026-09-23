@@ -16,6 +16,7 @@ import { makeRunner } from './runner.js';
 import { makeCloth } from './cloth.js';
 import { TUNE, rng, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
+import { makeRiso } from './riso.js';
 
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
 const Q = new URLSearchParams(location.search);
@@ -67,6 +68,7 @@ async function main() {
   const cloth = runner ? makeCloth(scene, av) : null;             // 在第一次摆姿势之前建：按绑定姿态找挂点
   const jf = await makeJifeng(scene);
   if (Q.get('hud') === '0') document.body.classList.add('clean');
+  if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
 
   // ---------- 一局 ----------
   let level, run, legs = makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', bubbleUntil = 0, autoWalk = false;
