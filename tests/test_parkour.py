@@ -36,11 +36,13 @@ function play(auto, secs, cadence) {
     if (auto && th) {
       if (th.what === 'jump' && th.dx < 1.5 + S.speed * 0.12) inp.jump = true;
       if (th.what === 'slide' && th.dx < 2) inp.slide = true;
+      if (th.what === 'turn' && th.dx < 6) inp.turn = th.o.d;
       if (th.what === 'lane') { const free = [0, 1, 2].filter(l => !th.o.lanes.includes(l)); inp.lane = Math.sign(free.sort((a, b) => Math.abs(a - S.lane) - Math.abs(b - S.lane))[0] - S.lane); }
     }
     S.step(1 / 60, inp); kinds.add(forceKind(S, lv)); t += 1 / 60;
   }
-  return { over: S.over, lives: S.lives, dist: Math.round(S.dist), t: +t.toFixed(1), kinds: [...kinds], ev: [...new Set(S.events)], fin: forceKind(S, lv) };
+  const turns = S.events.filter(e => e === 'turn').length, miss = S.events.filter(e => e === 'turnMiss').length;
+  return { over: S.over, lives: S.lives, dist: Math.round(S.dist), t: +t.toFixed(1), kinds: [...kinds], ev: [...new Set(S.events)], fin: forceKind(S, lv), turns, miss };
 }
 // 3) 第 5 轮：高抬腿识别延迟。1 Hz 走路（左腿髋最伸在 0.75 s），第 5 个周期左腿高抬（摆动开始后 0.6 s 内多抬 50°）；
 //    lift 在估计器相位 0.18（髋最伸之后 0.18 个周期）出力。老路 = 10 Hz 原始样本到了才判；新路 = A2 的跟踪（外推 + one-euro）60 fps 判，再往前看 JUMP_LEAD
@@ -94,9 +96,11 @@ def test_highknee_latency(res):
 def test_run(res):
     a = res["auto"]
     assert not a["over"] and a["lives"] == 3 and a["dist"] > 800, a          # 会玩的人 90 s 跑 800 m 不掉命
-    assert {"jump", "slide", "land"} <= set(a["ev"])
+    assert {"jump", "slide", "land", "turn"} <= set(a["ev"])
+    assert a["turns"] >= 5 and a["miss"] == 0, a                              # 第 6 轮：90 s 过 5 个以上路口，一个不漏
     assert set(a["kinds"]) <= {None, "up", "down", "lift"} and {"up", "down", "lift"} <= set(a["kinds"])
     i = res["idle"]
     assert i["over"] and i["lives"] == 0 and i["fin"] is None, i               # 光跑不躲：撞满 3 次结束，力回到 null
+    assert "corner" in i["ev"] and i["miss"] >= 1, i                           # 不转弯 = 撞路口尽头的墙，扣一次、自动转过去
     s = res["stop"]
     assert not s["over"] and s["dist"] == 0 and s["kinds"] == [None], s         # 站着不动 = 还没开局，不出力

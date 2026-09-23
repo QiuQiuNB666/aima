@@ -43,7 +43,7 @@ body.danger #tr{border-color:var(--bad);box-shadow:0 0 1.2rem var(--bad)}
 #jfSay::before{content:"捷风";display:block;font-size:.75rem;letter-spacing:.2em;color:var(--jf)}
 body.talk #jfSay{opacity:1;transform:none}
 #hint{left:50%;top:38%;transform:translate(-50%,-50%);font-size:2.6rem;font-weight:900;letter-spacing:.1em;text-shadow:0 0 1rem rgba(0,0,0,.8)}
-#hint.jump{color:var(--seg-stairs-up)}#hint.slide{color:var(--acc0)}#hint.lane{color:var(--acc)}   /* 跳 = 台阶黄（起跳前给 lift，和台阶同类） */
+#hint.jump{color:var(--seg-stairs-up)}#hint.slide{color:var(--acc0)}#hint.lane,#hint.turn{color:var(--acc)}   /* 跳 = 台阶黄（起跳前给 lift，和台阶同类） */
 #bl{left:1.4rem;bottom:1.4rem;width:24rem;display:flex;flex-direction:column;gap:.45rem;font-size:1rem}
 .leg{display:grid;grid-template-columns:2.8rem 1fr;align-items:center;gap:.5rem}
 .bar{position:relative;height:.9rem;border-radius:.45rem;background:rgba(255,255,255,.12);overflow:hidden}
@@ -90,7 +90,7 @@ body.clean .hud{display:none!important}
   <div id="r2">—</div>
   <div id="legs">—</div>
 </div>
-<div class="hud panel" id="keys">步频越快跑越快<br>高抬腿 <kbd>↑</kbd> 跳 · 下蹲 <kbd>↓</kbd> 滑铲 · <kbd>←</kbd><kbd>→</kbd> 换道<span id="simHint" style="display:none"><br>模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd>–<kbd>4</kbd> 步频</span></div>
+<div class="hud panel" id="keys">步频越快跑越快<br>高抬腿 <kbd>↑</kbd> 跳 · 下蹲 <kbd>↓</kbd> 滑铲 · <kbd>←</kbd><kbd>→</kbd> 换道 · <kbd>A</kbd><kbd>D</kbd> / L1 R1 转弯<span id="simHint" style="display:none"><br>模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd>–<kbd>4</kbd> 步频</span></div>
 <div class="hud panel" id="title"><div class="t">屋顶跑酷</div><div class="s">迈开腿就开跑 —— <b>别让捷风追上</b></div>
   <div class="d">步频 = 速度 · 高抬腿跳过空调和楼缝 · 下蹲钻晾衣杆 · ← → 绕开水箱<br>撞 3 次结束</div></div>
 <div class="hud panel" id="over"><div class="t" id="goT">峰哥倒下了</div><div class="w" id="hitWhy"></div><div class="n"><span id="goDist">0</span><small> m</small></div>
