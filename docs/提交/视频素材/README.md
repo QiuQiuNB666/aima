@@ -1,0 +1,68 @@
+# 演示视频素材清单
+
+视频文件不进 git（体积），全部放在展位 MacBook 的 `~/黑客松-EvoTavern/视频素材/`；这里只列清单。生成 / 重跑：`scripts/cut_demo.sh`，说明见 [演示视频-制作说明.md](../演示视频-制作说明.md)。
+
+```
+~/黑客松-EvoTavern/视频素材/
+├── v0_60s.mp4            粗剪 A 版 60 s（实拍位 = 占位卡）      1920×1080 · 30 fps · H.264 · ≤ 50 MB
+├── v0_90s.mp4            粗剪 A 版 90 s
+├── vo/                   峰哥克隆声旁白（MiniMax 复刻音色，本人授权；女声兜底一律不用）
+├── raw/                  明早手机实拍（B01–B06，横屏 1080p30，文件名 = 镜号）→ 丢进来重跑脚本即换
+├── seg/                  无头 Chrome 渲的游戏片段（<镜号>.mp4；有就优先于静帧）
+├── 片段/字幕版/          每镜一段，已叠字幕 / 角标 / 水印（剪映直接拖）
+├── 片段/干净版/          同上但没叠任何字（剪映里换字幕样式用）
+└── build/                中间文件（cap/ 字幕 PNG、src/ 干净片段、seg/ 叠字版、meta/ 时长与旁白位）
+```
+
+## 旁白 `vo/`（23 句，峰哥口吻，每句 ≤ 15 字）
+
+| 文件 | 台词 | 用在 |
+|---|---|---|
+| 01.wav | 在家爬珠峰？这是个好事儿啊。 | S01 开场 |
+| 02.wav | 上坡有人推，台阶腿发沉。 | R03 大本营 |
+| 03.wav | 不是振动，是按步打的力。 | R05 冰壁 |
+| 05.wav | 太陡？说一句就行。 | B02 |
+| 06a.wav | 教练想，记忆员查，安全员管。 | R07 |
+| 06b.wav | 删了这张卡，立刻回原样。 | R07（60 s） |
+| 06c.wav | 删了立刻回，恢复留给下一位。 | R07L（90 s） |
+| 06d.wav | 四个角色商量，安全员一票否决。 | R13 蜂群（90 s） |
+| 07a.wav | 一句话，现场造一座山。 | R08 |
+| 07b.wav | 大模型出路线，安全员裁。 | R08 |
+| 07c.wav | AI 越不过这一行代码。 | R08 |
+| 07d.wav | 裁完，马上能爬。 | R08L（90 s） |
+| 08.wav | 旁边那影子，是上一位。 | R09 |
+| 08b.wav | 输给影子？恰恰相反，是好事儿。 | R09L（90 s） |
+| 09b.wav | 分不分得清？数据说话。 | 证据卡（只在 2AFC ≥ 9/10 时用，粗剪未放） |
+| 10.wav | 松手，立刻没力。 | B04 |
+| 11.wav | AI 出主意，硬代码说了算。 | T99 片尾 |
+| 1b1.wav | 先让人推着你走一段。 | B05 共驾（90 s） |
+| 1b2.wav | 他随时能抗回来，这是共驾。 | B05（90 s） |
+| 1c.wav | 三十秒穿上，这是个好事儿啊。 | B06（90 s） |
+| g_oxy.wav | 吸氧不丢人，恰恰相反，不吸才丢命。 | R05（游戏内峰哥台词） |
+| g_summit.wav | 旗靠风吹开，恰恰相反，人得自己走上来。 | R10 登顶 |
+| g_yak.wav | 牦牛给我让路？恰恰相反。 | R04 牦牛（90 s） |
+
+## 游戏画面片段（镜号 → 现在的来源 → 想换成什么）
+
+9/24 凌晨这台机器 load > 700（别的会话开着 20 多个无头 Chrome），`/game` 在无头 Chrome 里连页面都起不来（`Page.enable` 不回），所以今晚的画面全部是 `docs/提交/截图/` 里的静帧做 Ken Burns（缓慢推拉）。抓帧脚本已写好（`scratchpad/rec.mjs`，见制作说明），机器空下来把 `seg/<镜号>.mp4` 放进去重跑即可换成真动画。
+
+| 镜号 | 内容 | 秒 | 现在用的静帧 | 抓帧 URL / 操作（机器空了再渲） |
+|---|---|---|---|---|
+| T00 | 片头：峰哥亡命天涯 · 原地迈步，腿上爬珠峰 · PRX | 2 | 卡片 | — |
+| S01 | 左：真人踏步（占位，实拍 = raw/B01）｜右：大本营经幡 | 5 | map_interact_everest_flags.png | `/game?fx=off&ui=play` 实走第 8–20 步 |
+| R03 | 大本营 → 直升机掠过落停机坪 | 6 | everest_bc.png → everest_live_heli_land.png | `/game?fx=off&ui=play` 从第 0 步开拍 |
+| R04 | 冰川牦牛让路 + 峰哥台词（90 s） | 4 | everest_r04_yak_yield_live.jpg → everest_live_yaks.png | 第 8–20 步 |
+| R05 | 上台阶（阻力脉冲）→ 北坳吸氧红灯站定 | 6 | everest_ladder.png → map_interact_everest_oxygen.png | 第 25–30 步，红灯自动停 |
+| R06 | 脉冲插图 | 2 | 脉冲-上台阶-阻力.png | 现成 |
+| R07 / R07L | 仪表盘 AI 决策卡：太陡了 → 三角色 → 生效 → 删除（→ 恢复） | 7 / 9 | ui_ai_card.png → 游戏-AI决策卡-软限4.jpg（→ AI决策卡-软限4.png） | `/` 1440×900 走 9 s 后 `POST /feedback {"text":"太陡了"}`；同时 `/game` 右下决策卡 |
+| R13 | 蜂群时间线（90 s） | 4 | 仪表盘-蜂群.png | 仪表盘时间线局部 |
+| R08 / R08L | 造山：输入一句话 → AI 正在造山 → 剖面 → 安全员裁剪 → 进新山 | 10 / 13 | 选山-造山.jpg → ui_forge_wait.png → ui_forge_reveal.png → 游戏-现场造山.jpg | `POST /world/generate {"text":"峰哥坐亡命小飞机降落卢卡拉，徒步七天到珠峰大本营"}`，连拍 `/worlds` + `/game` |
+| R09 / R09L | 新山 ×4 加速爬 + 影子并排 | 4.5 / 5.5 | everest_r08_ridge_wind.jpg | `/game` 实走，成片 ×4 |
+| R10 | 登顶：旗、彩带、峰哥正面 + 结算卡 | 6 | everest_summit_front.png → everest_summit.png | `/game?fx=off&cam=front` 走到顶；空镜 `/game?preview=everest_north&pos=55&summit=1&say=旗靠风吹开，恰恰相反，人得自己走上来。&sayev=summit&cam=front` |
+| X01 | 跑酷起跳 + 东京攻壳彩蛋（90 s 花絮） | 4 | parkour_02_jump.png → 游戏-东京天桥-峰哥v2.jpg | `/parkour`；`/game?preview=tokyo_night&pos=12` |
+| T99 | 片尾：片名 · 一句话 · PRX · 微信群码 · 授权行 | 4 | 卡片（含 海报A4/wx_qr.jpg） | — |
+| B01–B06 | 实拍占位卡 | — | 黑底白字「明早实拍：…」 | 明早手机拍，见制作说明 |
+
+任务里点名但粗剪没进正片的素材（抓帧 URL，机器空了顺手渲）：珠峰开场标题屏 `/game?fx=off&title=1`（静帧 ui_menu_title_everest.png）、导游开场带气泡 `/game?fx=off&ui=play` 起步前 6 s（静帧 fengge_hud_walk.png / guide_everest.png）、排队上梯 第 50–52 步（静帧 everest_queue.png / map_interact_everest_queue.png）、选山页 `/worlds`（静帧 ui_menu_maps.png）。
+
+「无 HUD 版 / 带 HUD 版」：rec.mjs 加 `hud=0` 就是无 HUD（只留峰哥气泡）；静帧兜底版没法分，`片段/干净版` 只是没叠字幕。
