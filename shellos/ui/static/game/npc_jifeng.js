@@ -36,10 +36,20 @@ export const STATUE = { yaw: 0, hair: WHO.jett.hair, skin: '#f0c5a4', coat: WHO.
 const TRAIL_N = 24;                       // 拖尾历史点数
 const STREAKS = [[0.26, 1.18, 0.07], [-0.26, 1.02, 0.06], [0.0, 0.62, 0.09]];   // [横向, 离地, 半宽]：肩两侧 + 腰后三条风线
 
+// ?npclook=rig：CesiumMan 骨架 + 程序化造型（动漫头 + 手绘脸 + 白发高马尾 + 钴蓝短外套立领 + 白护臂 + 腰间飞刀），真的在跑（A2 的 anim.js）。
+//   和 STL 雕像（缺省）做 A/B，给球球挑；挑定了改这里的缺省值。?npclook=stl / orig 强制另外两种。
+const LOOKSEL = Q.get('npclook') || 'stl';
+
 export async function makeJifeng(scene) {
   let av = null;
-  if (MODEL !== '0') try { av = await loadModel(MODEL); } catch (e) { console.warn('捷风 gltf 加载失败，往下退', e); }
-  if (!av && STL !== '0') try { av = await loadStatue(STL); } catch (e) { console.warn('捷风 STL 加载失败，用原创造型', e); }
+  if (LOOKSEL === 'rig') try {
+    av = await loadAvatar({ look: RIG_LOOK });
+    av.group.name = 'npc_jifeng';
+    dressJett(av);
+    av.stance = () => false; av.tick = () => {}; av.rig = true;
+  } catch (e) { console.warn('捷风程序化造型失败，往下退', e); av = null; }
+  if (!av && LOOKSEL !== 'orig' && MODEL !== '0') try { av = await loadModel(MODEL); } catch (e) { console.warn('捷风 gltf 加载失败，往下退', e); }
+  if (!av && LOOKSEL !== 'orig' && STL !== '0') try { av = await loadStatue(STL); } catch (e) { console.warn('捷风 STL 加载失败，用原创造型', e); }
   if (!av) {
     av = await loadAvatar({ look: LOOK });
     av.group.name = 'npc_jifeng';
@@ -78,6 +88,7 @@ export async function makeJifeng(scene) {
 
   return {
     av, group: av.group, pose: av.pose, headWorld: av.headWorld, model: !!av.model, statue: !!av.statue,
+    animate: av.animate && !av.statue ? av.animate : null,   // CesiumMan 系（程序化造型 / 原创造型）：A2 的全身动作
     stance: on => av.stance(on),            // true = 播自带的格斗站姿（有的话），返回是否在播
     burst() { burstT = 0; },
     // dash 0..1 = 冲刺强度（拖尾亮度、风刃）；pos/dir = 这一帧的世界位置 / 前进方向
@@ -274,4 +285,132 @@ function statueMaterial(S) {
   };
   m.customProgramCacheKey = () => 'jett-statue';
   return m;
+}
+
+// ---- 程序化造型（?npclook=rig）：CesiumMan 骨架（和峰哥同一套，A2 的动作直接能用）+ 自己搭的件，全部按绑定姿态摆好再挂到骨骼上 ----
+export const RIG_LOOK = { leg: '#27344c', body: WHO.jett.coat, head: '#f3d2bd', rim: WHO.jett.rim, rimK: 0.55, self: 0.28, headScale: 1, exo: false, pointK: 0.35 };
+const HEAD_R = [0.108, 0.13, 0.101];        // 动漫头：前后 / 上下 / 左右半径（米），比 CesiumMan 原头盔大一圈（头高 ≈ 身高 1/5.6）
+
+// 脸：canvas 手绘的扁平动漫脸（原创画法，不用任何官方立绘）：大蓝眼 + 粗眼线上挑、半垂的上眼皮（冷淡）、细眉、小嘴、脸颊一道白色风纹。
+//   纹理 u 从观众左到右，v 从下到上；正前方正投影贴到头的前半球，画面外一圈都是肤色。
+export function jettFace(size = 256) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const g = cv.getContext('2d'), k = size / 256;
+  g.scale(k, k);
+  g.fillStyle = RIG_LOOK.head; g.fillRect(0, 0, 256, 256);
+  const eye = (cx, dir) => {                // dir = 1 观众右边那只（她的左眼），-1 另一只
+    g.save(); g.translate(cx, 138);
+    g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(0, 0, 21, 13, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#2f8cff'; g.beginPath(); g.arc(dir * 2, 2, 11.5, 0, Math.PI * 2); g.fill();           // 虹膜
+    g.fillStyle = '#123a8a'; g.beginPath(); g.arc(dir * 2, 3, 6, 0, Math.PI * 2); g.fill();              // 瞳孔
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(dir * 2 - 4, -2, 3.2, 0, Math.PI * 2); g.fill();       // 高光
+    g.fillStyle = RIG_LOOK.head; g.beginPath(); g.moveTo(-26, -20); g.lineTo(26, -20); g.lineTo(24 * dir, -9); g.lineTo(-24 * dir, -5); g.closePath(); g.fill();   // 半垂的上眼皮：压掉虹膜顶，眼神冷
+    g.strokeStyle = '#1b1f2e'; g.lineCap = 'round'; g.lineWidth = 5;                                      // 上眼线 + 外眼角上挑
+    g.beginPath(); g.moveTo(-22 * dir, -4); g.lineTo(22 * dir, -9); g.lineTo(30 * dir, -15); g.stroke();
+    g.lineWidth = 1.6; g.beginPath(); g.moveTo(-16 * dir, 11); g.quadraticCurveTo(0, 15, 17 * dir, 9); g.stroke();   // 下眼线
+    g.restore();
+  };
+  eye(88, -1); eye(168, 1);
+  g.strokeStyle = '#c9d3de'; g.lineWidth = 4; g.lineCap = 'round';                                          // 细眉：白发的淡灰，往外挑
+  g.beginPath(); g.moveTo(106, 112); g.lineTo(66, 104); g.stroke();
+  g.beginPath(); g.moveTo(150, 112); g.lineTo(190, 104); g.stroke();
+  g.strokeStyle = '#d9a48b'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(129, 158); g.lineTo(125, 172); g.lineTo(131, 173); g.stroke();   // 鼻子一笔
+  g.strokeStyle = '#a04e55'; g.lineWidth = 3; g.beginPath(); g.moveTo(116, 194); g.quadraticCurveTo(129, 197, 142, 191); g.stroke();   // 小嘴，嘴角一边略翘（不屑）
+  g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.globalAlpha = 0.9;                                          // 脸颊白色风纹：一道旋
+  g.beginPath(); g.moveTo(186, 170); g.bezierCurveTo(206, 158, 214, 178, 198, 184); g.bezierCurveTo(188, 188, 186, 176, 196, 174); g.stroke();
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+function dressJett(av) {
+  const g = av.group; g.updateMatrixWorld(true);
+  const J = n => av.bones[n], W = b => b.getWorldPosition(new THREE.Vector3());
+  const head = J('Skeleton_neck_joint_2'), neck = J('Skeleton_neck_joint_1'), pel = J('Skeleton_torso_joint_1');
+  let mesh = null; g.traverse(o => { if (o.isSkinnedMesh && !mesh) mesh = o; });
+  // ① 原头盔塌进脖口（同 fengge.js）：沾头骨权重的顶点塌到相邻躯干顶点的中心、权重全给脖子骨
+  if (mesh && head && neck) {
+    const hi = mesh.skeleton.bones.indexOf(head), ni = mesh.skeleton.bones.indexOf(neck), GA = mesh.geometry.attributes, v = new THREE.Vector3();
+    const hw = new Float32Array(GA.position.count), IX = mesh.geometry.index.array, ring = new Set();
+    for (let i = 0; i < hw.length; i++) for (let k = 0; k < 4; k++) if (GA.skinIndex.getComponent(i, k) === hi) hw[i] += GA.skinWeight.getComponent(i, k);
+    for (let t = 0; t < IX.length; t += 3) { const a = [IX[t], IX[t + 1], IX[t + 2]]; if (a.some(i => hw[i] > 0)) for (const i of a) if (!hw[i]) ring.add(i); }
+    const o = new THREE.Vector3(); for (const i of ring) o.add(v.fromBufferAttribute(GA.position, i)); o.divideScalar(ring.size || 1);
+    for (let i = 0; i < hw.length; i++) if (hw[i] > 0) { GA.position.setXYZ(i, o.x, o.y, o.z); GA.skinIndex.setXYZW(i, ni, 0, 0, 0); GA.skinWeight.setXYZW(i, 1, 0, 0, 0); }
+    GA.position.needsUpdate = GA.skinIndex.needsUpdate = GA.skinWeight.needsUpdate = true; mesh.geometry.computeBoundingSphere();
+  }
+  const lam = (color, o = {}) => new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.28, ...o });
+  const hairMat = lam(WHO.jett.hair, { flatShading: true, emissiveIntensity: 0.35 });
+  const q = new THREE.Quaternion(), e = new THREE.Euler(), mx = new THREE.Matrix4(), one = new THREE.Vector3(1, 1, 1);
+  const put = (geo, p, rot, s) => geo.applyMatrix4(mx.compose(p, rot ? q.setFromEuler(e.set(...rot)) : q.identity(), s || one));
+  const attach = (bone, geos, mat, name) => { const m = new THREE.Mesh(geos.length > 1 ? mergeGeometries(geos.map(x => x.index ? x.toNonIndexed() : x)) : geos[0], mat); m.name = name; m.frustumCulled = false; bone.attach(m); return m; };
+  if (head) {
+    // ② 头：椭球，下半截收成尖一点的下巴；前半球按正投影给 uv（贴手绘脸），后半球 uv 指到纹理角落（肤色）
+    const [rx, ry, rz] = HEAD_R, c = W(head).add(new THREE.Vector3(0.005, ry * 0.72, 0));
+    const hg = new THREE.SphereGeometry(1, 32, 24), P = hg.attributes.position, UV = hg.attributes.uv;
+    for (let i = 0; i < P.count; i++) {
+      let x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+      if (y < 0) { z *= 1 - 0.38 * -y; x *= 1 - 0.12 * -y; }            // 下巴
+      P.setXYZ(i, x * rx, y * ry, z * rz);
+      if (x > 0.05) UV.setXY(i, 0.5 - z * 0.5 * 1.08, 0.5 + y * 0.5 * 1.02); else UV.setXY(i, 0.02, 0.02);   // 模型朝 +X、左 = −Z：观众左 = 她右 = +Z
+    }
+    hg.computeVertexNormals(); hg.translate(c.x, c.y, c.z);
+    const face = attach(head, [hg], new THREE.MeshLambertMaterial({ map: jettFace(), emissive: '#ffffff', emissiveMap: null, emissiveIntensity: 0 }), 'jettHead');
+    face.material.onBeforeCompile = sh => {                                 // 脸自发光打底 + 白轮廓光（和身体一样在夜景里看得清）
+      sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        float frh = clamp(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0);
+        totalEmissiveRadiance += diffuseColor.rgb * 0.32 + vec3(0.95, 0.96, 1.0) * pow(frh, 2.4) * 0.45;`);
+    };
+    face.material.customProgramCacheKey = () => 'jett-face';
+    // ③ 白发（低多边形、平面着色）：头顶发帽（前面到眉上，后面、两侧盖到耳下）+ 刘海尖 + 两侧鬓发 + 高马尾
+    const hair = [];
+    const cap = (t0, t1, p0, p1) => put(new THREE.SphereGeometry(1, 14, 6, p0, p1, t0, t1 - t0), c, null, new THREE.Vector3(rx * 1.09, ry * 1.07, rz * 1.12));
+    hair.push(cap(0, 1.2, 0, Math.PI * 2));                              // 头顶一圈：前面到眉毛上方
+    hair.push(cap(1.2, 2.25, -Math.PI / 2 - 0.5, Math.PI + 1.0));        // 后半边 + 两侧往下盖到耳下（phi 0 = 后脑）
+    for (let k = -2; k <= 2; k++) {                                       // 刘海：5 个尖朝下的扁锥，沿前额排开，往前翘一点
+      const len = 0.075 - Math.abs(k) * 0.008, a = k * 0.32;
+      const cg = new THREE.ConeGeometry(0.026, len, 4); cg.rotateX(Math.PI); cg.translate(0, -len / 2, 0);
+      hair.push(put(cg, c.clone().add(new THREE.Vector3(Math.cos(a) * rx * 1.02, ry * 0.52, -Math.sin(a) * rz * 1.08)), [a * 0.4, 0, -0.35 + Math.abs(k) * 0.05], new THREE.Vector3(1, 1, 0.6)));
+    }
+    for (const sd of [-1, 1]) {                                           // 鬓发：脸两侧各一缕，到下巴
+      const cg = new THREE.ConeGeometry(0.022, 0.13, 4); cg.rotateX(Math.PI); cg.translate(0, -0.065, 0);
+      hair.push(put(cg, c.clone().add(new THREE.Vector3(rx * 0.55, ry * 0.25, sd * rz * 1.02)), [sd * 0.15, 0, -0.12], new THREE.Vector3(1, 1, 0.55)));
+    }
+    // 高马尾：头顶偏后扎起（钴蓝发圈），往后上翘再垂下来，三节锥
+    const tie = c.clone().add(new THREE.Vector3(-rx * 0.86, ry * 0.6, 0));    // 后脑偏上扎起
+    let prev = tie.clone(), dir = new THREE.Vector3(-0.95, 0.3, 0).normalize();   // 先往后略翘
+    const segs = [[0.05, 0.048], [0.065, 0.042], [0.07, 0.032], [0.06, 0.016]];
+    for (let k = 0; k < segs.length; k++) {
+      const [len, r] = segs[k], cg = new THREE.CylinderGeometry(r * 0.55, r, len, 5);
+      const mid = prev.clone().addScaledVector(dir, len / 2);
+      cg.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)); cg.translate(mid.x, mid.y, mid.z);
+      hair.push(cg);
+      prev.addScaledVector(dir, len * 0.92);
+      dir.applyAxisAngle(new THREE.Vector3(0, 0, 1), 0.62).normalize();  // 往后、往下弯
+    }
+    attach(head, hair, hairMat, 'jettHair');
+    attach(head, [put(new THREE.TorusGeometry(0.022, 0.009, 6, 12), tie, [0, 0, 0.6])], lam(WHO.jett.coat), 'jettTie');
+  }
+  // ④ 立领：白色短筒（钴蓝外套的领子翻出来一圈白）
+  if (neck) attach(neck, [put(new THREE.CylinderGeometry(0.075, 0.095, 0.1, 14, 1, true), W(neck).add(new THREE.Vector3(0, 0.0, 0)))], lam('#eef3f8', { side: THREE.DoubleSide }), 'jettCollar');
+  // ⑤ 白护臂：前臂（肘 → 腕）一截白筒，挂在肘骨上
+  for (const [el, wr] of [['Skeleton_arm_joint_L__3_', 'Skeleton_arm_joint_L__2_'], ['Skeleton_arm_joint_R__2_', 'Skeleton_arm_joint_R__3_']]) {
+    const b = J(el), w = J(wr); if (!b || !w) continue;
+    const a = W(b), z = W(w), d = z.clone().sub(a), len = d.length();
+    const cg = new THREE.CylinderGeometry(0.034, 0.03, len * 0.62, 8);
+    cg.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())); cg.translate(...a.clone().lerp(z, 0.6).toArray());
+    attach(b, [cg], lam('#f2f6fb'), 'jettGuard');
+  }
+  // ⑥ 腰间飞刀：右胯三把（银白刀身 + 深色刀柄），刀尖朝下、扇形排开
+  if (pel) {
+    const hipR = J('leg_joint_R_1'), base = hipR ? W(hipR) : W(pel);
+    const blades = [], grips = [];
+    for (let k = 0; k < 3; k++) {
+      const p = base.clone().add(new THREE.Vector3(-0.05 - k * 0.035, 0.07, 0.09));   // 右胯偏后（手垂在胯侧，放前面会被看成爪子）
+      const tilt = [0, 0, -0.25 + k * 0.25];
+      const bl = new THREE.OctahedronGeometry(1, 0); blades.push(put(bl, p.clone().add(new THREE.Vector3(0, -0.05, 0)), tilt, new THREE.Vector3(0.012, 0.06, 0.022)));
+      grips.push(put(new THREE.BoxGeometry(0.014, 0.04, 0.016), p.clone().add(new THREE.Vector3(0, 0.02, 0)), tilt));
+    }
+    attach(pel, blades, lam('#dfe7f2', { emissiveIntensity: 0.5 }), 'jettKnives');
+    attach(pel, grips, lam('#1c2230'), 'jettGrips');
+  }
 }
