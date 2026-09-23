@@ -56,7 +56,9 @@ export async function initNpc({ scene, route, me, camera, getS, preview }) {
   let state = 'chase', lastSay = -99, sayUntil = 0, laps = null, ending = null, endS = 0, phase = 0, lean = 0, sPrev = null, spd = 0, yaw = null, dashSaid = false, wasRed = false, arcT = 9, gph = 0;
   const mute = preview || Q.get('voice') === '0';
   let audio = null;
+  const quiet = Q.get('npctalk') !== '1';   // 9/23 球球：主角是峰哥，捷风先闭嘴（不出气泡不出声）；?npctalk=1 恢复
   const say = (key, t) => {
+    if (quiet) return false;
     const L = LINES[key], line = L ? L[Math.floor(Math.random() * L.length)] : key;
     if (t - lastSay < NPC.SAY_GAP && !key.startsWith('end')) return false;
     lastSay = t; sayUntil = t + 2.5; bub.textContent = line; tag.classList.add('talk');
