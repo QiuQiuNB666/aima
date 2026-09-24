@@ -302,8 +302,14 @@ build_segs() {
   rm -rf "$MAT/片段/字幕版" "$MAT/片段/干净版"; mkdir -p "$MAT/片段/字幕版" "$MAT/片段/干净版"
   cp "$B"/seg/*.mp4 "$MAT/片段/字幕版/"; for f in "$B"/src/[A-Z][0-9]*.mp4; do case $f in *.L.mp4|*.R.mp4|*.R.full.mp4|*.[0-9].mp4|*.cat.mp4) ;; *) cp "$f" "$MAT/片段/干净版/";; esac; done
 }
-V60=(T00 S01 R03 R05 R05b B02 R07 R08 R09 R10 B04 T99)
-V90=(T00 S01 B05 B06 R02 R03 R04 R05 R05b B02 R07L R08L R11 R09L B03 R10 X01 B04 T99)
+# V ≥ 2：前 5 秒先给结果（S01 真人踏步 | 游戏在爬），片名卡放第二；V=1 片名卡开头
+if [ "$V" -ge 2 ]; then
+  V60=(S01 T00 R03 R05 R05b B02 R07 R08 R09 R10 B04 T99)
+  V90=(S01 T00 B05 B06 R02 R03 R04 R05 R05b B02 R07L R08L R11 R09L B03 R10 X01 B04 T99)
+else
+  V60=(T00 S01 R03 R05 R05b B02 R07 R08 R09 R10 B04 T99)
+  V90=(T00 S01 B05 B06 R02 R03 R04 R05 R05b B02 R07L R08L R11 R09L B03 R10 X01 B04 T99)
+fi
 
 case ${1:-all} in
   all) build_segs; echo "== 60 s"; final "$MAT/v${V}_60s.mp4" "${V60[@]}"; echo "== 90 s"; final "$MAT/v${V}_90s.mp4" "${V90[@]}" ;;
