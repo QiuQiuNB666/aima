@@ -4,7 +4,9 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { createHandSimulation } from './hands-core.js';
 import { createHandAngleInput } from './hands-input.js';
-import { createHandReader } from './hands-reader.js';
+import { createHandReader, createWearReader } from './hands-reader.js';
+import {createWearCheck,wearItems,WEAR_ITEMS,WEAR_GUIDES,wearRoles} from './wear-core.js';
+import {createGameTutorial} from './tutorial-core.js';
 
 const source = (await readFile(new URL('./hands-controller.js', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '');
 const markup = await readFile(new URL('./hands.html', import.meta.url), 'utf8');
@@ -32,7 +34,9 @@ function fixture() {
   vm.runInNewContext(source, {
     document,window,performance:{now:()=>clock},Date:ClockDate,
     createHandSimulation:()=>sim,createHandAngleInput,
+    createWearCheck,WEAR_ITEMS,WEAR_GUIDES,wearRoles,createGameTutorial,
     createHandReader:options=>createHandReader({...options,fetcher,schedule,cancel,clock:()=>clock}),
+    createWearReader:options=>createWearReader({...options,fetcher,schedule,cancel,clock:()=>clock}),
     requestAnimationFrame:fn=>{const id=++serial;frames.set(id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id),
     setTimeout:schedule,clearTimeout:cancel,
   },{filename:'hands-controller.js'});
@@ -43,14 +47,19 @@ function fixture() {
     await flush();
   }
   async function prepare() {
+    checkWear();
     el('release').checked=true;el('release').onchange();el('calibrate').onclick();
     el('grip').checked=true;el('grip').onchange();el('raise').onclick();
     for(let i=0;i<26;i++)await advance();
     assert.equal(sim.snapshot().stage,'ready');
   }
+  function checkWear() {
+    for(const id of wearItems(el('layout-mode').value)) { el('wear-'+id).checked=true;el('wear-'+id).onchange(); }
+    el('wear-confirm').onclick();
+  }
   function telemetry() {el('input-source').value='telemetry';el('input-source').onchange();el('telemetry-start').onclick();}
   async function reply(value) {calls.at(-1).resolve({ok:true,json:async()=>value});await flush();await advance(1);}
-  return {el,document,window,sim,frames,timers,calls,advance,prepare,telemetry,reply};
+  return {el,document,window,sim,frames,timers,calls,advance,prepare,telemetry,reply,checkWear,now:()=>ClockDate.now()};
 }
 
 test('page initializes inert, keyboard keeps the other slider axis, and each gun has its own button', async()=>{
@@ -64,7 +73,9 @@ test('page initializes inert, keyboard keeps the other slider axis, and each gun
 });
 
 test('a stalled frame freezes excavator motion, clears held keys and requires explicit rearming',async()=>{
-  const f=fixture();await f.prepare();f.el('scene-excavator').onclick();f.window.emit('keydown',{key:'d'});await f.advance();
+  const f=fixture();await f.prepare();f.el('scene-excavator').onclick();
+  f.el('grip').checked=true;f.el('grip').onchange();f.el('raise').onclick();
+  f.window.emit('keydown',{key:'d'});await f.advance();
   const position=f.sim.snapshot().excavator.boom;
   await f.advance(500);assert.equal(f.sim.snapshot().stage,'paused');assert.equal(f.el('grip').checked,false);
   assert.equal(f.el('left').value,'0');assert.equal(f.sim.snapshot().excavator.boom,position);
@@ -106,13 +117,13 @@ test('single/dual selection resets controls and legs-only rejects hand actions',
   assert.equal(f.sim.snapshot().shotsLeft,1);
   f.el('layout-mode').value='single-legs';f.el('layout-mode').onchange();
   assert.equal(f.sim.snapshot().left,0);assert.equal(f.sim.snapshot().calibrated,false);
-  assert.equal(f.el('release').disabled,true);assert.equal(f.el('input-source').disabled,true);
+  assert.equal(f.el('release').disabled,true);assert.equal(f.el('input-source').disabled,false);
   f.el('release').checked=true;f.el('release').onchange();f.el('calibrate').onclick();
   f.el('grip').checked=true;f.el('grip').onchange();f.el('raise').onclick();
   f.window.emit('keydown',{key:'f'});f.telemetry();
   assert.equal(f.calls.length,0);assert.equal(f.sim.snapshot().stage,'legs');
   f.el('layout-mode').value='dual';f.el('layout-mode').onchange();
-  assert.equal(f.el('release').disabled,false);assert.equal(f.sim.snapshot().holding,false);
+  assert.equal(f.el('release').disabled,true);assert.equal(f.sim.snapshot().holding,false);
   assert.match(f.el('layout-summary').textContent,/两套独立绑定/);
 });
 
@@ -136,4 +147,52 @@ test('telemetry requires the selected layout and an explicit hands role',async()
     assert.equal(f.sim.snapshot().calibrated,false);assert.equal(f.timers.size,0);
     assert.notEqual(f.el('telemetry-status').textContent,'正在读取本机 ShellOS…');
   }
+});
+
+test('wearing checks gate preview actions, are per configuration, and cannot claim hardware detection',async()=>{
+  const ids=[...markup.matchAll(/\bid="([^"]+)"/g)].map(([,id])=>id);assert.equal(new Set(ids).size,ids.length,'No ambiguous checklist IDs');
+  const f=fixture();f.el('release').checked=true;f.el('release').onchange();f.el('calibrate').onclick();
+  assert.equal(f.sim.snapshot().calibrated,false);assert.equal(f.el('wear-tutorial').hidden,true);
+  f.checkWear();assert.equal(f.el('release').disabled,false);assert.equal(f.el('wear-tutorial').hidden,false);
+  assert.match(f.el('wear-guide-badge').textContent,/流程演练/);
+  assert.equal(f.el('wear-legs').hidden,true);assert.equal(f.el('wear-hands').hidden,false);
+  await f.prepare();f.el('wear-hand-support').checked=false;f.el('wear-hand-support').onchange();
+  assert.equal(f.sim.snapshot().holding,false);assert.equal(f.sim.snapshot().calibrated,false);assert.equal(f.el('wear-tutorial').hidden,true);
+  f.el('count-dual').onclick();assert.equal(f.el('single-role').hidden,true);assert.equal(f.el('wear-legs').hidden,false);
+  assert.equal(f.el('wear-dual').hidden,false);assert.equal(f.el('wear-progress').textContent,'0 / 11 项已确认');
+  f.checkWear();f.el('count-single').onclick();assert.equal(f.el('wear-progress').textContent,'0 / 6 项已确认');
+});
+
+test('connected wear checks expire, stop on page exit, and never auto-confirm after fresh data',async()=>{
+  const f=fixture();f.el('input-source').value='telemetry';f.el('input-source').onchange();f.checkWear();
+  assert.equal(f.el('wear-confirm').disabled,true);assert.equal(f.el('release').disabled,true);
+  f.el('wear-read').onclick();assert.equal(f.calls[0].url,'/api/wear-check');
+  const report=()=>({schema:'aima.wear-check.v1',layout:'single-hands',checkedAt:new Date(f.now()).toISOString(),devices:[{role:'hands',source:'hardware',port:'COM5',fresh:true,roleVerified:true,frameAgeMs:10,sourceTime:f.now()/1000}]});
+  await f.reply(report());f.el('wear-confirm').onclick();assert.equal(f.el('release').disabled,false);
+  await f.advance(1600);assert.equal(f.el('release').disabled,true);assert.equal(f.el('wear-tutorial').hidden,true);
+  await f.reply(report());assert.equal(f.el('release').disabled,true);
+  f.el('wear-confirm').onclick();assert.equal(f.el('release').disabled,false);
+  f.document.hidden=true;f.document.emit('visibilitychange');assert.equal(f.timers.size,0);assert.equal(f.el('wear-progress').textContent,'0 / 6 项已确认');
+});
+
+test('late wear response after configuration change cannot revive checks',async()=>{
+  const f=fixture();f.checkWear();f.el('wear-read').onclick();const call=f.calls[0];
+  f.el('count-dual').onclick();assert.equal(call.options.signal.aborted,true);
+  await f.reply({schema:'aima.wear-check.v1',layout:'single-hands',checkedAt:new Date(f.now()).toISOString(),devices:[]});
+  assert.equal(f.el('wear-progress').textContent,'0 / 11 项已确认');assert.equal(f.el('release').disabled,true);
+});
+
+test('per-game tutorial completes only after correct inputs and operator pause; entering clears practice scores',async()=>{
+  const f=fixture();await f.prepare();assert.equal(f.el('tutorial-enter').disabled,true);
+  f.el('fire').onclick();assert.match(f.el('tutorial-current').textContent,/右侧攻击/);
+  f.el('fire-right').onclick();assert.match(f.el('tutorial-current').textContent,/主动暂停/);
+  f.window.emit('blur');assert.equal(f.el('tutorial-enter').disabled,true);
+  f.window.emit('keydown',{key:'Escape',preventDefault(){}});assert.equal(f.el('tutorial-enter').disabled,false);
+  f.el('tutorial-enter').onclick();assert.equal(f.el('tutorial-phase').textContent,'画面试玩');assert.equal(f.sim.snapshot().shots,0);
+  assert.equal(f.sim.snapshot().holding,false);assert.equal(f.sim.snapshot().calibrated,true);
+  f.el('scene-excavator').onclick();assert.match(f.el('tutorial-title').textContent,/挖掘机/);assert.match(f.el('tutorial-current').textContent,/左杆升降动臂/);
+  assert.equal(f.el('tutorial-enter').disabled,true);assert.equal(f.el('wear-tutorial').hidden,false,'Learning and wearing approval are separate');
+  f.el('count-dual').onclick();
+  assert.equal(f.sim.snapshot().scene,'range');assert.match(f.el('tutorial-title').textContent,/脉冲靶场/,'A mode reset must reset game and tutorial together');
+  assert.equal(f.el('wear-progress').textContent,'0 / 11 项已确认');
 });

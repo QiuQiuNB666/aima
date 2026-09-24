@@ -237,6 +237,28 @@ export function createConsoleServer({
   const exoskeletonState = () => layout === 'single-hands'
     ? Promise.resolve({available:false, hardwareOutput:false, role:'legs', layout, error:'LEGS_ROLE_DISABLED'})
     : readLegState();
+  let wearPending = null;
+  function wearState() {
+    if (!wearPending) wearPending = (async () => {
+      const roles = layout === 'dual' ? ['legs','hands'] : [layout === 'single-legs' ? 'legs' : 'hands'];
+      const snapshots = await Promise.all(roles.map(role => {
+        const port = role === 'hands' ? handPort : legPort;
+        return port === null ? {reachable:false,error:'SOURCE_NOT_CONFIGURED'}
+          : readShellOSState({port,timeoutMs:shellosTimeoutMs,now});
+      }));
+      const devices = snapshots.map((value,index) => {
+        const state = normalizeShellOSState(value,{now}), role = roles[index];
+        return {role, source:state.shellos.mode, reachable:state.shellos.reachable,
+          roleVerified:state.shellos.valid && value.report?.link?.role === role,
+          port:state.telemetry?.port ?? null, fresh:state.telemetry?.fresh === true,
+          frameAgeMs:state.telemetry?.frameAgeMs ?? null, sourceTime:state.telemetry?.sourceTime ?? null};
+      });
+      // Existing firmware reports motion, not strap/grip/mount sensor evidence.
+      return {schema:'aima.wear-check.v1',layout,checkedAt:new Date(now()).toISOString(),devices,
+        sensorChecks:{straps:null,grip:null,mount:null},wearVerified:false,hardwareOutput:false};
+    })().finally(() => {wearPending=null;});
+    return wearPending;
+  }
   let cached;
   let cachedAt = 0;
   let pending;
@@ -325,12 +347,13 @@ export function createConsoleServer({
       }
       if (pathname === '/api/device') { json(res, 200, await state()); return; }
       if (pathname === '/api/displays') { json(res, 200, await displayState()); return; }
-      if (['/api/exoskeleton','/api/hands-telemetry','/api/exoskeleton-layout'].includes(pathname)) {
+      if (['/api/exoskeleton','/api/hands-telemetry','/api/exoskeleton-layout','/api/wear-check'].includes(pathname)) {
         if (req.headers.origin && req.headers.origin !== `http://${host}`) throw new RequestError(403, 'ORIGIN_REJECTED', '外骨骼状态必须从本机控制台页面读取。');
         if ((req.url || '').includes('?')) throw new RequestError(400, 'INVALID_REQUEST', '外骨骼状态接口不接受目标地址或其他查询参数。');
         if (pathname === '/api/exoskeleton-layout') {
           json(res,200,{layout, hardwareOutput:false, roles:{legs:layout !== 'single-hands', hands:layout !== 'single-legs'}}); return;
         }
+        if (pathname === '/api/wear-check') { json(res,200,await wearState()); return; }
         json(res, 200, await (pathname === '/api/hands-telemetry' ? handTelemetry() : exoskeletonState())); return;
       }
       if (pathname.startsWith('/api/')) throw new RequestError(404, 'NOT_FOUND', '未找到接口。');

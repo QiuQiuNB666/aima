@@ -1,9 +1,12 @@
 import { createHandSimulation } from './hands-core.js';
 import { createHandAngleInput } from './hands-input.js';
-import { createHandReader } from './hands-reader.js';
+import { createHandReader, createWearReader } from './hands-reader.js';
+import { createWearCheck, WEAR_ITEMS, WEAR_GUIDES, wearRoles } from './wear-core.js';
+import { createGameTutorial } from './tutorial-core.js';
 
 // All outputs remain local animation. The optional reader only obtains angles.
 const sim = createHandSimulation();
+const tutorial = createGameTutorial();
 const $ = id => document.getElementById(id);
 const canvas = $('scene'), ctx = canvas.getContext('2d');
 const names = {legs:'腿部模式', released:'模拟已解绑', calibrated:'中位已校准', raising:'正在模拟抬起', ready:'双手模式 · 就位', paused:'模拟已暂停'};
@@ -13,6 +16,9 @@ const keys = new Set();
 const angleInput = createHandAngleInput();
 let inputSource = 'keyboard', layout = 'single-hands', telemetryNote = '读取已绑定手部角色的数据服务。';
 $('layout-mode').value = layout;
+const wear = createWearCheck(layout);
+let wearNote = '流程演练可先完成自查；使用真实角度还需连接检查通过。';
+let wearRenderKey='',tutorialRenderKey='';
 const layoutNames = {'single-legs':'一套 · 腿部行走','single-hands':'一套 · 双手操作杆',dual:'两套 · 腿部 + 双手'};
 const sourceErrors = {
   HANDS_SOURCE_NOT_CONFIGURED:'请配置 SHELLOS_HANDS_PORT，并用 EXOSKELETON_MODE 指定单套双手或双套。',
@@ -37,18 +43,91 @@ const reader = createHandReader({
   },
   onError(message) { angleInput.reset(); suspend(); telemetryNote = message; },
 });
+const wearReader = createWearReader({
+  onSample(report) {
+    const wasApproved = wear.snapshot(Date.now()).approved;
+    const result = wear.ingest(report, Date.now());
+    const state = wear.snapshot(Date.now());
+    if (!result.ok && !result.repeated) { wearReader.stop(); wearNote = report?.layout && report.layout !== layout ? `本页与服务配置不一致，请按 ${layoutNames[report.layout] || '服务配置'} 重新核对。` : state.reason; }
+    else wearNote = state.deviceReady ? '所需设备的角色和新鲜角度已核对；结果超过 1.5 秒失效。穿戴固定仍需本人确认。' : state.reason;
+    if (result.changed || (wasApproved && !state.approved)) invalidateWearPlay('连接检查变化，请重新确认自查并校准');
+    render();
+  },
+  onError(message) { wear.clearDevice(message); wearNote=message; invalidateWearPlay(message); render(); },
+});
+
+function invalidateWearPlay(message) {
+  const scene=sim.snapshot().scene;
+  reader.stop(); angleInput.reset(); zeroInputs(); sim.dispatch({type:'reset'});sim.dispatch({type:'scene',value:scene});
+  tutorial.reset(scene,sim.snapshot());
+  flash.left=flash.right=0; telemetryNote=message;
+}
+function resetWear(message) { wearReader.stop(); wear.reset(layout); wearNote=message; invalidateWearPlay(message); }
+for (const id of Object.values(WEAR_ITEMS).flat()) $('wear-'+id).onchange = () => {
+  const wasApproved=wear.snapshot(Date.now()).approved;
+  wear.confirmItem(id, $('wear-'+id).checked);
+  if (wasApproved || !$('wear-'+id).checked) invalidateWearPlay('穿戴确认已变更，请重新自查与校准');
+  render();
+};
+$('wear-confirm').onclick = () => { wear.confirm(Date.now(),inputSource === 'telemetry'); render(); };
+$('wear-reset').onclick = () => { resetWear('本次自查已清空，请按当前穿戴方式重新确认'); render(); };
+$('wear-read').onclick = () => {
+  if (document.hidden) return;
+  wear.clearDevice('正在检查连接'); invalidateWearPlay('重新检查连接后请确认自查');
+  wearNote='正在核对所需设备…'; wearReader.start(); render();
+};
+$('wear-stop-check').onclick = () => {
+  wearReader.stop(); wear.clearDevice('连接检查已停止'); wearNote='检查已停止，旧连接结果不再有效';
+  invalidateWearPlay(wearNote); render();
+};
+function renderWear() {
+  const state=wear.snapshot(Date.now()), roles=wearRoles(layout);
+  const renderKey=JSON.stringify([state,wearReader.running,wearNote,inputSource]);
+  if (renderKey === wearRenderKey) return wear.canContinue(Date.now(),inputSource === 'telemetry');
+  wearRenderKey=renderKey;
+  $('count-single').setAttribute('aria-pressed',String(layout !== 'dual'));
+  $('count-dual').setAttribute('aria-pressed',String(layout === 'dual'));
+  $('single-role').hidden = layout === 'dual';
+  for (const group of ['legs','hands','dual']) $('wear-'+group).hidden = group === 'dual' ? layout !== 'dual' : !roles.includes(group);
+  for (const id of Object.values(WEAR_ITEMS).flat()) $('wear-'+id).checked=state.checked.includes(id);
+  $('wear-progress').textContent=`${state.checked.length} / ${state.required.length} 项已确认`;
+  $('wear-intro').textContent=layout === 'dual' ? '腿部套需要固定腿带；手部套需要解除腿带。请分别检查，再核对两套是否互相干涉。' : layout === 'single-legs' ? '这次用于行走：分别检查腰部、左腿和右腿固定。' : '这次用于双手：腰部固定，腿带解除并收好，双杆托稳后再握持。';
+  $('wear-context').textContent=inputSource === 'keyboard' ? '当前是流程演练，勾选只演示步骤，不保存为真实穿戴记录。' : '请由现场穿戴者逐项确认。连接检查只能证明数据可读，不能证明绑带、固定或握持正确。';
+  $('wear-read').disabled=wearReader.running; $('wear-stop-check').disabled=!wearReader.running;
+  for (const role of ['legs','hands']) {
+    const row=state.devices.find(device => device.role === role);
+    $('wear-device-'+role).hidden=!roles.includes(role);
+    $('wear-device-'+role).textContent=`${role === 'legs' ? '腿部这套' : '手部这套'} · ${state.deviceReady && row?.ready ? `${row.port} · 最近检查有效` : row?.source === 'simulation' || row?.source === 'replay' ? '模拟 / 回放，不能作为真机检查' : row ? '连接或角色待确认' : '尚未检查'}`;
+  }
+  $('wear-device-note').textContent=state.checkedAt && !state.deviceReady ? state.reason || '尚无有效的真实设备检查结果' : wearNote;
+  $('wear-confirm').disabled=!state.manualComplete || (inputSource === 'telemetry' && !state.deviceReady);
+  $('wear-result').textContent=state.approved ? inputSource === 'telemetry' ? '本人自查与连接检查已完成' : '本人自查已确认 · 可演练流程' : state.manualComplete ? '自查项已齐，请确认本次检查' : `还需确认 ${state.required.length-state.checked.length} 项`;
+  $('wear-result-note').textContent=state.reason || (inputSource === 'telemetry' && !state.deviceReady ? '真实角度模式还需要所选设备的连接检查通过。' : '绑带、握持与固定为本人确认；此结果不代表传感器验证，也不会授权电机输出。');
+  $('wear-tutorial').hidden=!state.approved;
+  $('wear-guide-title').textContent=`03 · ${layoutNames[layout]}使用引导`;
+  WEAR_GUIDES[layout].forEach((text,index) => { $('wear-guide-'+(index+1)).textContent=text; });
+  $('wear-guide-badge').textContent=inputSource === 'telemetry' ? '角度只读 · 无电机输出' : '流程演练 · 不驱动设备';
+  $('wear-leg-guide').hidden=!roles.includes('legs'); $('wear-hand-guide').hidden=!roles.includes('hands');
+  return wear.canContinue(Date.now(),inputSource === 'telemetry');
+}
 
 function stopReading(message) {
   reader.stop(); angleInput.reset(); suspend(); telemetryNote = message;
 }
-$('layout-mode').onchange = () => {
+function changeLayout(next) {
   stopReading('配置已切换，旧输入和校准已清除');
-  layout = Object.hasOwn(layoutNames, $('layout-mode').value) ? $('layout-mode').value : 'single-legs';
+  layout = Object.hasOwn(layoutNames, next) ? next : 'single-legs';
+  $('layout-mode').value=layout;
+  resetWear('穿戴方式已切换，请重新检查');
   flash.left = flash.right = 0;
   action({type:'reset'});
-};
+}
+$('layout-mode').onchange = () => changeLayout($('layout-mode').value);
+$('count-single').onclick = () => { if(layout === 'dual') changeLayout('single-hands'); };
+$('count-dual').onclick = () => { if(layout !== 'dual') changeLayout('dual'); };
 $('input-source').onchange = () => {
   stopReading('输入来源已切换，请重新准备'); inputSource = $('input-source').value;
+  resetWear('使用方式已切换，请重新确认穿戴');
   action({ type:'reset' }); render();
 };
 $('telemetry-start').onclick = () => {
@@ -57,6 +136,7 @@ $('telemetry-start').onclick = () => {
 };
 $('telemetry-stop').onclick = () => { stopReading('读取已停止，重新开始后需要校准'); render(); };
 for (const name of ['center','back','forward']) $('capture-'+name).onclick = () => {
+  if (!wear.canContinue(Date.now(), inputSource === 'telemetry')) return;
   suspend();
   const result = angleInput.capture(name, performance.now());
   telemetryNote = result.reason || (result.complete ? '三点已记录。回到中位，应用校准后开始试玩' : '位置已记录，请继续记录其余位置');
@@ -79,7 +159,7 @@ function renderInput() {
   $('angle-right').textContent = status.angles ? `${status.angles.right.toFixed(1)}°` : '—';
   $('capture-quality').textContent = status.stable ? '已稳定，可以记录' : '等待稳住约一秒';
   for (const name of ['center','back','forward']) {
-    $('capture-'+name).disabled = !status.stable;
+    $('capture-'+name).disabled = !status.stable || !wear.canContinue(Date.now(),inputSource === 'telemetry');
     $('capture-'+name).classList.toggle('recorded',Boolean(status.poses[name]));
   }
   $('calibration-summary').textContent = Object.entries(status.poses).map(([name,pose]) => `${{center:'中位',back:'后拉',forward:'前推'}[name]}：${pose.left.toFixed(1)}° / ${pose.right.toFixed(1)}°`).join(' · ') || '尚未记录。三点校准只用于画面映射。';
@@ -88,18 +168,20 @@ function renderInput() {
 }
 
 function action(value) {
-  if (layout !== 'single-legs' || ['reset','suspend','scene'].includes(value.type)) sim.dispatch(value);
+  if (['reset','suspend','scene'].includes(value.type) || (layout !== 'single-legs' && wear.canContinue(Date.now(),inputSource === 'telemetry'))) sim.dispatch(value);
+  if (value.type === 'reset') tutorial.reset(sim.snapshot().scene,sim.snapshot());
+  tutorial.observe(sim.snapshot());
   render();
 }
 function zeroInputs() { keys.clear(); $('left').value = $('right').value = '0'; }
-function suspend() { zeroInputs(); action({type:'suspend'}); }
+function suspend(operator=false) { zeroInputs(); sim.dispatch({type:'suspend'}); tutorial.observe(sim.snapshot(),operator === true); render(); }
 function inputs() { if(inputSource === 'keyboard') action({type:'input',left:Number($('left').value)/100,right:Number($('right').value)/100}); }
 $('release').onchange = () => { zeroInputs(); action({type:'set-release',value:$('release').checked}); };
 $('calibrate').onclick = () => { if(inputSource === 'telemetry' && !angleInput.status(performance.now()).calibrated) return; zeroInputs(); action({type:'calibrate'}); };
 $('grip').onchange = () => { if (!$('grip').checked) zeroInputs(); action({type:'hold',value:$('grip').checked}); };
 $('raise').onclick = () => { if(inputSource === 'telemetry' && !angleInput.status(performance.now()).centered) return; telemetryNote=''; action({type:'raise'}); };
-$('pause').onclick = suspend;
-$('reset').onclick = () => { stopReading('已复位，重新读取后需要校准'); flash.left = flash.right = 0; action({type:'reset'}); };
+$('pause').onclick = () => suspend(true);
+$('reset').onclick = () => { resetWear('本次试玩已复位，请重新自查'); action({type:'reset'}); };
 $('damping').oninput = () => action({type:'damping',value:Number($('damping').value)/100});
 $('left').oninput = $('right').oninput = inputs;
 $('fire').onclick = () => action({type:'fire',side:'left'});
@@ -107,29 +189,53 @@ $('fire-right').onclick = () => action({type:'fire',side:'right'});
 for (const scene of ['range','excavator']) $('scene-'+scene).onclick = () => {
   zeroInputs(); flash.left = flash.right = 0;
   // A held physical handle must not become a shot/motion on a scene switch.
-  if(inputSource === 'telemetry') suspend();
-  action({type:'scene',value:scene}); action({type:'input',left:0,right:0});
+  suspend(); sim.dispatch({type:'scene',value:scene});sim.dispatch({type:'new-round'});
+  tutorial.reset(scene,sim.snapshot()); render();
 };
+$('tutorial-replay').onclick = () => { zeroInputs();sim.dispatch({type:'new-round'});tutorial.reset(sim.snapshot().scene,sim.snapshot());render(); };
+$('tutorial-enter').onclick = () => {
+  if (!wear.canContinue(Date.now(),inputSource === 'telemetry') || !tutorial.enter()) return;
+  zeroInputs();sim.dispatch({type:'new-round'});render();
+};
+function renderTutorial(preflight) {
+  const state=tutorial.snapshot(), step=state.steps[Math.min(state.index,2)];
+  const renderKey=JSON.stringify([state.scene,state.index,state.phase,preflight,layout]);
+  if (renderKey === tutorialRenderKey) return;
+  tutorialRenderKey=renderKey;
+  $('game-tutorial').hidden=layout === 'single-legs';
+  $('tutorial-title').textContent=`${state.title} · 操作演示`;
+  $('tutorial-phase').textContent=state.phase === 'play' ? '画面试玩' : state.phase === 'complete' ? '教学已完成' : '教学练习 · 不计入试玩';
+  state.steps.forEach((item,index) => {
+    $('tutorial-step-'+(index+1)).textContent=`${index < state.index ? '✓ ' : ''}${item.title}`;
+    $('tutorial-step-'+(index+1)).setAttribute('aria-current',String(state.phase === 'learning' && index === state.index));
+  });
+  for (const side of ['left','right','pause']) $('tutorial-demo-'+side).classList.toggle('active', state.phase === 'learning' && step.side === side);
+  $('tutorial-current').textContent=!preflight ? '先完成穿戴检查，再开始操作练习' : state.phase === 'play' ? '已进入画面试玩' : state.phase === 'complete' ? '三步完成，可以进入画面试玩' : step.title;
+  $('tutorial-hint').textContent=state.phase === 'play' ? '教学练习已清空。重新握持并点击就位开始，Esc 随时暂停。' : state.phase === 'complete' ? '点击进入后清空练习结果，再主动就位开始。' : `${step.hint} 尚未就位时，先按左侧准备流程完成校准和画面就位。`;
+  $('tutorial-enter').disabled=!preflight || state.phase !== 'complete';
+}
 
 function render() {
   const s = sim.snapshot(), ready = s.stage === 'ready' && s.holding;
+  const preflight=renderWear();
+  renderTutorial(preflight);
   const sourceStatus = renderInput(), measured = inputSource === 'telemetry';
   const handsEnabled = layout !== 'single-legs';
   $('layout-summary').textContent = layout === 'dual' ? '两套独立绑定：腿部负责行走，手部负责左右操作杆。本页只验证手部；两套游戏联动待联调。'
     : handsEnabled ? '一套外骨骼的双杆用于手部，腿部输入关闭。' : '一套外骨骼用于腿部行走，本页手部输入关闭。腿部体验请返回「设备与能力」。';
-  $('input-source').disabled = !handsEnabled;
-  $('release').disabled = !handsEnabled;
-  $('damping').disabled = !handsEnabled;
+  $('input-source').disabled = false;
+  $('release').disabled = !handsEnabled || !preflight;
+  $('damping').disabled = !handsEnabled || !preflight;
   $('release').checked = s.released; $('grip').checked = s.holding;
-  $('grip').disabled = !s.calibrated;
+  $('grip').disabled = !s.calibrated || !preflight;
   $('calibrate').textContent = measured ? '应用角度校准' : '校准模拟中位';
-  $('calibrate').disabled = !s.released || s.stage === 'raising' || s.stage === 'ready' || (measured && !sourceStatus.calibrated);
+  $('calibrate').disabled = !preflight || !s.released || s.stage === 'raising' || s.stage === 'ready' || (measured && !sourceStatus.calibrated);
   $('raise').textContent = measured ? '画面就位，开始角度试玩' : '抬起到握持位置';
-  $('raise').disabled = !s.calibrated || !s.holding || s.stage === 'raising' || s.stage === 'ready' || (measured && !sourceStatus.centered);
+  $('raise').disabled = !preflight || !s.calibrated || !s.holding || s.stage === 'raising' || s.stage === 'ready' || (measured && !sourceStatus.centered);
   $('pause').disabled = !s.holding && s.stage !== 'raising';
-  $('left').disabled = $('right').disabled = !ready || measured;
+  $('left').disabled = $('right').disabled = !preflight || !ready || measured;
   if (measured) { $('left').value=String(s.left*100); $('right').value=String(s.right*100); }
-  $('fire').disabled = !ready || s.scene !== 'range';
+  $('fire').disabled = !preflight || !ready || s.scene !== 'range';
   $('fire').hidden = s.scene !== 'range';
   $('fire-right').disabled = $('fire').disabled; $('fire-right').hidden = $('fire').hidden;
   $('stage-badge').textContent = !handsEnabled ? '单套腿部 · 手部关闭' : s.stage === 'legs' ? '手部试玩 · 待准备' : names[s.stage] || '模拟已停止';
@@ -144,7 +250,7 @@ function render() {
     : s.stage === 'raising' ? '支撑正在画面中缓慢抬起。取消握持可随时停止。'
     : ready ? measured ? '已就位。前推或后拉两根支撑杆，分别操控左右输入。' : '已就位。拖动左右输入，或使用键盘操作。'
     : '点击抬起到握持位置，继续模拟。';
-  $('status').textContent = handsEnabled ? status : '当前选择单套腿部。切换为双手配置后，可重新准备试玩。';
+  $('status').textContent = !preflight ? '请先完成上方穿戴自查，确认后再校准和试玩。' : handsEnabled ? status : '当前选择单套腿部。按上方引导前往腿部设备检查。';
   $('damping-value').textContent = `${Math.round(s.damping*100)}%`;
   $('damping').value = String(s.damping*100);
   $('left-value').textContent = `${Math.round(s.left*100)}%`;
@@ -232,7 +338,7 @@ function keyboardInput(key) {
 }
 window.addEventListener('keydown',event=>{
   const key=event.key.toLowerCase();
-  if(key==='escape'){event.preventDefault();suspend();return;}
+  if(key==='escape'){event.preventDefault();suspend(true);return;}
   if(event.ctrlKey||event.metaKey||event.altKey||!['a','d','j','l','f','h'].includes(key))return;
   if(event.target?.closest?.('select,textarea,input:not([type=range])') || event.target?.isContentEditable)return;
   if(inputSource === 'telemetry' && !['f','h'].includes(key))return;
@@ -244,21 +350,23 @@ window.addEventListener('keyup',event=>{const key=event.key.toLowerCase();if(key
 function frame(now) {
   raf=null; if(document.hidden)return;
   const dt=Math.max(0,(now-previous)/1000);previous=now;
+  if (!wear.canContinue(Date.now(),inputSource === 'telemetry') && ['raising','ready'].includes(sim.snapshot().stage)) invalidateWearPlay('穿戴或连接检查已失效，请重新确认');
   if(inputSource === 'telemetry') {
     const input=angleInput.axes(now,dt), s=sim.snapshot();
     if(!input && ['raising','ready'].includes(s.stage)) { suspend(); telemetryNote='数据已过期或校准失效，画面暂停；恢复后回到中位并重新就位'; }
     else if(input && s.stage==='ready') sim.dispatch({type:'input',...input});
   }
   const state=sim.tick(dt);
+  tutorial.observe(state);
   if(dt>0.25){zeroInputs();telemetryNote='页面更新中断，旧输入已清除，请重新就位';}
   for(const side of ['left','right']) flash[side]=Math.max(0,flash[side]-Math.min(dt,.05)*4);
   render();draw(state);raf=requestAnimationFrame(frame);
 }
 function startFrames(){previous=performance.now();if(raf===null&&!document.hidden)raf=requestAnimationFrame(frame);}
-function stopFrames(){if(raf!==null)cancelAnimationFrame(raf);raf=null;stopReading('离开页面后读取已停止，请重新开始并校准');}
+function stopFrames(){if(raf!==null)cancelAnimationFrame(raf);raf=null;resetWear('离开页面后检查已清空，返回后请重新自查');render();}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopFrames();else startFrames();});
 window.addEventListener('blur',suspend);
-window.addEventListener('offline',()=>stopReading('网络不可用，读取已停止'));
+window.addEventListener('offline',()=>{ resetWear('网络不可用，检查和读取已停止');render(); });
 window.addEventListener('pagehide',stopFrames);
 window.addEventListener('pageshow',startFrames);
 render();draw(sim.snapshot());startFrames();

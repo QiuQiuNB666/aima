@@ -91,6 +91,38 @@ test('single hand mode can reuse the sole service port and never probes legs',as
   assert.throws(()=>createConsoleServer({exoskeletonMode:'automatic'}),/EXOSKELETON_MODE/);
 });
 
+test('wear checks are read-only, inspect only active roles, and never invent strap or grip sensors',async t=>{
+  const app=await appFixture(t,{handsSource:true});
+  const value=(await app.request('/api/wear-check')).json;
+  assert.equal(value.schema,'aima.wear-check.v1');assert.equal(value.layout,'single-hands');
+  assert.equal(value.devices.length,1);assert.equal(value.devices[0].role,'hands');assert.equal(value.devices[0].roleVerified,true);
+  assert.equal(value.devices[0].source,'hardware');assert.equal(value.devices[0].fresh,true);
+  assert.deepEqual(value.sensorChecks,{straps:null,grip:null,mount:null});
+  assert.equal(value.wearVerified,false);assert.equal(value.hardwareOutput,false);
+  assert.equal(app.probes,0);assert.equal(app.audioCalls,0);assert.equal(app.requests.length,1);
+  assert.equal(app.requests[0].method,'GET');assert.equal(app.requests[0].url,'/state');
+  assert.equal((await app.request('/api/wear-check',{method:'POST'})).status,405);
+  assert.equal((await app.request('/api/wear-check?mode=dual')).status,400);
+  assert.equal((await app.request('/api/wear-check',{headers:{Origin:'https://evil.example'}})).status,403);
+  assert.equal(app.requests.length,1);
+});
+
+test('leg and dual wearing checks retain independent role evidence and no inferred verification',async t=>{
+  const single=await appFixture(t);
+  const legacy=(await single.request('/api/wear-check')).json;
+  assert.equal(legacy.devices.length,1);assert.equal(legacy.devices[0].role,'legs');assert.equal(legacy.devices[0].roleVerified,false,'Old unlabeled service cannot prove the role');
+  let legReads=0,handReads=0;
+  const leg=await listen(t,(_req,res)=>{legReads++;send(res,report({link:{port:'COM5',role:'legs',age_ms:10}}));});
+  const hand=await listen(t,(_req,res)=>{handReads++;send(res,report({link:{port:'COM6',role:'hands',age_ms:999}}));});
+  const dual=await appFixture(t,{shellosPort:leg.port,handsPort:hand.port,exoskeletonMode:'dual'});
+  const values=await Promise.all([dual.request('/api/wear-check'),dual.request('/api/wear-check')]);
+  const rows=values[0].json.devices;
+  assert.deepEqual(rows.map(row=>row.role),['legs','hands']);assert.equal(rows[0].fresh,true);assert.equal(rows[1].fresh,false);
+  assert.equal(rows[0].roleVerified,true);assert.equal(rows[1].roleVerified,true);
+  assert.equal(legReads,1);assert.equal(handReads,1);assert.equal(dual.probes,0);
+  assert.equal(values[0].json.wearVerified,false);
+});
+
 test('single legs ignores dormant hand port; single hands never falls back to legs',async t=>{
   const legs=await appFixture(t,{handsSource:true,exoskeletonMode:'single-legs'});
   assert.equal((await legs.request('/api/hands-telemetry')).json.error,'HANDS_ROLE_DISABLED');

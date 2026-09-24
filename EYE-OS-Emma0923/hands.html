@@ -12,7 +12,9 @@
   <main>
     <div class="heading"><div><p class="eyebrow">TWO HANDS. NEW POSSIBILITIES.</p><h1>双手，接管世界<span>。</span></h1><p class="intro">抬起解绑的支撑杆，化身左右操作杆。让双手和双腿，共同进入游戏。</p></div><span class="sim-badge">画面试玩 · 不驱动电机</span></div>
     <section class="input-card card" aria-labelledby="input-title">
-      <div class="input-top"><div><h2 id="input-title">外骨骼双杆操控</h2><p class="hint">一套也能玩，第二套按需加入。每套设备只承担一个用途。</p></div><label for="layout-mode">试玩配置<select id="layout-mode"><option value="single-hands">一套 · 双手操作杆</option><option value="single-legs">一套 · 腿部行走</option><option value="dual">两套 · 腿部 + 双手</option></select></label><label for="input-source">输入来源<select id="input-source"><option value="keyboard">开发试玩 · 键盘 / 滑杆</option><option value="telemetry">手部外骨骼角度 · 只读</option></select></label></div>
+      <div class="section-top"><h2 id="input-title">01 · 选择这次的穿戴方式</h2><span class="small-label">先选数量，再选用途</span></div>
+      <div class="wear-count" role="group" aria-label="外骨骼数量"><button id="count-single" aria-pressed="true"><strong>一套外骨骼</strong><span>腿部或双手，选一种用途</span></button><button id="count-dual" aria-pressed="false"><strong>两套外骨骼</strong><span>一套管腿，一套管双手</span></button></div>
+      <div class="input-top"><label id="single-role" for="layout-mode">单套用途<select id="layout-mode"><option value="single-hands">双手 · 两根操作杆</option><option value="single-legs">腿部 · 行走</option><option value="dual" hidden>两套 · 腿部 + 双手</option></select></label><label for="input-source">使用方式<select id="input-source"><option value="keyboard">流程演练 · 键盘 / 滑杆</option><option value="telemetry">已连接设备 · 角度只读</option></select></label></div>
       <p id="layout-summary" class="status" role="status">一套外骨骼的双杆用于手部，腿部输入关闭。</p>
       <p class="hint">切换会清除本页输入和校准。连接真机读取时，配置须与本机服务一致；此选项不会切换电机用途或启动另一套设备。</p>
       <div id="telemetry-controls" hidden>
@@ -23,6 +25,44 @@
         <div class="capture-row"><button class="button plain" id="capture-center" disabled>记录中位</button><button class="button plain" id="capture-back" disabled>记录后拉</button><button class="button plain" id="capture-forward" disabled>记录前推</button><button class="button secondary" id="export-calibration" disabled>导出观测记录</button></div>
         <p id="calibration-summary" class="hint">尚未记录。三点校准只用于画面映射。</p>
       </div>
+    </section>
+    <section class="wear-card card" aria-labelledby="wear-title">
+      <div class="section-top"><h2 id="wear-title">02 · 穿戴自查</h2><span class="wear-progress" id="wear-progress">0 项已确认</span></div>
+      <p class="wear-intro" id="wear-intro">按本次用途逐项确认，确认后再进行校准和试玩。</p>
+      <p class="hint" id="wear-context">当前是流程演练，勾选只演示步骤，不保存为真实穿戴记录。</p>
+      <p class="wear-safety">安全状态：穿戴传感器尚未接入，真机启动未开放。本人自查与游戏教学都不能代替绑带、握持、固定和急停的硬件检测。</p>
+      <div class="wear-device"><div><strong>设备连接检查</strong><p class="hint">只读连接、角色与角度数据。绑带、固定与握持尚无传感器，需要本人确认。</p></div><div class="button-row"><button class="button secondary" id="wear-read">检查设备连接</button><button class="button plain" id="wear-stop-check" disabled>停止检查</button></div></div>
+      <div class="wear-device-results"><p id="wear-device-legs">腿部 · 尚未检查</p><p id="wear-device-hands">手部 · 尚未检查</p></div>
+      <p id="wear-device-note" class="hint" role="status">流程演练可先完成自查；使用真实角度还需连接检查通过。</p>
+      <div class="wear-checks">
+        <fieldset><legend>共同准备 <small>本人确认</small></legend>
+          <label><input type="checkbox" id="wear-area"><span>活动空间已留好<small>周围没有容易碰到的人、物或松散线缆，站立位置稳妥。</small></span></label>
+          <label><input type="checkbox" id="wear-stop"><span>知道如何暂停与停止<small>已找到软件暂停和设备的本机停止方式；需要时能及时操作。</small></span></label>
+        </fieldset>
+        <fieldset id="wear-legs"><legend>腿部这套 <small>本人确认</small></legend>
+          <label><input type="checkbox" id="wear-leg-fit"><span>腰部与机身固定妥当<small>按厂家穿戴说明调整贴合，确认没有明显滑移或夹压。</small></span></label>
+          <label><input type="checkbox" id="wear-leg-left"><span>左侧腿部绑带已固定<small>连接位置与走线已检查，活动时不会被松散带子绊住。</small></span></label>
+          <label><input type="checkbox" id="wear-leg-right"><span>右侧腿部绑带已固定<small>左右分别核对，不用一侧的确认代替另一侧。</small></span></label>
+        </fieldset>
+        <fieldset id="wear-hands"><legend>双手这套 <small>本人确认</small></legend>
+          <label><input type="checkbox" id="wear-hand-fit"><span>腰部固定仍然有效<small>解绑的是腿部绑带，机身仍按已确认的手持方案固定。</small></span></label>
+          <label><input type="checkbox" id="wear-hand-release"><span>两侧腿部绑带已解除并收好<small>先托稳支撑杆，按已确认的方式解绑，避免带子缠绕。</small></span></label>
+          <label><input type="checkbox" id="wear-hand-support"><span>支撑杆已托稳，失力支撑已安排<small>按现场确认的机械方案支撑，不依靠网页勾选让杆件自动悬空。</small></span></label>
+          <label><input type="checkbox" id="wear-hand-grip"><span>左右手均能舒适握持<small>握持位置可触及、没有夹手或明显不适；这是本人确认，尚非握持检测。</small></span></label>
+        </fieldset>
+        <fieldset id="wear-dual"><legend>两套一起穿 <small>本人确认</small></legend>
+          <label><input type="checkbox" id="wear-dual-roles"><span>两套设备和用途已分别标清<small>腿部套、手部套及对应线缆一一对应，没有将同一套重复分配。</small></span></label>
+          <label><input type="checkbox" id="wear-dual-clearance"><span>两套的杆件与固定位置没有干涉<small>按工程师确认的组合方式穿戴，已分别检查活动空间与走线。</small></span></label>
+        </fieldset>
+      </div>
+      <div class="wear-complete"><div><strong id="wear-result">等待逐项自查</strong><p class="hint" id="wear-result-note">自查结果不会授权电机输出，也不代表传感器已确认穿戴完整。</p></div><div class="button-row"><button class="button plain" id="wear-reset">重新自查 / 换人</button><button class="button primary" id="wear-confirm" disabled>确认自查，查看引导</button></div></div>
+    </section>
+    <section class="wear-tutorial card" id="wear-tutorial" aria-labelledby="wear-guide-title" hidden>
+      <div class="section-top"><h2 id="wear-guide-title">03 · 使用引导</h2><span id="wear-guide-badge" class="source-badge">流程演练</span></div>
+      <ol><li id="wear-guide-1"></li><li id="wear-guide-2"></li><li id="wear-guide-3"></li></ol>
+      <p class="hint">动作不符合预期时先暂停，再检查角色与校准。刷新页面、换人或换穿戴方式后请重新自查。</p>
+      <a id="wear-leg-guide" class="button secondary" href="index.html#device">前往腿部设备检查</a>
+      <p id="wear-hand-guide" class="hint">下一步：按下方「准备双手模式」完成模拟解绑、校准与就位。真实角度输入需要先记录三个舒适位置。</p>
     </section>
     <div class="workspace">
       <section class="setup card" aria-labelledby="setup-title">
@@ -43,6 +83,14 @@
       <section class="play card" aria-labelledby="play-title">
         <div class="section-top"><h2 id="play-title">左右双杆，两种玩法</h2><span class="small-label">02 / PLAY</span></div>
         <div class="scene-picker" role="group" aria-label="体验场景"><button id="scene-range" class="selected" aria-pressed="true">脉冲靶场</button><button id="scene-excavator" aria-pressed="false">挖掘机</button></div>
+        <div class="game-tutorial" id="game-tutorial" aria-labelledby="tutorial-title">
+          <div class="section-top"><h3 id="tutorial-title">脉冲靶场 · 操作演示</h3><span id="tutorial-phase" class="source-badge">教学练习</span></div>
+          <ol class="tutorial-steps"><li id="tutorial-step-1"></li><li id="tutorial-step-2"></li><li id="tutorial-step-3"></li></ol>
+          <div class="tutorial-demo" aria-hidden="true"><span id="tutorial-demo-left">L ↑</span><span id="tutorial-demo-pause">Ⅱ</span><span id="tutorial-demo-right">R ↑</span></div>
+          <strong id="tutorial-current">先看演示，再跟着做</strong><p id="tutorial-hint" class="hint"></p>
+          <div class="button-row"><button class="button plain" id="tutorial-replay">重新学习</button><button class="button secondary" id="tutorial-enter" disabled>教学完成，进入画面试玩</button></div>
+          <p class="hint">练习不计入后续试玩；切换游戏会开始对应教学。教学完成不改变穿戴检查或电机权限。</p>
+        </div>
         <div class="viewport"><canvas id="scene" width="1000" height="520" aria-label="模拟支撑抬起与双手游戏反馈动画"></canvas><span id="stage-badge" class="stage-badge">腿部模式</span><span class="viewport-note">VIRTUAL PLAYGROUND</span></div>
         <div class="scene-copy"><div><h3 id="scene-title">让每一次触发，都有回应。</h3><p id="scene-hint">前推哪侧操作杆，就触发哪侧枪；回拉后可再次前推。左右脉冲独立，仅显示反馈。</p></div><div class="fire-buttons"><button class="button primary" id="fire">左枪 <kbd>F</kbd></button><button class="button primary" id="fire-right">右枪 <kbd>H</kbd></button></div></div>
         <div class="axes">
