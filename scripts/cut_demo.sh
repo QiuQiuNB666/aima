@@ -290,8 +290,8 @@ print(f"1-0.75*({e})" if terms else "1")
 PYE
 )
   local m=$((k + 1)); in+=(-stream_loop -1 -i "$MUSIC")     # 配乐只有 24 / 45 s，长片循环垫底
-  fc="${fc}[$m:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:$t,volume=0.55,afade=t=in:d=1.5,afade=t=out:st=$fo:d=1.5,volume='$duck':eval=frame[md];"
-  fc="${fc}anoisesrc=c=brown:r=48000:a=0.5:d=$t,lowpass=f=320,volume=0.07,aformat=channel_layouts=stereo[wind];"
+  fc="${fc}[$m:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:$t,volume=${MUSICVOL:-0.55},afade=t=in:d=1.5,afade=t=out:st=$fo:d=1.5,volume='$duck':eval=frame[md];"
+  fc="${fc}anoisesrc=c=brown:r=48000:a=0.5:d=$t,lowpass=f=320,volume=${WIND:-0.07},aformat=channel_layouts=stereo[wind];"
   fc="${fc}[md][voice][wind]amix=inputs=3:normalize=0:dropout_transition=0,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,afade=t=in:d=0.3,afade=t=out:st=$fo:d=1.5[a];[0:v]fade=t=in:d=0.5,fade=t=out:st=$fo:d=1.5[v]"
   ffmpeg -y -v error "${in[@]}" -filter_complex "$fc" -map "[v]" -map "[a]" -c:v libx264 -preset veryfast -crf 21 -maxrate 4M -bufsize 8M -pix_fmt yuv420p -r $FPS -c:a aac -b:a 160k -movflags +faststart -t "$t" "$out"
   cp "$out" "$ROOT/docs/提交/视频素材/$(basename "$out")"
