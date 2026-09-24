@@ -26,6 +26,8 @@ case ${WHAT:-auto} in
   auto)
     if ! pgrep -f "$PAT" >/dev/null || ! state | grep -q '"safety"'; then WHAT=shellos
     elif [ "$(f 'd["link"]["age_ms"] < 500')" != True ]; then WHAT=exo
+    elif [ "$(f 'd["safety"]["state"] in ("ARMED","ACTIVE")')" != True ]; then
+      echo "判断：安全状态 $(f 'd["safety"]["state"]')（$(f 'd["safety"]["reason"]')）。先确认穿戴者站稳 → 手柄 ○ 或仪表盘「重新上膛」；反复掉：scripts/booth_check.sh 看控制环"; exit 1
     elif [ "$(f 'd["pad"]["connected"] or d["sim"]["on"]')" != True ]; then WHAT=pad
     elif [ "$(f 'd["brain"]["up"]')" != True ]; then WHAT=brain
     elif ! pgrep -f ".booth-chrome-$PORT/game" >/dev/null; then WHAT=chrome
@@ -39,6 +41,7 @@ case ${WHAT:-auto} in
       [ "$(f 'd["safety"]["state"] in ("ARMED","ACTIVE")')" = True ] || echo "→ 还是 $(f 'd["safety"]["state"]')：按手柄 ○（或仪表盘「重新上膛」）"
     else echo "40 s 还没帧：换根 Type-C 线 / 换 USB 口；ls /dev/cu.usbserial* 看设备在不在；还不行 scripts/booth_recover.sh shellos"; exit 1; fi ;;
   pad)
+    [ "$(f 'd["sim"]["on"]')" = True ] && { echo "模拟模式：不认手柄，用网页「按住助力」按钮（或 --force-deadman）代替 R2"; exit 0; }
     echo "手柄断了。做：按 PS 键（蓝牙）或直接插 USB 线；ShellOS 的手柄线程自动重扫"
     if wait_for 30 "d['pad']['connected']"; then echo "手柄回来了。让玩家按住 R2 试一下力"
     else echo "30 s 没认到：手柄长按 PS 10 s 硬重启，或系统设置 → 蓝牙里断开再连；实在不行仪表盘的死人开关按钮代替 R2"; exit 1; fi ;;
@@ -68,13 +71,12 @@ case ${WHAT:-auto} in
     for i in $(seq 30); do state | grep -q '"safety"' && break; sleep 1; done
     state | grep -q '"safety"' || { echo "30 s 没起来：tr '\\r' '\\n' < /tmp/shellos$([ "$PORT" = 8765 ] || echo -$PORT).log | tail -20"; exit 1; }
     if [ -f "$LAST" ]; then
-      w=$($PY -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("world") or "")' "$LAST")
-      who=$($PY -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("wearer") or "")' "$LAST")
+      IFS='|' read -r w who < <($PY -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("world") or "", d.get("wearer") or "", sep="|")' "$LAST")   # 一次 python（| 不是空白，空世界不会把穿戴者挤到前面）：机器忙时每起一个进程都要几百 ms
       [ -n "$who" ] && [ "$who" != anon ] && post /wearer "{\"name\":\"$who\"}" >/dev/null
       [ -n "$w" ] && post /terrain "{\"preset\":\"$w\"}" >/dev/null
       echo "恢复：世界 $(f '(d.get("terrain") or {}).get("preset")')  穿戴者 $(f 'd["wearer"]')（影子在内存里，重起后要再爬一圈）"
     fi
-    pgrep -f ".booth-chrome-$PORT/game" >/dev/null && echo "Chrome 会自己重连 /state，不用动" ;;
+    if pgrep -f ".booth-chrome-$PORT/game" >/dev/null; then echo "Chrome 会自己重连 /state，不用动"; fi ;;   # 用 if：&& 在 Chrome 不在时让整个脚本退出码变 1
   chrome)
     scripts/booth_up.sh --chrome --http "$PORT" ;;
   *) echo "不认识：${WHAT}（exo | pad | brain | shellos | chrome）"; exit 2 ;;

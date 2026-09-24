@@ -6,7 +6,7 @@
 cd "$(dirname "$0")/.."
 export LC_ALL=en_US.UTF-8   # nohup / launchd 起时没 LANG：bash 3.2 会把 $VAR 后面的中文吃掉、pgrep 遇到带中文的进程命令行报 illegal byte sequence
 PORT=8765 SKIP=${BOOTH_SKIP:-}
-while [ $# -gt 0 ]; do case "$1" in --http) PORT=$2; shift ;; --skip) SKIP=$2; shift ;; esac; shift; done
+while [ $# -gt 0 ]; do case "$1" in --http) PORT=$2; shift ;; --skip) SKIP=$SKIP,$2; shift ;; esac; shift; done
 BRAIN=${SHELLOS_BRAIN_PORT:-8790} TTS=${SHELLOS_TTS_PORT:-8791}
 PY=.venv/bin/python; [ -x $PY ] || PY=python3
 RED=0
