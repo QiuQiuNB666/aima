@@ -2,7 +2,7 @@
 """在展位 MacBook 本机跑的连拍（那台没有 node）：纯标准库 WebSocket 连本机无头 Chrome（--remote-debugging-port=9333，Metal GPU），
 Page.startScreencast 逐帧存 jpg；每帧顺手记 峰哥气泡文字 / 地形 pos / 路段 / 登顶（events.jsonl），剪辑时按气泡出现的毫秒摆同期声。
     python3 rec_mac.py <url> <outdir> <秒数> [base=http://127.0.0.1:8765 cdp=http://127.0.0.1:9333 walk=1 walkat=<ms> stopat=<ms>
-                        hud=0 pre=<js> at=<ms>:<js>;… js=<表达式> q=85 width=1920 height=1080 warm=1500 ready=60000 cadence=110 autowait=1]
+                        hud=0 pre=<js> at=<ms>:<js>;… js=<表达式> stopsummit=1 q=85 width=1920 height=1080 warm=1500 ready=60000 cadence=110 autowait=1]
 输出：<outdir>/f%04d.jpg + times.txt + events.jsonl；stdout 最后一行 fps=xx frames=nn
 """
 import base64, json, os, socket, struct, sys, threading, time, urllib.request
@@ -138,6 +138,7 @@ while time.time() - state['T0'] < float(secs):
     try: e = json.loads(evaluate(EVJS) or '{}')
     except Exception: pass
     state['ev'] = {'pos': T.get('pos'), 'seg': T.get('segment'), 'laps': T.get('laps'), **e}
+    if O.get('stopsummit') and e.get('summit'): want = False       # 登顶就停：留住旗子 / 环绕镜头，别接着走下一圈
     if want: set_walk(not (aw and T.get('segment') == 'wait'))
     elif walking[0]: set_walk(False)
     time.sleep(0.2)

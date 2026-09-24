@@ -11,7 +11,7 @@
 #   2. 来源项 clip|<frames 目录>|<起秒>|<止秒>[|倍速]   无头 Chrome 连拍（scratchpad/rec2.mjs：f%04d.jpg + times.txt + events.jsonl）按时间窗切片段，
 #                                                   气泡文字出现的那一毫秒 → 同一句峰哥克隆声 wav（tts 缓存）作为同期声，和画面对上
 #   3. img|秒|截图名|cover/fit|in/out  docs/提交/截图 静帧 Ken Burns（兜底）；ph|秒|一句话|副行 占位卡（明早实拍替换）
-# 旁白：$MAT/vo/<id>.wav（峰哥克隆声，brain/tts.py）。配乐：$MAT/music/*.mp3（CC BY，见 docs/提交/素材授权.md），旁白 / 同期声处 sidechain 压 −12 dB。
+# 旁白：$MAT/vo/<id>.wav（峰哥克隆声，brain/tts.py）。配乐：$MAT/music/*.mp3（CC BY，见 docs/提交/素材授权.md），旁白 / 同期声处按包络压 −12 dB。
 set -euo pipefail
 export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -25,6 +25,7 @@ B=$MAT/build
 W=1920; H=1080; FPS=30
 FADE=${FADE:-0.3}          # 每段首尾淡入淡出秒数（0 = 硬切）
 TAIL=${TAIL:-2}            # 登顶后留白秒数（V ≥ 3）
+LUMA=${LUMA:-}             # 游戏段亮度对齐目标（YAVG，V=3 用 95；空 = 不动）
 MI=${MI:-mci}              # 连拍补帧：mci（运动补偿）| blend（叠化，快）| dup（不补）
 ENC=(-c:v libx264 -preset veryfast -crf 21 -pix_fmt yuv420p -r $FPS -an)
 REPO_URL="github.com/QiuQiuNB666/aima"
@@ -166,10 +167,15 @@ clip() { MAT=$MAT TTS=$TTS CROP=${7:-} SKIP=${8:-} python3 "$B/clip.py" "$MAT/fr
 fit() { ffmpeg -y -v error -i "$1" -vf "tpad=stop_mode=clone:stop_duration=$2,format=yuv420p" -t "$2" "${ENC[@]}" "$3"; }
 
 # 叠字幕 / 角标 / 水印 / 淡入淡出 → seg
+# luma <src>：平均亮度（signalstats YAVG，0–255）；LUMA=<目标> 时游戏段按它做 eq 亮度对齐（只动 ±0.08，别把雪山压灰）
+luma() { ffmpeg -hide_banner -i "$1" -vf "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" -f null /dev/null 2>/dev/null | grep -o "YAVG=[0-9.]*" | awk -F= '{s+=$2;n++} END{if(n)printf "%.1f", s/n; else print 0}'; }
 overlay() {   # overlay <src> <id> <cap1> <cap2> <wm> <秒>
-  local src=$1 id=$2 wm=$5 s=$6 fc in last
+  local src=$1 id=$2 wm=$5 s=$6 fc in last pre="null"
+  if [ -n "${LUMA:-}" ] && [ "$wm" = 1 ]; then
+    local y; y=$(luma "$src"); pre=$(python3 -c "print('eq=brightness=%.3f' % max(-0.08, min(0.08, ($LUMA-$y)/255*0.6)))"); echo "    亮度 $y → $pre"
+  fi
   png cap "$B/cap/c_$id.png" "$3" "$4" $([ "$wm" = 1 ] && echo 1180 || echo 960)
-  in=(-i "$src" -i "$B/cap/c_$id.png" -i "$B/cap/tag.png"); fc="[0:v][1:v]overlay=0:0[a];[a][2:v]overlay=0:0[b]"; last=b
+  in=(-i "$src" -i "$B/cap/c_$id.png" -i "$B/cap/tag.png"); fc="[0:v]$pre[p];[p][1:v]overlay=0:0[a];[a][2:v]overlay=0:0[b]"; last=b
   if [ "$wm" = 1 ]; then in+=(-i "$B/cap/wm.png"); fc="$fc;[b][3:v]overlay=0:0[c]"; last=c; fi
   if [ "$(python3 -c "print(1 if $FADE>0 else 0)")" = 1 ]; then fc="$fc;[$last]fade=t=in:d=$FADE,fade=t=out:st=$(python3 -c "print(max(0,$s-$FADE))"):d=$FADE[f]"; last=f; fi
   ffmpeg -y -v error "${in[@]}" -filter_complex "$fc" -map "[$last]" -t "$s" "${ENC[@]}" "$B/seg/$id.mp4"
@@ -235,10 +241,10 @@ card_seg() {
 }
 
 # ---------- 拼接 + 混音 ----------
-# final <出mp4> <id…>：按顺序拼接；旁白 / 同期声按镜头起点 + 偏移摆位；配乐 sidechain 闪避 −12 dB；风声垫底；loudnorm
+# final <出mp4> <id…>：按顺序拼接；旁白 / 同期声按镜头起点 + 偏移摆位；配乐按旁白起止包络闪避 −12 dB；风声垫底；loudnorm
 final() {
   local out=$1; shift
-  local lst="$B/${out##*/}.txt" t=0 k=0 in=() fc="" mix="" dur vo v name off ms sync
+  local lst="$B/${out##*/}.txt" t=0 k=0 in=() fc="" mix="" dur vo v name off ms sync spans=""
   : > "$lst"
   in=(-f concat -safe 0 -i "$lst")
   for id in "$@"; do
@@ -250,15 +256,25 @@ final() {
       [ -s "$name" ] || { echo "  ! 缺旁白 $name"; continue; }
       ms=$(python3 -c "print(int(($t+$off)*1000))"); k=$((k + 1))
       in+=(-i "$name"); fc="$fc[$k:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${ms}|${ms}[v$k];"; mix="$mix[v$k]"
+      spans="$spans $(python3 -c "print('%.2f:%.2f' % ($t+$off, $t+$off+$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$name")))")"
     done
     t=$(python3 -c "print($t+$dur)")
   done
   local fo; fo=$(python3 -c "print(max(0,$t-1.5))")
-  # 人声总线 → 一路进混音、一路当配乐的 sidechain（旁白时压 −12 dB 左右）
-  fc="${fc}${mix}amix=inputs=$k:normalize=0:dropout_transition=0,volume=1.0,asplit=2[voice][sc];"
+  fc="${fc}${mix}amix=inputs=$k:normalize=0:dropout_transition=0,volume=1.0[voice];"
+  # 配乐闪避：按每句旁白 / 同期声的起止（上面 spans）生成增益包络，说话时 −12 dB（×0.25），前后 0.25 s 斜坡；确定性的，比 sidechain 好核对
+  local duck; duck=$(python3 - "$spans" <<'PYE'
+import sys
+r = 0.25; terms = []
+for sp in sys.argv[1].split():
+    a, b = sp.split(':'); terms.append(f"min(1,max(0,(t-{float(a)-r:.2f})/{r}))*min(1,max(0,({float(b)+r:.2f}-t)/{r}))")
+e = terms[0] if len(terms) == 1 else terms[0]
+for x in terms[1:]: e = f"max({e},{x})"
+print(f"1-0.75*({e})" if terms else "1")
+PYE
+)
   local m=$((k + 1)); in+=(-i "$MUSIC")
-  fc="${fc}[$m:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:$t,volume=0.55,afade=t=in:d=1.5,afade=t=out:st=$fo:d=1.5[m0];"
-  fc="${fc}[m0][sc]sidechaincompress=threshold=0.05:ratio=3:attack=40:release=600:makeup=1:level_sc=1.5[md];"
+  fc="${fc}[$m:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:$t,volume=0.55,afade=t=in:d=1.5,afade=t=out:st=$fo:d=1.5,volume='$duck':eval=frame[md];"
   fc="${fc}anoisesrc=c=brown:r=48000:a=0.5:d=$t,lowpass=f=320,volume=0.07,aformat=channel_layouts=stereo[wind];"
   fc="${fc}[md][voice][wind]amix=inputs=3:normalize=0:dropout_transition=0,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,afade=t=in:d=0.3,afade=t=out:st=$fo:d=1.5[a];[0:v]fade=t=in:d=0.5,fade=t=out:st=$fo:d=1.5[v]"
   ffmpeg -y -v error "${in[@]}" -filter_complex "$fc" -map "[v]" -map "[a]" -c:v libx264 -preset veryfast -crf 21 -maxrate 4M -bufsize 8M -pix_fmt yuv420p -r $FPS -c:a aac -b:a 160k -movflags +faststart -t "$t" "$out"
@@ -269,6 +285,7 @@ final() {
 # ---------- 镜头表（画面 / 字幕 / 旁白，见 docs/提交/演示视频-制作说明.md 分镜表；连拍时间窗见 build/shots.env） ----------
 # shots.env 由 scripts/shot_windows.py 从 frames/*/events.jsonl 算出（直升机落地 / 牦牛 / 吸氧 / 横梯 / 刀脊 / 登顶各在连拍的第几秒）
 [ -f "$B/shots.env" ] && . "$B/shots.env"
+[ "$V" -ge 3 ] && [ -z "$LUMA" ] && LUMA=95
 build_segs() {
   echo "== 片段（V=$V FADE=$FADE MI=${MI}）"
   png badge "$B/cap/tag.png" "峰哥 · AI 复刻音色 · 本人授权" tr
@@ -281,7 +298,7 @@ build_segs() {
   seg B06 3 "穿戴 ≈ 30 s（实测回填）" "" 0 "1c@0.2" "ph|3|anni 帮评委穿戴，掐表|加速到 3 s"
   seg R02 5 "峰哥导游：进山先讲一段" "固定话术 · 峰哥克隆声 · 本人授权" 1 "" "clip|lap|${T_GUIDE:-1}|$(python3 -c "print(${T_GUIDE:-1}+5)")|1||先顺着"
   seg R03 7 "屏幕上的坡 → 腿上的助力 / 阻力" "珠峰北坡 · 大本营 5200 m · ShellOS 控制 Hypershell" 1 "02b@0.2" "clip|lap|${T_HELI:-14}|$(python3 -c "print(${T_HELI:-14}+7)")|1||牦牛"
-  seg R04 4 "冰川上坡 · 牦牛让路 · 经幡猛风" "上坡 = 绿脉冲，有人在后面推" 1 "" "clip|summit|${Y_A:-1.5}|$(python3 -c "print(${Y_A:-1.5}+4)")"
+  seg R04 4 "冰川上坡 · 牦牛让路 · 经幡猛风" "上坡 = 绿脉冲，有人在后面推" 1 "" "clip|${SUMMIT_DIR:-summit}|${Y_A:-1.5}|$(python3 -c "print(${Y_A:-1.5}+4)")"
   seg R05 7 "台阶 = 支撑期阻力脉冲 · 软限 4 Nm" "北坳吸氧：站定才放行" 1 "03@0.2" "clip|lap|${T_OXY:-30}|$(python3 -c "print(${T_OXY:-30}+7)")"
   seg R05b 4 "腿上的力 · 一步一个脉冲 · 摆动期为 0" "实时 Nm · 绿 = 上坡 · 黄 = 台阶 · 蓝 = 下坡" 0 "03b@0.2" "clip|lap|${T_PULSE:-${T_OXY:-30}}|$(python3 -c "print(${T_PULSE:-${T_OXY:-30}}+4)")|1|820:300:20:760"
   seg R06 2 "髋相位力矩脉冲 · 摆动期为 0 · 软限 4 Nm" "" 0 "" "img|2|脉冲-上台阶-阻力.png|fit|in"
@@ -295,7 +312,7 @@ build_segs() {
   seg R09 4 "×4 · 旁边的影子是上一位" "" 1 "08@0.3" "clip|lap|${T_RIDGE:-48}|$(python3 -c "print(${T_RIDGE:-48}+16)")|4"
   seg R09L 5 "×4 · 旁边的影子是上一位" "" 1 "08@0.3 08b@2.6" "clip|lap|${T_RIDGE:-48}|$(python3 -c "print(${T_RIDGE:-48}+20)")|4"
   seg B03 1.5 "峰哥本人 · 肖像与音色已授权" "" 0 "" "ph|1.5|峰哥本人在展位看大屏 / 一句原声|3–5 s，不愿出镜就拍背影"
-  seg R10 $(python3 -c "print(6+$T)") "登顶 8848.86 m · 你是下一位的影子" "" 1 "g_summit@${S_G:-3.2}" "clip|summit|${S_A:-0}|$(python3 -c "print(${S_A:-0}+6+$T)")|1||all"
+  seg R10 $(python3 -c "print(6+$T)") "登顶 8848.86 m · 你是下一位的影子" "" 1 "g_summit@${S_G:-3.2}" "clip|${SUMMIT_DIR:-summit}|${S_A:-0}|$(python3 -c "print(${S_A:-0}+6+$T)")|1||all"
   seg X01 3 "跑酷 · 东京彩蛋 · 六座山" "" 1 "" "clip|parkour|1|2.5" "clip|tokyo|${K_A:-1}|$(python3 -c "print(${K_A:-1}+1.5)")"
   seg B04 3 "松手 = 零力 · 死人开关 · 看门狗" "" 0 "10@0.3" "ph|3|真人松开扳机 → 仪表盘灯灭|从手指松开开始拍 4 s"
   card_seg T99 6 "峰哥亡命天涯" "骗腿，不骗眼睛 · AI 出主意，硬代码说了算" "团队 PRX · $REPO_URL|峰哥 · AI 复刻音色（本人授权）· 软限 4 Nm · 死人开关 · 看门狗|配乐 Our Story Begins · Kevin MacLeod (incompetech.com) · CC BY 4.0" "$QR" "11b@0.2 11@3.2"

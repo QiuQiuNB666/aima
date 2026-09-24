@@ -33,7 +33,8 @@ if lap:
     env['T_SUMMIT'] = first(lap, lambda e: e.get('summit')) or (bub(lap, '旗靠风') or end - 8)
     env['T_SUMMIT'] = max(0, env['T_SUMMIT'] - 2.0)
     env['T_CARD'] = first(lap, lambda e: e.get('x')) or 0     # 游戏屏右下决策卡（rec2 js= 记录）
-sm = load('summit')          # 正面机位单独跑一圈：登顶（body.summit）前 2 s 起
+sm = load('summit2') or load('summit')          # 正面机位单独跑一圈（summit2 = 登顶就停，留住旗子 / 环绕镜头）：登顶（body.summit）前 1 s 起
+env['SUMMIT_DIR'] = 'summit2' if load('summit2') else 'summit'
 if sm:
     env['Y_A'] = max(0, (bub(sm, '牦牛') or 2.5) - 1.0)      # 牦牛用正面机位那一圈
     env['S_A'] = max(0, (first(sm, lambda e: e.get('summit')) or bub(sm, '旗靠风') or sm[-1]['t'] / 1000 - 8) - 1.0)
