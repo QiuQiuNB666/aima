@@ -79,7 +79,7 @@ def test_gamepad_nudge_and_cycle():
     app.on_button(BTN["l1"]);    assert app.ctl.name == before
     app.set_ctl("dofc");         assert app.ctl.name == "dofc"             # 换控制律走仪表盘 / 接口
     app.on_button(BTN["right"]); assert abs(app.ctl.p("delay_s") - 0.16) < 1e-9   # 0.15 + 0.01
-    app.on_button(BTN["l1"]);    assert app.ctl.name == "constant"
+    app.on_button(BTN["l1"]);    assert app.ctl.name == "dofc"             # 锁定：仍是 dofc
     app.on_button(BTN["up"]);    assert app.ctl.p("tl") == 0.5            # 0 + 0.5
 
 
