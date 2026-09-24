@@ -90,6 +90,22 @@ elif kind == 'card':                               # card <out> <W> <H> <标题>
         d.rounded_rectangle(((W - qs) // 2 - 10, y + 10, (W + qs) // 2 + 10, y + 30 + qs), radius=10, fill=(236, 232, 246)); im.paste(q, ((W - qs) // 2, y + 20))
         center(d, y + 20 + qs + 16, '扫码进群 · 群码 9/30 前有效', tiny, DIM[:3], W)
     im.save(out)
+elif kind == 'stack':                              # stack <out> <标题> <副题> <行1|行2|…（自上而下）> <高亮行号(0 起)>：分层架构图，一行一层
+    W, H = 1920, 1080; title, sub, rows, hi = a[0], a[1], [s for s in a[2].split('|') if s], int(a[3])
+    im = Image.new('RGB', (W, H), BG); g = Image.new('RGB', (W, H), BG); gd = ImageDraw.Draw(g)
+    gd.ellipse((-W // 4, H // 2, W // 3, H + H // 3), fill=(52, 24, 96)); gd.ellipse((W * 2 // 3, -H // 3, W + W // 4, H // 2), fill=(38, 18, 72))
+    im = Image.blend(im, g.filter(ImageFilter.GaussianBlur(H // 6)), 0.9).convert('RGBA'); d = ImageDraw.Draw(im)
+    y = 70; y += center(d, y, title, font(64), INK[:3], W) + 14
+    if sub: y += center(d, y, sub, font(30, 5), DIM[:3], W) + 10
+    top = y + 24; bh = min(120, (H - top - 50) // len(rows) - 14); x0, x1 = 260, W - 260
+    for i, r in enumerate(rows):
+        name, _, desc = r.partition('：'); yy = top + i * (bh + 14); box = (x0, yy, x1, yy + bh)
+        if i == hi: im = glow(im, box, NEON[:3], 24); d = ImageDraw.Draw(im)
+        d.rounded_rectangle(box, radius=16, fill=(22, 17, 40, 255) if i != hi else (48, 26, 90, 255), outline=NEON2 if i == hi else (60, 50, 96), width=3 if i == hi else 2)
+        f1 = font(40); d.text((x0 + 36, yy + (bh - 40) // 2 - 6), name, font=f1, fill=NEON if i == hi else INK)
+        nw = d.textbbox((0, 0), name, font=f1)[2]
+        d.text((x0 + 36 + nw + 36, yy + (bh - 30) // 2 - 2), desc, font=font(30, 2), fill=INK if i == hi else DIM)
+    im.convert('RGB').save(out)
 PY
 png() { python3 "$B/png.py" "$@"; }
 
@@ -273,7 +289,7 @@ for x in terms[1:]: e = f"max({e},{x})"
 print(f"1-0.75*({e})" if terms else "1")
 PYE
 )
-  local m=$((k + 1)); in+=(-i "$MUSIC")
+  local m=$((k + 1)); in+=(-stream_loop -1 -i "$MUSIC")     # 配乐只有 24 / 45 s，长片循环垫底
   fc="${fc}[$m:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:$t,volume=0.55,afade=t=in:d=1.5,afade=t=out:st=$fo:d=1.5,volume='$duck':eval=frame[md];"
   fc="${fc}anoisesrc=c=brown:r=48000:a=0.5:d=$t,lowpass=f=320,volume=0.07,aformat=channel_layouts=stereo[wind];"
   fc="${fc}[md][voice][wind]amix=inputs=3:normalize=0:dropout_transition=0,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,afade=t=in:d=0.3,afade=t=out:st=$fo:d=1.5[a];[0:v]fade=t=in:d=0.5,fade=t=out:st=$fo:d=1.5[v]"
