@@ -1,0 +1,19 @@
+{
+  "label": "Emma0923",
+  "date": "2026-09-24",
+  "version": "0.2.0",
+  "deliveryBranch": "emma0923/audio-pack",
+  "sceneSnapshot": "9832875",
+  "previousAudioCommit": "fb58485",
+  "assetCount": 37,
+  "newAssetCount": 26,
+  "profiles": 8,
+  "worldRoutes": 8,
+  "mappedSegments": 66,
+  "extraInterfaces": [
+    "parkour"
+  ],
+  "mainGameAutoIntegrated": false,
+  "hardwareTest": "E06s listening and physical latency not verified",
+  "scope": "Only this package directory; optional selection and integration by colleagues"
+}

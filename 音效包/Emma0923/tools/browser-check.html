@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>音效包 · 浏览器解码检查</title>
+<style>body{font:16px/1.7 system-ui;max-width:900px;margin:40px auto;padding:0 20px;background:#15201b;color:#e2eedf}button{font:inherit;padding:12px}pre{white-space:pre-wrap}</style>
+<h1>浏览器无声解码检查</h1><p>使用 OfflineAudioContext 解码全部 WAV，不连接扬声器或任何硬件。</p>
+<button id="run">检查全部音频</button><p id="status" role="status">待开始</p><pre id="result"></pre>
+<script type="module">
+document.getElementById('run').onclick=async()=>{
+  const button=document.getElementById('run'),status=document.getElementById('status'),out=document.getElementById('result');
+  button.disabled=true;out.textContent='';
+  try{
+    const manifest=await (await fetch('../manifest.json')).json();
+    const ctx=new OfflineAudioContext(2,1,48000),rows=[];
+    for(const a of manifest.assets){
+      const r=await fetch('../'+a.file);if(!r.ok)throw Error(a.file+': HTTP '+r.status);
+      const b=await ctx.decodeAudioData(await r.arrayBuffer());
+      if(b.numberOfChannels!==2||b.sampleRate!==48000||Math.abs(b.duration-a.seconds)>.002)throw Error(a.file+': format mismatch');
+      rows.push(`${a.file}: ${b.duration.toFixed(3)}s / ${b.numberOfChannels}ch / ${b.sampleRate}Hz OK`);
+      status.textContent=`已检查 ${rows.length} / ${manifest.assets.length}`;
+    }
+    out.textContent=rows.join('\n');status.textContent=`通过：${rows.length} / ${manifest.assets.length}，未向扬声器输出声音`;
+  }catch(e){status.textContent='检查失败：'+e.message;}finally{button.disabled=false;}
+};
+</script></html>

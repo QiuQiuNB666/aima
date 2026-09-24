@@ -1,0 +1,1039 @@
+{
+  "version": 2,
+  "label": "Emma0923",
+  "updated": "2026-09-24",
+  "sourceCommit": "9832875",
+  "coordinateConvention": "zero-based game T.pos; endExclusive is exclusive; not physical distance",
+  "integration": "Asset package and lab only. Main game hooks are documented replacement points, not installed patches.",
+  "profiles": {
+    "dawn_mountain": {
+      "name": "泰山 · 十八盘",
+      "file": "taishan.wav",
+      "material": "stone",
+      "color": "#e7ba76",
+      "detail": "山风 · 鸟鸣 · 石阶"
+    },
+    "night_to_dawn": {
+      "name": "富士山 · 吉田线夜登",
+      "file": "fuji.wav",
+      "material": "gravel",
+      "color": "#adb9ff",
+      "detail": "高山阵风 · 火山碎石"
+    },
+    "cyber_night": {
+      "name": "赛博东京 · 夜行",
+      "file": "tokyo.wav",
+      "material": "stone",
+      "color": "#9be1f0",
+      "detail": "细雨 · 远处车流 · 街巷脚步"
+    },
+    "subtropical": {
+      "name": "梧桐山 · 好汉坡",
+      "file": "wutong.wav",
+      "material": "leaves",
+      "color": "#a9d3a5",
+      "detail": "林间鸟鸣 · 叶声 · 山脊风"
+    },
+    "grid": {
+      "name": "训练场",
+      "file": "training.wav",
+      "material": "stone",
+      "color": "#c4cbd5",
+      "detail": "默认静音 · 可选轻室内底音"
+    },
+    "snow_summit": {
+      "name": "珠峰 · 北坡",
+      "file": "everest_glacier.wav",
+      "material": "snow",
+      "color": "#b3d8f5",
+      "detail": "营地 · 冰川 · 横梯 · 刀脊风"
+    },
+    "cliff_path": {
+      "name": "华山 · 长空栈道",
+      "file": "huashan_cliff.wav",
+      "material": "stone",
+      "color": "#d9bc88",
+      "detail": "松风 · 木板 · 铁索与扣锁"
+    },
+    "parkour_rooftop": {
+      "name": "屋顶跑酷",
+      "file": "parkour_rooftop.wav",
+      "material": "stone",
+      "color": "#a8c2ff",
+      "detail": "屋顶风 · 车流 · 跳跃落地 · 机甲"
+    }
+  },
+  "routes": [
+    {
+      "id": "everest_north",
+      "name": "珠峰·北坡",
+      "theme": "snow_summit",
+      "total": 67,
+      "segments": [
+        {
+          "label": "珠峰大本营",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 3,
+          "ambience": "assets/everest_camp.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_snow.wav"
+        },
+        {
+          "label": "东绒布冰川",
+          "kind": "up",
+          "start": 3,
+          "endExclusive": 22,
+          "ambience": "assets/everest_glacier.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_snow.wav"
+        },
+        {
+          "label": "前进营地",
+          "kind": "flat",
+          "start": 22,
+          "endExclusive": 24,
+          "ambience": "assets/everest_camp.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_snow.wav"
+        },
+        {
+          "label": "北坳冰壁",
+          "kind": "stairs_up",
+          "start": 24,
+          "endExclusive": 29,
+          "ambience": "assets/everest_glacier.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_ice.wav"
+        },
+        {
+          "label": "北坳裂缝·横梯",
+          "kind": "flat",
+          "start": 29,
+          "endExclusive": 34,
+          "ambience": "assets/everest_glacier.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_metal.wav"
+        },
+        {
+          "label": "北坳营地·吸氧",
+          "kind": "wait",
+          "start": 34,
+          "endExclusive": 35,
+          "ambience": "assets/everest_camp.wav",
+          "ambienceGain": 0.8,
+          "footstep": null
+        },
+        {
+          "label": "北山脊",
+          "kind": "up",
+          "start": 35,
+          "endExclusive": 47,
+          "ambience": "assets/everest_ridge.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_snow.wav"
+        },
+        {
+          "label": "大风口·刀脊",
+          "kind": "up",
+          "start": 47,
+          "endExclusive": 54,
+          "ambience": "assets/everest_ridge.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_snow.wav"
+        },
+        {
+          "label": "第一台阶",
+          "kind": "stairs_up",
+          "start": 54,
+          "endExclusive": 56,
+          "ambience": "assets/everest_glacier.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "北壁横切·贴壁栈道",
+          "kind": "up",
+          "start": 56,
+          "endExclusive": 62,
+          "ambience": "assets/everest_ridge.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "第二台阶·排队上梯",
+          "kind": "wait",
+          "start": 62,
+          "endExclusive": 63,
+          "ambience": "assets/everest_glacier.wav",
+          "ambienceGain": 0.8,
+          "footstep": null
+        },
+        {
+          "label": "第二台阶·中国梯",
+          "kind": "stairs_up",
+          "start": 63,
+          "endExclusive": 66,
+          "ambience": "assets/everest_glacier.wav",
+          "ambienceGain": 0.8,
+          "footstep": "assets/step_metal.wav"
+        },
+        {
+          "label": "顶峰雪坡",
+          "kind": "up",
+          "start": 66,
+          "endExclusive": 67,
+          "ambience": "assets/everest_glacier.wav",
+          "ambienceGain": 0.55,
+          "footstep": "assets/step_snow.wav"
+        }
+      ]
+    },
+    {
+      "id": "fuji_yoshida",
+      "name": "富士山·吉田线夜登",
+      "theme": "night_to_dawn",
+      "total": 40,
+      "segments": [
+        {
+          "label": "五合目",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 3,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.65,
+          "footstep": "assets/step_gravel.wav"
+        },
+        {
+          "label": "六合目",
+          "kind": "up",
+          "start": 3,
+          "endExclusive": 11,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.67625,
+          "footstep": "assets/step_gravel.wav"
+        },
+        {
+          "label": "Z 字坡",
+          "kind": "up",
+          "start": 11,
+          "endExclusive": 19,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.7462500000000001,
+          "footstep": "assets/step_gravel.wav"
+        },
+        {
+          "label": "岩场",
+          "kind": "stairs_up",
+          "start": 19,
+          "endExclusive": 23,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.81625,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "七合目",
+          "kind": "up",
+          "start": 23,
+          "endExclusive": 29,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.8512500000000001,
+          "footstep": "assets/step_gravel.wav"
+        },
+        {
+          "label": "八合目·山小屋",
+          "kind": "flat",
+          "start": 29,
+          "endExclusive": 31,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.90375,
+          "footstep": "assets/step_gravel.wav"
+        },
+        {
+          "label": "九合目",
+          "kind": "up",
+          "start": 31,
+          "endExclusive": 37,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.92125,
+          "footstep": "assets/step_gravel.wav"
+        },
+        {
+          "label": "鸟居",
+          "kind": "stairs_up",
+          "start": 37,
+          "endExclusive": 40,
+          "ambience": "assets/fuji.wav",
+          "ambienceGain": 0.97375,
+          "footstep": "assets/step_stone.wav"
+        }
+      ]
+    },
+    {
+      "id": "huashan_plank",
+      "name": "华山·长空栈道",
+      "theme": "cliff_path",
+      "total": 61,
+      "segments": [
+        {
+          "label": "玉泉院",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 3,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.5,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "青柯坪山路",
+          "kind": "up",
+          "start": 3,
+          "endExclusive": 16,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "回心石",
+          "kind": "flat",
+          "start": 16,
+          "endExclusive": 17,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "千尺幢",
+          "kind": "stairs_up",
+          "start": 17,
+          "endExclusive": 25,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "百尺峡",
+          "kind": "stairs_up",
+          "start": 25,
+          "endExclusive": 28,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "老君犁沟",
+          "kind": "stairs_up",
+          "start": 28,
+          "endExclusive": 30,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "北峰",
+          "kind": "flat",
+          "start": 30,
+          "endExclusive": 32,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "苍龙岭",
+          "kind": "stairs_up",
+          "start": 32,
+          "endExclusive": 40,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "金锁关",
+          "kind": "flat",
+          "start": 40,
+          "endExclusive": 43,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "中峰",
+          "kind": "up",
+          "start": 43,
+          "endExclusive": 47,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "南天门·扣安全锁",
+          "kind": "wait",
+          "start": 47,
+          "endExclusive": 48,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": null
+        },
+        {
+          "label": "长空栈道",
+          "kind": "flat",
+          "start": 48,
+          "endExclusive": 54,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_wood.wav"
+        },
+        {
+          "label": "鹞子翻身",
+          "kind": "stairs_up",
+          "start": 54,
+          "endExclusive": 59,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_metal.wav"
+        },
+        {
+          "label": "落雁峰",
+          "kind": "up",
+          "start": 59,
+          "endExclusive": 61,
+          "ambience": "assets/huashan_cliff.wav",
+          "ambienceGain": 0.75,
+          "footstep": "assets/step_stone.wav"
+        }
+      ]
+    },
+    {
+      "id": "taishan_18pan",
+      "name": "泰山·十八盘",
+      "theme": "dawn_mountain",
+      "total": 39,
+      "segments": [
+        {
+          "label": "中天门",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 3,
+          "ambience": "assets/taishan.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "缓坡",
+          "kind": "up",
+          "start": 3,
+          "endExclusive": 8,
+          "ambience": "assets/taishan.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "慢十八",
+          "kind": "stairs_up",
+          "start": 8,
+          "endExclusive": 16,
+          "ambience": "assets/taishan.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "不紧不慢又十八",
+          "kind": "stairs_up",
+          "start": 16,
+          "endExclusive": 24,
+          "ambience": "assets/taishan.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "紧十八",
+          "kind": "stairs_up",
+          "start": 24,
+          "endExclusive": 34,
+          "ambience": "assets/taishan.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "南天门",
+          "kind": "flat",
+          "start": 34,
+          "endExclusive": 36,
+          "ambience": "assets/taishan.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "天街",
+          "kind": "up",
+          "start": 36,
+          "endExclusive": 39,
+          "ambience": "assets/taishan.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        }
+      ]
+    },
+    {
+      "id": "tokyo_night",
+      "name": "赛博东京·夜行",
+      "theme": "cyber_night",
+      "total": 37,
+      "segments": [
+        {
+          "label": "涩谷街头",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 4,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "十字路口·红灯",
+          "kind": "wait",
+          "start": 4,
+          "endExclusive": 7,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 1,
+          "footstep": null
+        },
+        {
+          "label": "斑马线",
+          "kind": "flat",
+          "start": 7,
+          "endExclusive": 10,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "天桥",
+          "kind": "stairs_up",
+          "start": 10,
+          "endExclusive": 15,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "天桥下行",
+          "kind": "stairs_down",
+          "start": 15,
+          "endExclusive": 20,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "坂道",
+          "kind": "up",
+          "start": 20,
+          "endExclusive": 26,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "巷子",
+          "kind": "flat",
+          "start": 26,
+          "endExclusive": 29,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "神社石阶",
+          "kind": "stairs_up",
+          "start": 29,
+          "endExclusive": 37,
+          "ambience": "assets/tokyo.wav",
+          "ambienceGain": 0.4,
+          "footstep": "assets/step_stone.wav"
+        }
+      ]
+    },
+    {
+      "id": "train_slope",
+      "name": "训练场·长坡",
+      "theme": "grid",
+      "total": 39,
+      "segments": [
+        {
+          "label": "平地",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 3,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "上坡",
+          "kind": "up",
+          "start": 3,
+          "endExclusive": 18,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "平台",
+          "kind": "flat",
+          "start": 18,
+          "endExclusive": 21,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "下坡",
+          "kind": "down",
+          "start": 21,
+          "endExclusive": 36,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "平地",
+          "kind": "flat",
+          "start": 36,
+          "endExclusive": 39,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        }
+      ]
+    },
+    {
+      "id": "train_stairs",
+      "name": "训练场·台阶",
+      "theme": "grid",
+      "total": 25,
+      "segments": [
+        {
+          "label": "平地",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 3,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "上台阶",
+          "kind": "stairs_up",
+          "start": 3,
+          "endExclusive": 11,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "平台",
+          "kind": "flat",
+          "start": 11,
+          "endExclusive": 14,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "下台阶",
+          "kind": "stairs_down",
+          "start": 14,
+          "endExclusive": 22,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "平地",
+          "kind": "flat",
+          "start": 22,
+          "endExclusive": 25,
+          "ambience": "assets/training.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        }
+      ]
+    },
+    {
+      "id": "wutong_haohan",
+      "name": "深圳梧桐山·好汉坡",
+      "theme": "subtropical",
+      "total": 35,
+      "segments": [
+        {
+          "label": "山脚",
+          "kind": "flat",
+          "start": 0,
+          "endExclusive": 3,
+          "ambience": "assets/wutong.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_leaves.wav"
+        },
+        {
+          "label": "缓坡",
+          "kind": "up",
+          "start": 3,
+          "endExclusive": 9,
+          "ambience": "assets/wutong.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_leaves.wav"
+        },
+        {
+          "label": "好汉坡",
+          "kind": "stairs_up",
+          "start": 9,
+          "endExclusive": 21,
+          "ambience": "assets/wutong.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "观景台",
+          "kind": "flat",
+          "start": 21,
+          "endExclusive": 23,
+          "ambience": "assets/wutong.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_leaves.wav"
+        },
+        {
+          "label": "石阶",
+          "kind": "stairs_up",
+          "start": 23,
+          "endExclusive": 31,
+          "ambience": "assets/wutong.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_stone.wav"
+        },
+        {
+          "label": "山脊",
+          "kind": "up",
+          "start": 31,
+          "endExclusive": 35,
+          "ambience": "assets/wutong.wav",
+          "ambienceGain": 1,
+          "footstep": "assets/step_leaves.wav"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "snow.step",
+      "label": "踩雪",
+      "file": "step_snow.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfx(crunch)",
+      "trigger": "st.s crosses an integer while moving; no wait segments",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "ice.step",
+      "label": "冰爪咬冰",
+      "file": "step_ice.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfx(ice)",
+      "trigger": "One accepted step on the ice wall",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "ladder.step",
+      "label": "金属梯踩踏",
+      "file": "step_metal.wav",
+      "worlds": [
+        "everest_north",
+        "huashan_plank"
+      ],
+      "currentHook": "kit.sfx(ladder)",
+      "trigger": "One accepted step on ladder; exclude waiting in queue",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "plank.step",
+      "label": "木板踩踏",
+      "file": "step_wood.wav",
+      "worlds": [
+        "huashan_plank"
+      ],
+      "currentHook": "new file step slot",
+      "trigger": "One accepted step on the plank walk",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "rope.tension",
+      "label": "绳索吃力",
+      "file": "rope_creak.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfx(rope)",
+      "trigger": "Reuse existing rope cadence in soundscape.js",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "lock.click",
+      "label": "游戏扣锁",
+      "file": "carabiner_click.wav",
+      "worlds": [
+        "huashan_plank"
+      ],
+      "currentHook": "kit.sfx(click)",
+      "trigger": "Existing visual latch event; not physical wear verification",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "chain.clink",
+      "label": "铁链轻碰",
+      "file": "chain_clink.wav",
+      "worlds": [
+        "huashan_plank"
+      ],
+      "currentHook": "kit.sfx(clink)",
+      "trigger": "Existing chain contact event",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "fabric.flap",
+      "label": "经幡 / 帐篷拍动",
+      "file": "flag_flap.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfx(flap), kit.sfx(flutter)",
+      "trigger": "Existing flag or tent event; distance attenuation",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "yak.bell",
+      "label": "牦牛铃",
+      "file": "yak_bell.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfx(yakbell)",
+      "trigger": "yaks.js bell event, distance attenuation; avoid overlapping tails",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "oxygen.hiss",
+      "label": "吸氧气阀",
+      "file": "oxygen_hiss.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfx(hiss)",
+      "trigger": "Existing oxygen interaction, once per interaction",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "altitude.breath",
+      "label": "高山呼吸（可选）",
+      "file": "breath.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfx(breath)",
+      "trigger": "Reuse hypoxia timer; user-selectable, never interpret as measured breathing",
+      "defaultGain": 0.35,
+      "enabledByDefault": false,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "parkour.jump",
+      "label": "跳跃掠风",
+      "file": "parkour_jump.wav",
+      "worlds": [
+        "parkour"
+      ],
+      "currentHook": "run.events: jump",
+      "trigger": "One play when jump is emitted",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "parkour.land",
+      "label": "落地",
+      "file": "parkour_land.wav",
+      "worlds": [
+        "parkour"
+      ],
+      "currentHook": "run.events: land",
+      "trigger": "One play when land is emitted",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "parkour.slide",
+      "label": "滑铲",
+      "file": "parkour_slide.wav",
+      "worlds": [
+        "parkour"
+      ],
+      "currentHook": "run.events: slide",
+      "trigger": "Once on entry; not once per animation frame",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "parkour.hit",
+      "label": "碰撞",
+      "file": "parkour_hit.wav",
+      "worlds": [
+        "parkour"
+      ],
+      "currentHook": "run.events: low/high/block/fall/wall/caught/corner",
+      "trigger": "At most one hit sound per update; stop at reset/exit",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "mech.hum",
+      "label": "机甲接近",
+      "file": "mech_hum.wav",
+      "worlds": [
+        "parkour"
+      ],
+      "currentHook": "makeAudio().hum()",
+      "trigger": "Replace existing dash/caught hum; one-shot",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "cyber.camo",
+      "label": "光学迷彩",
+      "file": "cyber_camo.wav",
+      "worlds": [
+        "tokyo_night"
+      ],
+      "currentHook": "kit.sfx(camo)",
+      "trigger": "Reuse gits.js camo edge",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "cyber.glitch",
+      "label": "电子故障",
+      "file": "cyber_glitch.wav",
+      "worlds": [
+        "tokyo_night"
+      ],
+      "currentHook": "kit.sfx(glitch)",
+      "trigger": "Reuse gits.js cooldown",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "cyber.taiko",
+      "label": "登顶鼓点",
+      "file": "taiko.wav",
+      "worlds": [
+        "tokyo_night"
+      ],
+      "currentHook": "kit.sfx(taiko)",
+      "trigger": "Reuse gits.js summit edge; original synthesis",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "world.arrive",
+      "label": "通关提示",
+      "file": "arrive.wav",
+      "worlds": [
+        "*"
+      ],
+      "currentHook": "ProgressGate.arrive",
+      "trigger": "Once on verified lap boundary, never on initial connection",
+      "defaultGain": 0.65,
+      "enabledByDefault": true,
+      "integration": "reference mapping; not auto-wired to main game"
+    },
+    {
+      "id": "world.checkpoint",
+      "label": "路段提示（可选）",
+      "file": "checkpoint.wav",
+      "worlds": [
+        "*"
+      ],
+      "currentHook": "optional scene transition",
+      "trigger": "Disabled by default; do not compete with narration",
+      "defaultGain": 0.65,
+      "enabledByDefault": false,
+      "integration": "reference mapping; not auto-wired to main game"
+    }
+  ],
+  "layers": [
+    {
+      "id": "helicopter.rotor",
+      "file": "helicopter_rotor.wav",
+      "worlds": [
+        "everest_north"
+      ],
+      "currentHook": "kit.sfxLoop(rotor)",
+      "trigger": "heli.js: distance × rotor speed; zero outside audible range",
+      "defaultGain": 0.3
+    },
+    {
+      "id": "cyber.pad",
+      "file": "cyber_pad.wav",
+      "worlds": [
+        "tokyo_night"
+      ],
+      "currentHook": "kit.sfxLoop(pad)",
+      "trigger": "gits.js: original synth pad replacement, mix quietly below rain",
+      "defaultGain": 0.25
+    }
+  ],
+  "parkour": {
+    "path": "/parkour",
+    "profile": "parkour_rooftop",
+    "ambience": "assets/parkour_rooftop.wav",
+    "stateSource": "Client-side run in parkour/main.js. The server /state terrain does not describe parkour events.",
+    "followViaServerState": false
+  },
+  "mixing": {
+    "defaultMaster": 0.25,
+    "crossfadeSeconds": 0.8,
+    "narrationAmbienceMultiplier": 0.22,
+    "narrationEffectsMultiplier": 0.45,
+    "trainingDefault": "mute",
+    "note": "Do not run file-based layers together with equivalent kit.sfx/sfxLoop synthesis."
+  }
+}
