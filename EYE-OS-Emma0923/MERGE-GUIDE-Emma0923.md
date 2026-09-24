@@ -8,6 +8,12 @@
 
 **已于 2026-09-24 核对 `QiuQiuNB666/aima` 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`。** 本模块共 39 个文件，供团队独立审阅。仓库中另有 Windows `find_port` 窄改动及 8 项 mock 测试；只调整串口发现，不改变 Guard、控制循环或运动指令行为。
 
+## v0.6 增量
+
+新增仓库根目录 `shellos/hands/` 与 `tests/test_hands_haptics.py`。新增代码和 `EYE-OS-Emma0923/HAPTICS-Emma0924.md` 需一起审阅；未改写既有串口、Guard、腿部启动入口或腿部游戏。`EYE-OS-Emma0923/` 现为 44 个文件。
+
+独立 Python 控制内核产生力矩提案，显式本机 Guard 适配器可供后续台架接线；默认没有真实输出入口，网页仍只读。只读 capture 工具不调用普通 SerialLink 的握手、恢复或退出 DISABLE。现场接口/工程参数未核实前，不创建物理输出会话。见 [力反馈开发与校准说明](HAPTICS-Emma0924.md)。
+
 ## v0.5 增量
 
 从 `codex/eye-os-Emma0924` 的 `86974dc` 继续完善双杆模块；保留 Emma0923 目录名。新增 `hands-input.js`、`hands-reader.js` 和对应输入/页面测试；修改原双手内核、控制器、页面、服务与缓存清单。仅本目录有改动，不涉及 ShellOS 控制代码。
