@@ -1,9 +1,11 @@
 // J 线 · 峰哥的助理（9/23 夜起，替换追兵「捷风」；旧版用 ?npc=jifeng，在 npc_jifeng.js，没删）。
-// 缺省（9/24 球球定方向）：二次元开源 VRM 角色——Q 线的装载器 assistant_q/npc_q.js（makeQ：VRM + Mixamo 动作重定向，MToon 材质 / 描边原样），
-//   ?npcvrm=<模型 id 或文件名>（旧参数 ?asst= 同义）换人（models/assistant_q/ 里 8 个，缺省 AvatarSample_B），头发 / 裙摆用 VRM 自带的 spring bone。
+// 缺省（9/24 10:00 前球球拍板）：《无畏契约》男性角色 **Phoenix / 菲尼克斯**——Kingdom Archives 的游戏提取 glb（Riot 骨架 + 角色选择待机动画），
+//   models/assistant_val/（来源 / 授权见那里的 LICENSE.md；模型不进 git）。站着播自带 CS_Phoenix_S0_Idle，走 / 跑程序化摆腿（同 npc_jifeng.js 的 loadModel 思路，骨骼按 Riot 骨名直接取）。
+// ?npcvrm=<模型 id 或文件名>（旧参数 ?asst= 同义）切回二次元 VRM 版（Q 线的 makeQ：VRM + Mixamo 动作重定向；models/assistant_q/ 里 8 个，备用 AvatarSample_B）。
 // ?npc=custom：自建版（CesiumMan 骨架 → P 线的放样身体 + assistant/body.js 的曲线 + outfits.js 穿搭 + head.js 手绘脸 + Verlet 马尾），不作缺省。
-// 指路 / 互动 / 待机的姿势两版共用（pointer / actor / idler，按人物自己的坐标轴叠在动画上）。接口和 npc_jifeng.js 的 makeJifeng 一样。
+// 指路 / 互动 / 待机的姿势三版共用（pointer / actor / idler，按人物自己的坐标轴叠在动画上）。接口和 npc_jifeng.js 的 makeJifeng 一样。
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { loadAvatar } from './avatar.js';
 import { buildAssistantBody } from './assistant/body.js';
 import { outfitFor } from './assistant/outfits.js';
@@ -13,8 +15,11 @@ import { makeQ } from './assistant_q/npc_q.js';
 import { AVATAR_H } from './avatar.js';
 
 const Q = new URLSearchParams(location.search);
-// ↓↓ 名字占位「小 B」（模型 AvatarSample_B），球球 / anni 定了改这里；也可以临时 ?npcname=xxx
-export const 名字 = Q.get('npcname') || '小 B';
+export const VRM_ID = (Q.get('npcvrm') || Q.get('asst') || '').replace(/\.vrm$/, '');   // 给了就走 VRM 版（备用 AvatarSample_B）；空 = 缺省 Phoenix
+export const VAL = { file: '/models/assistant_val/phoenix_cs.glb', name: 'Phoenix / 菲尼克斯', idle: 'CS_Phoenix_S0_Idle',
+  tex: { CS_Phoenix_S0_Body_MI: 'df', CS_Phoenix_S0_Hair_MI: 'hair_df', TP_Core_Eye_MI: 'eye_df' } };   // 材质名 → /models/assistant_val/<名>.png
+// ↓↓ 名字：缺省角色本名；VRM 版仍叫「小 B」；也可以临时 ?npcname=xxx
+export const 名字 = Q.get('npcname') || (VRM_ID ? '小 B' : VAL.name);
 export const SCALE = 0.96;                 // 比峰哥矮一点
 export const FAR = 12;                     // 米：再远就不算马尾 / 衣角甩动、不做待机小动作
 
@@ -28,16 +33,80 @@ function tune(m, more) {
   };
 }
 
-export const VRM_ID = (Q.get('npcvrm') || Q.get('asst') || 'AvatarSample_B').replace(/\.vrm$/, '');   // 9/24 定 1 号 AvatarSample_B（VRoid 官方样例，紫双马尾街头风）
-
 export async function makeAssistant(scene, camera) {
-  if (Q.get('npc') !== 'custom') try { return await makeVRM(scene, camera); } catch (e) { console.warn('助理 VRM 加载失败，用自建版', e); }
+  if (Q.get('npc') !== 'custom') {
+    if (!VRM_ID) try { return await makeVal(scene, camera); } catch (e) { console.warn('助理 Phoenix 加载失败，退到 VRM 版', e); }
+    try { return await makeVRM(scene, camera, VRM_ID || 'AvatarSample_B'); } catch (e) { console.warn('助理 VRM 加载失败，用自建版', e); }
+  }
   return makeCustom(scene, camera);
 }
 
-// ---- 缺省：VRM（Q 线的 makeQ）----
-async function makeVRM(scene, camera) {
-  const q = await makeQ(VRM_ID);
+// ---- 缺省：Phoenix（Kingdom Archives 的游戏提取 glb）。glTF 朝 +Z → 转到我们的 +X；缩放到峰哥身高 × 0.96、脚底落地。
+//   贴图外挂（glb 里没内嵌）：按材质名换成 Lambert，漫反射当自发光打底（夜景看得清，同 npc_jifeng.js）。
+//   动作：站着（speed < 0.05）播自带 CS_Phoenix_S0_Idle；走 / 跑停掉动画（mixer 还原绑定姿态）、按 npc.js 给的髋角 fl / fr 程序化摆腿摆臂。----
+async function makeVal(scene, camera) {
+  const g = await new GLTFLoader().loadAsync(VAL.file);
+  const model = g.scene, outer = new THREE.Group(); outer.name = 'npc_assistant';
+  model.rotation.y = Math.PI / 2 + (+Q.get('npcyaw') || 0);
+  outer.add(model); outer.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(model, true), k = AVATAR_H * SCALE / Math.max(0.5, bb.max.y - bb.min.y);
+  const c = bb.getCenter(new THREE.Vector3());
+  model.scale.setScalar(k); model.position.set(-c.x * k, -bb.min.y * k, -c.z * k); outer.updateMatrixWorld(true);
+  const tl = new THREE.TextureLoader(), texOf = {};
+  for (const [mat, f] of Object.entries(VAL.tex)) { const t = tl.load(`/models/assistant_val/${f}.png`); t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; texOf[mat] = t; }
+  let tris = 0;
+  model.traverse(o => {
+    if (!o.isMesh) return;
+    o.frustumCulled = false; o.castShadow = true;
+    tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    const t = texOf[o.material.name]; if (!t) return;
+    o.material = new THREE.MeshLambertMaterial({ map: t, emissiveMap: t, emissive: '#5a5a5a', side: THREE.DoubleSide, alphaTest: /Hair/.test(o.material.name) ? 0.4 : 0 });
+  });
+  const b = n => model.getObjectByName(n) || null;
+  const J = { thighL: b('L_Hip'), thighR: b('R_Hip'), kneeL: b('L_Knee'), kneeR: b('R_Knee'), armL: b('L_Shoulder'), armR: b('R_Shoulder') };
+  const B = { armL: J.armL, armR: J.armR, head: b('Head'), chest: b('Spine3'), wristL: b('L_Hand'), elbowL: b('L_Elbow'), flipXZ: false };
+  // 每根骨骼：绑定姿态四元数 + 人物坐标轴换算到骨骼局部（X = 前，Z = 左右）
+  const rest = new Map(), axis = new Map(), qw = new THREE.Quaternion();
+  const local = (o, a) => a.clone().applyQuaternion(o.getWorldQuaternion(qw).invert());
+  for (const o of Object.values(J)) if (o) { rest.set(o, o.quaternion.clone()); axis.set(o, { z: local(o, new THREE.Vector3(0, 0, 1)), x: local(o, new THREE.Vector3(1, 0, 0)) }); }
+  const D = Math.PI / 180, qa = new THREE.Quaternion();
+  const rot = (o, ax, deg) => { if (o && deg) o.quaternion.multiply(qa.setFromAxisAngle(axis.get(o)[ax], deg * D)); };
+  const pose = (fl, fr) => {
+    for (const o of Object.values(J)) if (o) o.quaternion.copy(rest.get(o));
+    fl = Math.max(-35, Math.min(70, fl)); fr = Math.max(-35, Math.min(70, fr));
+    rot(J.thighL, 'z', fl); rot(J.thighR, 'z', fr);
+    rot(J.kneeL, 'z', -(Math.max(0, fl) * 0.9 + 8)); rot(J.kneeR, 'z', -(Math.max(0, fr) * 0.9 + 8));
+    const sw = (fr - fl) / 2 * 0.7;                                     // 手臂反向摆；A-pose 的上臂再往身侧收 12°
+    rot(J.armL, 'x', -12); rot(J.armL, 'z', sw); rot(J.armR, 'x', 12); rot(J.armR, 'z', -sw);
+  };
+  const mixer = new THREE.AnimationMixer(model), clip = THREE.AnimationClip.findByName(g.animations, VAL.idle) || g.animations[0];
+  const idleAct = clip ? mixer.clipAction(clip) : null;
+  let playing = false;
+  const head = B.head, tmp = new THREE.Vector3();
+  scene.add(outer);
+  console.info(`助理 Phoenix：${Math.round(tris)} 三角，动画 ${g.animations.map(a => a.name).join(' / ')}`);
+  return {
+    group: outer, name: 名字, statue: false, model: true, tris: Math.round(tris), bones: J,
+    // 顺序（npc.js）：animate → point / act / idle 叠在骨骼上
+    animate(dt, t, d) {
+      const stand = d.speed < 0.05 && !!idleAct;
+      if (stand !== playing) { playing = stand; if (stand) idleAct.reset().fadeIn(0.3).play(); else idleAct.stop(); }   // stop：mixer 把骨骼还原成绑定姿态
+      if (playing) mixer.update(dt); else pose(d.fl, d.fr);
+    },
+    point: pointer(outer, B, 80),
+    act: actor(outer, B),
+    idle: idler(outer, B),
+    headWorld: (out = tmp) => (head ? head.getWorldPosition(out) : outer.getWorldPosition(out).setY(outer.position.y + 1.5)),
+    stance: () => false, burst() {}, resetTrail() {},
+    get far() { return !!camera && camera.position.distanceTo(outer.position) > FAR; },
+    update() {},
+    set visible(v) { outer.visible = v; }, get visible() { return outer.visible; },
+  };
+}
+
+// ---- ?npcvrm=<id>：VRM（Q 线的 makeQ）----
+async function makeVRM(scene, camera, id) {
+  const q = await makeQ(id);
   const outer = new THREE.Group(); outer.name = 'npc_assistant';
   const g = q.group;
   g.rotation.y += Math.PI / 2;                                 // VRM 朝 +Z（VRM0 已被 rotateVRM0 转过 180°，这里是加不是赋值）→ 我们的约定朝 +X
