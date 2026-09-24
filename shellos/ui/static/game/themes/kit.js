@@ -215,7 +215,7 @@ export function edge() { let was = false; return on => { const r = on && !was; w
 //   持续音 sfxLoop('rotor' | 'wind' | 'stove' | 'rain' | 'pad') → { set(vol, rate) } 每帧调（rotor = E 线直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
 //   音量再乘 U 设置页的「捷风 / 音效音量」（window.__settings.get('vSfx')，0–100；设置页只管 <audio>，WebAudio 这里自己乘）。
 //   浏览器不让没交互过的页面出声：上下文挂起时等第一次按键 / 点击再恢复（空格走路就算）。音量都压低，峰哥说话时不抢
-const SFX_Q = new URLSearchParams(location.search), SFX_ON = SFX_Q.get('sfx') !== '0' && !SFX_Q.has('preview');
+const SFX_Q = new URLSearchParams(location.search), SFX_ON = SFX_Q.get('sfx') === '1' && !SFX_Q.has('preview');   // 9/24 展位临时：合成音效缺省关（持续沙沙声未修完），?sfx=1 才开
 let AC = null;
 function audio() {
   if (!SFX_ON) return null;
