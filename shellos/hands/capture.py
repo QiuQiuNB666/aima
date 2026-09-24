@@ -13,6 +13,7 @@ import statistics
 import time
 
 from ..device.frame import parse_line
+from ..device.ownership import DeviceLease
 
 
 class PoseRecorder:
@@ -99,14 +100,15 @@ def main():
     # Separate driver, not SerialLink: no startup handshake, auto-reconnect,
     # recovery or close-time DISABLE. Opening a port may still affect USB lines;
     # the operator must confirm this device is mechanically supported.
-    stream=serial.Serial(port=None, baudrate=3_000_000, timeout=.05, write_timeout=.05)
-    stream.dtr=False; stream.rts=False; stream.port=args.port
-    try:
-        stream.open()
-        print(f'Read-only capture: {args.port}, {args.pose}, {args.seconds}s. No ENABLE or torque commands.', flush=True)
-        recorder=read_pose(stream,args.seconds)
-    finally:
-        stream.close()
+    with DeviceLease(args.port, 'capture'):
+        stream=serial.Serial(port=None, baudrate=3_000_000, timeout=.05, write_timeout=.05)
+        stream.dtr=False; stream.rts=False; stream.port=args.port
+        try:
+            stream.open()
+            print(f'Read-only capture: {args.port}, {args.pose}, {args.seconds}s. No ENABLE or torque commands.', flush=True)
+            recorder=read_pose(stream,args.seconds)
+        finally:
+            stream.close()
     result=recorder.result(args.port,args.pose,usb)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     with args.output.open('x',encoding='utf-8') as file:

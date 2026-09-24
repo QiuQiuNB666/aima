@@ -1,5 +1,11 @@
 // Fixed GET-only route; no serial or motor-command path.
-export function createHandReader({
+export function createHandReader(options = {}) {
+  return createReadonlyReader('/api/hands-telemetry',100,options);
+}
+export function createWearReader(options = {}) {
+  return createReadonlyReader('/api/wear-check',500,options);
+}
+function createReadonlyReader(route, interval, {
   fetcher = (...args) => fetch(...args), onSample, onError,
   schedule = setTimeout, cancel = clearTimeout, clock = () => performance.now(),
 } = {}) {
@@ -18,17 +24,17 @@ export function createHandReader({
       if (running && generation === id) { stop(); onError('读取超时，请检查本机 ShellOS 后重新开始'); }
     }, 1800);
     try {
-      const response = await fetcher('/api/hands-telemetry', { method: 'GET', cache: 'no-store', signal: controller.signal });
+      const response = await fetcher(route, { method: 'GET', cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('unavailable');
       const report = await response.json();
       if (!running || generation !== id) return;
       onSample(report);
     } catch {
-      if (running && generation === id) { stop(); onError('无法读取角度，请确认本机 ShellOS 正在运行'); }
+      if (running && generation === id) { stop(); onError('无法读取设备状态，请确认本机服务正在运行'); }
     } finally {
       if (running && generation === id) {
         cancel(deadline); deadline = null; request = null;
-        next = schedule(() => poll(id), Math.max(0, 100 - (clock() - started)));
+        next = schedule(() => poll(id), Math.max(0, interval - (clock() - started)));
       }
     }
   }

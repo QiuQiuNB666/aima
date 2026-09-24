@@ -71,6 +71,15 @@ test('loading and a one-shot USB check never start polling or imply a hardware c
   assert.equal(f.el('exo-badge').dataset.tone, 'quiet'); assert.equal(f.el('exo-angle-left').textContent, '—');
 });
 
+test('single hand layout shows disabled leg role as normal and stops leg polling',async()=>{
+  const f=fixture();f.el('exo-start').onclick();
+  await f.reply({available:false,layout:'single-hands',error:'LEGS_ROLE_DISABLED'});
+  assert.equal(f.intervals.size,0);assert.equal(f.timeouts.size,0);
+  assert.equal(f.el('exo-badge').textContent,'单套双手 · 腿部关闭');
+  assert.match(f.el('exo-status').textContent,/这是正常状态/);
+  await f.advance();assert.equal(f.calls.length,1);
+});
+
 test('visible reading uses one 1-second poll with no overlapping requests', async () => {
   const f = fixture(); f.el('exo-start').onclick(); f.el('exo-start').onclick();
   assert.equal(f.calls.length, 1); assert.equal(f.intervals.size, 1); assert.equal([...f.intervals.values()][0].delay, 1000);

@@ -11,7 +11,7 @@ const inRange = (value, low, high) => finite(value) && value >= low && value <= 
 const ACTION_KEYS = {
   'set-release': ['type', 'value'], calibrate: ['type'], hold: ['type', 'value'],
   raise: ['type'], input: ['type', 'left', 'right'], scene: ['type', 'value'],
-  damping: ['type', 'value'], fire: ['type', 'side'], reset: ['type'], suspend: ['type'],
+  damping: ['type', 'value'], fire: ['type', 'side'], reset: ['type'], suspend: ['type'], 'new-round':['type'],
 };
 
 export function createHandSimulation() {
@@ -141,6 +141,10 @@ export function createHandSimulation() {
           fire(action.side || 'both');
           break;
         case 'reset': reset(); break;
+        case 'new-round':
+          suspend();state.shots=state.shotsLeft=state.shotsRight=0;state.lastShot=null;
+          state.excavator={boom:.5,bucket:.5};cooldown.left=cooldown.right=0;
+          break;
         case 'suspend': suspend(); break;
       }
     } catch {
