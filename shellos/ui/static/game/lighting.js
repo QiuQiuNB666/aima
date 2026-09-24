@@ -43,7 +43,7 @@ export const FX = tier === 'off' ? { post: false } : (() => {
 const PRESET = {
   cyber_night: { exp: 1.2, bloom: [0.8, 0.5, 0.9], grade: { lo: [0.88, 0.96, 1.14], hi: [1.1, 0.98, 0.94], sat: 1.1, vig: 0.4 }, rim: ['#ffd9a8', 1.25], wet: true },
   dawn_mountain: { exp: 0.75, white: 1.0, raysThr: 0.9, bloom: [0.3, 0.4, 2.2], grade: { lo: [0.93, 0.95, 1.08], hi: [1.08, 1.0, 0.9], sat: 1.06, vig: 0.32 }, rays: 1.2, rim: ['#ffc680', 1.3] },
-  night_to_dawn: { exp: 1.25, white: 8, bloom: [0.6, 0.45, 0.9], grade: { lo: [0.88, 0.95, 1.14], hi: [1.04, 1.0, 1.02], sat: 1.08, vig: 0.4 }, rays: 1.0, raysThr: 0.9, rim: ['#9fdcff', 1.1],
+  night_to_dawn: { exp: 1.25, white: 8, bloom: [0.6, 0.45, 0.9], grade: { lo: [0.88, 0.95, 1.14], hi: [1.04, 1.0, 1.02], sat: 1.08, vig: 0.4 }, rays: 1.0, raysThr: 0.9, rim: ['#ffd9a8', 1.1],
     dawn: { exp: 0.8, white: 1.0, bloom: [0.3, 0.35, 2.4], lo: [0.94, 0.94, 1.08], hi: [1.1, 1.0, 0.88], rim: '#ffc890' } },
   subtropical: { exp: 0.88, white: 1.15, bloom: [0.25, 0.5, 1.0], grade: { lo: [1.06, 1.1, 1.14], hi: [1.06, 1.02, 0.94], sat: 1.08, vig: 0.28 }, rim: ['#fff2d0', 1.1],
     stairShade: 0.6, dapple: 0.55, shadeFloor: 0.5 },   // 石阶是不吃光的定色材质，单独补上接影（护栏影子、林荫光斑）

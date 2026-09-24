@@ -2,169 +2,206 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><title>ShellOS 操作台</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
+<script type="module">
+// D 线：设计系统（变量 / 面板 / 按钮 / 曲线）在 /game/ui/design.js，和选山页共用；这里只放操作台自己的布局
+import { inject, spark, lane, fmtTime, ROLE, VERDICT } from '/game/ui/design.js?v=__V__';
+inject(); window.__D = { spark, lane, fmtTime, ROLE, VERDICT };
+</script>
 <style>
-/* 展位暗场：底更黑、字更大、次要文字也要够亮（#a9b6c5 在 #11161c 上约 8:1） */
-:root{--bg:#06080b;--panel:#11161c;--line:#232b35;--fg:#f3f7fb;--dim:#a9b6c5;--ok:#3ddc84;--warn:#ffb020;--bad:#ff4d4f;--l:#4fc3f7;--r:#ff8a65;--t:#ffd54f;--ghost:#b39dff}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.45 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-header h1{font-size:22px;margin:0;letter-spacing:3px}
-.state{font-size:28px;font-weight:800;padding:4px 16px;border-radius:10px;background:#222}
-.state.ARMED{background:#20361a;color:var(--ok)}.state.ACTIVE{background:var(--ok);color:#000}
-.state.DISARMED{background:var(--bad);color:#fff}.state.CONNECTED{color:var(--dim)}
-.reason{color:var(--dim);font-size:16px}
-.hbtns{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;align-items:center}
-.seg{display:flex;border:1px solid #3a4553;border-radius:10px;overflow:hidden}
-.seg button{border-radius:0;background:transparent;color:var(--dim);padding:9px 14px}
-.seg button.sel{background:var(--t);color:#000;font-weight:700}
-#gameb{background:#1b2b44;color:#9fd3ff;font-weight:700}
-#link{width:100%;color:var(--dim);font-size:13px;font-variant-numeric:tabular-nums}
-main{display:grid;grid-template-columns:minmax(340px,1fr) minmax(420px,1.35fr);gap:12px;padding:12px}
-main>.full{grid-column:1/-1}
-/* 状态灯：大脑 / 语音 / 手柄 */
-.lights{display:flex;gap:8px;flex-wrap:wrap}
-.lt{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#151b22;border:1px solid var(--line);font-size:14px;white-space:nowrap}
-.lt i{width:12px;height:12px;border-radius:50%;background:#56657a;flex:none}
-.lt.ok i{background:var(--ok);box-shadow:0 0 8px var(--ok)}.lt.warn i{background:var(--warn);box-shadow:0 0 8px var(--warn)}.lt.bad i{background:var(--bad);box-shadow:0 0 8px var(--bad)}
-details.dbg{grid-column:1/-1}
-details.dbg>summary{cursor:pointer;list-style:none;padding:12px 14px;border-radius:12px;background:var(--panel);color:var(--dim);font-size:15px;letter-spacing:1px}
-details.dbg>summary::before{content:"▸ ";color:var(--fg)}details.dbg[open]>summary::before{content:"▾ "}
-details.dbg>.dbody{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px}
-.panel{background:var(--panel);border-radius:12px;padding:14px;border:1px solid transparent}
-.panel h2{margin:0 0 10px;font-size:15px;color:var(--dim);letter-spacing:1px;font-weight:600}
-.panel h2 small,.h2x{color:var(--dim);font-weight:400}
-canvas{width:100%;display:block;background:#0b0f13;border-radius:8px}
-.row{display:flex;gap:12px;flex-wrap:wrap}.kv{flex:1;min-width:110px}.kv .k{color:var(--dim);font-size:14px}.kv .v{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
-button{font:inherit;border:0;border-radius:10px;padding:11px 16px;background:#27303b;color:var(--fg);cursor:pointer}
-button:active{filter:brightness(1.35)}
-.holdb{width:100%;height:84px;font-size:26px;font-weight:800;user-select:none;-webkit-user-select:none;touch-action:none}
-#hold{background:#173524;color:var(--ok)}#hold.on{background:var(--ok);color:#000}
-#walk{background:#1a2c44;color:#8fd0ff;height:84px;font-size:24px}#walk.on{background:#4fc3f7;color:#000}
-#estop{width:100%;height:130px;background:#ff1f2d;color:#fff;font-weight:900;font-size:48px;letter-spacing:12px;box-shadow:0 0 0 3px #ff6b75 inset,0 6px 30px #ff1f2d66}
-#estop small{display:block;font-size:15px;font-weight:600;letter-spacing:1px;opacity:.9}
-#rearm{background:#20361a;color:var(--ok);font-weight:700}
-.params div{display:flex;align-items:center;gap:8px;margin:5px 0}.params .n{flex:1}.params .v{width:76px;text-align:right;font-variant-numeric:tabular-nums;font-size:20px}
-.params button{padding:5px 14px;font-size:20px}
-#padmap td{padding:4px 5px;border-bottom:1px solid #1e242b;vertical-align:top}#padmap td:first-child{white-space:nowrap;width:92px}
-#cards{max-height:260px;overflow:auto}
-#cards .card{border:1px solid #2e3844;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:15px;transition:border-color .3s}
-#cards .card.on{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok) inset}#cards .card.off{opacity:.45}
-#cards .card b{color:var(--t);font-size:17px}#cards .card .q{font-size:18px}
-#cards .card button{padding:4px 10px;font-size:14px;float:right}
-#cards .card .meta{color:var(--dim);font-size:13px}
-@keyframes slideIn{0%{transform:translateX(60px);opacity:0}60%{transform:translateX(-4px);opacity:1}100%{transform:none}}
-@keyframes hitGlow{0%{background:#3a3310;box-shadow:0 0 0 3px var(--t)}100%{background:transparent}}
+/* 首帧兜底（设计系统的 <style> 由模块注入，晚几毫秒）：底色和字色先对上，不闪白 */
+:root{--bg:#070911;--panel:#0b0d14;--panel2:#10141d;--line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.18);--fg:#e8ecf3;--dim:#98a3b3;--mute:#5c6875;--acc:#b48cff;--ok:#3ddc84;--warn:#ff9f1a;--bad:#ff4d4f;--seg-flat:#8a95a3;--seg-up:#3ddc84;--seg-down:#4fc3f7;--seg-stairs:#ffd54f;--seg-wait:#ff4d4f;--who-ghost:#9fe8ff;--gap:.7rem;--r:.8rem;--r2:.5rem}
+body{background:#070911;color:#e8ecf3;margin:0}
+/* ---------- 一屏排版：顶条 / 三列 / 底部操作区，1080p 不滚动 ---------- */
+body{height:100vh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden}
+header.top,main,footer.ops{min-width:0}
+header.top{display:flex;align-items:center;gap:.9rem;padding:.55rem 1rem;border-bottom:1px solid var(--line);background:var(--panel);min-height:3.2rem}
+.brand{font-size:1.15rem;font-weight:900;letter-spacing:.22em;line-height:1}
+.brand small{display:block;font-size:.6rem;letter-spacing:.3em;color:var(--dim);margin-top:.15rem}
+.state{font-size:1.15rem;font-weight:900;letter-spacing:.08em;padding:.25rem .8rem;border-radius:var(--r2);background:var(--panel2);border:1px solid var(--line2);color:var(--dim);display:inline-flex;align-items:center;gap:.5rem;font-variant-numeric:tabular-nums}
+.state::before{content:"";width:.6rem;height:.6rem;border-radius:50%;background:var(--mute)}
+.state.ARMED{color:var(--ok);border-color:rgba(61,220,132,.5)}.state.ARMED::before{background:var(--ok);box-shadow:0 0 .5rem var(--ok)}
+.state.ACTIVE{background:var(--ok);color:#000;border-color:var(--ok)}.state.ACTIVE::before{background:#000}
+.state.DISARMED{background:var(--bad);color:#fff;border-color:var(--bad)}.state.DISARMED::before{background:#fff;animation:dpulse 1s ease-in-out infinite}
+.state.CONNECTED{color:var(--dim)}
+.reason{color:var(--dim);font-size:.85rem;max-width:10rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lights{display:flex;gap:.35rem;flex-wrap:nowrap;flex:none}
+.lights .dot{padding:.3rem .7rem;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:.85rem}
+#hsum{font-size:1rem;font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;padding-left:.4rem;border-left:1px solid var(--line2)}
+#hsum.bad{color:var(--bad)}#hsum.warn{color:var(--warn)}
+.who{margin-left:auto;text-align:right;line-height:1.1;white-space:nowrap}
+.who b{display:block;font-size:1.15rem;font-weight:900;letter-spacing:.04em}
+.who .num{font-size:1.15rem;color:var(--acc)}
+.who small{display:block;font-size:.7rem;color:var(--mute);margin-top:.15rem;font-variant-numeric:tabular-nums}
+#gameb{background:var(--acc-dim);border-color:rgba(180,140,255,.5);color:var(--acc);white-space:nowrap}
+#link{font-size:.7rem;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap;max-width:22rem;overflow:hidden;text-overflow:ellipsis}
+main{display:grid;grid-template-columns:17rem minmax(0,1fr) 24rem;grid-template-rows:minmax(0,1fr);gap:var(--gap);padding:var(--gap);min-height:0}
+main>.col{display:flex;flex-direction:column;gap:var(--gap);min-height:0;min-width:0}
+/* 左列：步态三个大数字 + 迷你曲线 */
+#gaitPanel .gv{flex:1;display:flex;flex-direction:column;justify-content:space-around;min-height:0}
+.g{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto minmax(2.4rem,1fr);min-height:0;padding:.25rem 0}
+.g+.g{border-top:1px solid var(--line)}
+.g .k{font-size:.8rem;color:var(--dim);letter-spacing:.08em;font-weight:700}.g .k i{font-style:normal;font-size:.7rem}
+.g .v{font-size:2.5rem}
+.g .v small{font-size:.9rem}
+.g .sp{min-height:0;height:100%;position:relative}
+.g .sp canvas{position:absolute;inset:0}
+.g .st{font-size:.75rem;color:var(--mute);margin-top:.1rem}
+#evPanel{flex:none;height:32%}
+#events{font-size:.85rem;color:var(--dim);overflow:auto;min-height:0;flex:1}
+#events div{padding:.22rem 0;border-bottom:1px solid var(--line);line-height:1.35}
+#events div span{color:var(--mute);font-variant-numeric:tabular-nums;font-size:.75rem;margin-right:.3rem}
+/* 中列：腿上的力 + 地形 */
+#forcePanel{flex:1}
+#forcePanel .lanes{flex:1;display:grid;grid-template-rows:1fr 1fr;gap:.5rem;min-height:0;position:relative}
+#forcePanel .lanes::after{content:attr(data-note);position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:1.3rem;font-weight:900;letter-spacing:.1em;color:var(--dim);background:rgba(7,9,17,.72);border-radius:var(--r2);border:1px dashed var(--line2)}
+#forcePanel .lanes[data-note]::after{display:flex}
+#forcePanel .lanes.bad::after{color:var(--bad);border-color:rgba(255,77,79,.5)}
+body.offline main,body.offline footer.ops{opacity:.45;filter:saturate(.4)}
+body.offline main{pointer-events:none}
+.ln{display:grid;grid-template-columns:2.4rem minmax(0,1fr) 7.5rem;gap:.6rem;align-items:stretch;min-height:0}
+.ln .ll{font-size:1rem;font-weight:800;color:var(--dim);display:flex;align-items:center;justify-content:center;border-radius:var(--r2);background:var(--panel2)}
+.ln .cv{position:relative;border-radius:var(--r2);background:rgba(255,255,255,.03);overflow:hidden;min-height:0}
+.ln .cv canvas{position:absolute;inset:0}
+.ln .lv{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;text-align:right}
+.ln .lv .num{font-size:2.5rem;transition:color .15s}
+.ln .lv .sk{font-size:.75rem;color:var(--mute);margin-top:.3rem}
+.sent{font-size:.85rem;color:var(--dim);font-variant-numeric:tabular-nums}
+.sent .l,.sent .r{color:var(--fg);font-weight:800}
+#terrainPanel{flex:none}
+#terrainPanel.pulse{border-color:var(--seg-stairs);box-shadow:0 0 0 1px rgba(255,213,79,.3) inset}
+.trhead{display:flex;align-items:baseline;gap:.7rem;margin-bottom:.4rem}
+#wname{font-size:1.7rem;font-weight:900;letter-spacing:.04em;line-height:1.1}
+#wsub{color:var(--dim);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+#trsel{margin-left:auto;font-size:.85rem;padding:.25rem .5rem;flex:none}
+.trstats{display:grid;grid-template-columns:1.6fr 1.3fr 1fr 1fr 1fr;gap:.5rem .9rem;margin-bottom:.4rem}
+.trstats .k{color:var(--dim);font-size:.75rem;letter-spacing:.08em;font-weight:700;white-space:nowrap}
+.trstats .v{font-size:1.7rem;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em}
+.trstats .s{font-size:.8rem;color:var(--dim);white-space:nowrap}
+.trstats .cur .v{color:var(--fg)}
+#pulseTag{display:inline-block;margin-left:.4rem;font-size:.7rem;line-height:1.5;font-weight:900;color:#000;background:var(--seg-stairs);border-radius:.3rem;padding:0 .4rem;visibility:hidden;letter-spacing:0}
+#c4{width:100%;height:7.5rem;display:block;border-radius:var(--r2);background:var(--panel2)}
+#terrainPanel .legend{margin-top:.35rem;font-size:.8rem;color:var(--dim)}
+#trnote{margin-top:.2rem;font-size:.85rem;color:var(--dim);min-height:1.2rem}
+#trnote .w{color:var(--bad);font-weight:800}
+.trempty{display:none}
+#terrainPanel.none .trbody{display:none}#terrainPanel.none .trempty{display:flex}
+/* 右列：蜂群 + 经验卡 */
+#swarmPanel{flex:1}
+#swarmPanel .mkrow{display:flex;gap:.4rem;margin-bottom:.5rem}
+#mk{flex:1}
+#mkb{background:var(--acc);border-color:var(--acc);color:#000;white-space:nowrap}
+#brainst{display:none}   /* 大脑状态在标题右侧的 .x 和顶条的点里给，这里的原始文字留给脚本写、不显示 */
+#swarm{flex:1}
+#swarm .who{font-weight:800}
+#swarm .v{font-size:.72rem;font-weight:800;padding:0 .35rem;border-radius:.25rem;border:1px solid currentColor;margin:0 .35rem;line-height:1.5;vertical-align:.05em}
+.banner{display:none;font-size:.85rem;font-weight:700;padding:.35rem .6rem;border-radius:var(--r2);margin-bottom:.5rem;border:1px solid;line-height:1.3}
+.banner.on{display:block}
+.banner.bad{color:var(--bad);border-color:rgba(255,77,79,.5);background:rgba(255,77,79,.08)}
+.banner.warn{color:var(--warn);border-color:rgba(255,159,26,.5);background:rgba(255,159,26,.08)}
+#memPanel{flex:none;height:38%}
+#cards{overflow:auto;min-height:0;flex:1}
+#cards .card{border:1px solid var(--line);border-left:.25rem solid var(--line2);border-radius:var(--r2);padding:.45rem .6rem;margin:0 0 .45rem;font-size:.85rem;transition:border-color .3s;background:var(--panel2);line-height:1.35}
+#cards .card.on{border-left-color:var(--ok);border-color:rgba(61,220,132,.4)}#cards .card.off{opacity:.4}
+#cards .card b{color:var(--acc);font-size:.85rem}#cards .card .q{font-size:1rem;font-weight:700}
+#cards .card button{padding:.1rem .5rem;font-size:.75rem;float:right;margin-left:.4rem}
+#cards .card .meta{color:var(--mute);font-size:.72rem;margin-top:.15rem}
+@keyframes slideIn{0%{transform:translateX(2rem);opacity:0}60%{transform:translateX(-.2rem);opacity:1}100%{transform:none}}
+@keyframes hitGlow{0%{box-shadow:0 0 0 2px var(--seg-stairs)}100%{box-shadow:none}}
 #cards .card.new{animation:slideIn .6s cubic-bezier(.2,.9,.3,1.2),hitGlow 2s ease-out}
 #cards .card.hit{animation:slideIn .5s cubic-bezier(.2,.9,.3,1.2),hitGlow 2.5s ease-out}
-#swarm{font-size:15px;max-height:340px;overflow:auto}#swarm div{padding:4px 0;border-bottom:1px solid #1e242b}
-#swarm .who{display:inline-block;min-width:4.5em;font-weight:700}#swarm .v{font-size:12px;padding:0 5px;border-radius:4px;margin-right:4px;background:#1e242b}
-#events{font-size:14px;max-height:240px;overflow:auto;color:#d3dbe4}#events div{padding:4px 0;border-bottom:1px solid #1e242b}
-input,select{font:inherit;background:#0b0f13;color:var(--fg);border:1px solid #3a4553;border-radius:8px;padding:9px}
-.sent{font-size:clamp(22px,2vw,30px);white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700}.sent .l{color:var(--l)}.sent .r{color:var(--r)}
-/* 地形面板 */
-#terrainPanel.pulse{border-color:var(--t);box-shadow:0 0 18px #ffd54f33}
-.trhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
-#wname{font-size:28px;font-weight:800;letter-spacing:1px}#wsub{color:var(--dim);font-size:15px}
-.trhead select{margin-left:auto}
-.trstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 14px;margin-bottom:10px}
-.trstats .k{color:var(--dim);font-size:14px;white-space:nowrap}.trstats .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.25}
-.trstats .s{font-size:15px;color:var(--dim)}
-.chip{display:inline-block;font-size:14px;font-weight:700;padding:1px 8px;border-radius:6px;color:#000;vertical-align:middle;margin-left:4px}
-#pulseTag{display:inline-block;margin-left:6px;font-size:13px;line-height:18px;font-weight:800;color:#000;background:var(--t);border-radius:6px;padding:0 8px;visibility:hidden}
-#terrainPanel .legend{margin-top:6px;font-size:14px;color:var(--dim)}
-#trnote{margin-top:4px;font-size:15px;color:var(--dim);min-height:22px}
-#trnote .w{color:var(--bad);font-weight:700}
-#toast{position:fixed;left:50%;top:18px;transform:translate(-50%,-120%);background:#1d2530;border:1px solid var(--t);color:var(--fg);padding:12px 20px;border-radius:12px;font-size:18px;z-index:9;transition:transform .35s,visibility .35s;visibility:hidden;max-width:calc(100% - 32px);box-shadow:0 8px 30px #000a}
+/* ---------- 底部操作区 ---------- */
+footer.ops{display:grid;grid-template-columns:12rem 9rem 10rem 12rem minmax(18rem,1fr) 16rem;grid-template-rows:1fr 1fr;grid-template-areas:"estop rearm hold sim ctl mem" "estop seg hold sim ctl say";gap:.45rem var(--gap);padding:0 var(--gap) var(--gap);height:8.2rem;min-height:0}
+footer.ops>*{min-width:0;min-height:0}
+.two{grid-row:span 2}
+#estop{grid-area:estop;font-size:2.5rem;font-weight:900;letter-spacing:.3em;text-indent:.3em;background:#e5202c;border:1px solid #ff6b75;color:#fff;box-shadow:0 0 0 .2rem rgba(229,32,44,.25),0 .4rem 1.6rem rgba(229,32,44,.35);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+#estop small{display:block;font-size:.8rem;font-weight:700;letter-spacing:.1em;text-indent:0;opacity:.9;margin-top:.5rem}
+#estop:active{background:#ff3b45}
+#rearm{grid-area:rearm;color:var(--ok);background:rgba(61,220,132,.1);border-color:rgba(61,220,132,.5)}
+.seg{grid-area:seg;display:grid;grid-template-columns:1fr 1fr;gap:.35rem}
+.seg button{color:var(--dim);font-size:.85rem;padding:.3rem .4rem;white-space:nowrap}
+.seg button.sel{background:rgba(255,159,26,.16);border-color:var(--warn);color:var(--warn)}
+.holdb{font-size:1.3rem;font-weight:900;user-select:none;-webkit-user-select:none;touch-action:none;position:relative;border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;line-height:1.15}
+.holdb .k{float:none;margin:0;font-size:.7rem}
+#hold{grid-area:hold;color:var(--ok);background:rgba(61,220,132,.08);border:1px solid rgba(61,220,132,.45)}
+#hold.on{background:var(--ok);color:#000;box-shadow:0 0 0 .25rem rgba(61,220,132,.35),0 0 1.6rem rgba(61,220,132,.45);transform:scale(.985);animation:holdRing 1s ease-in-out infinite}
+@keyframes holdRing{50%{box-shadow:0 0 0 .5rem rgba(61,220,132,.18),0 0 2.4rem rgba(61,220,132,.6)}}
+#simbox{grid-area:sim;display:grid;grid-template-rows:1fr auto;gap:.35rem}
+#walk{color:var(--acc);background:var(--acc-dim);border:1px solid rgba(180,140,255,.5);font-size:1.15rem}
+#walk.on{background:var(--acc);color:#000;box-shadow:0 0 0 .25rem rgba(180,140,255,.3);transform:scale(.985);animation:walkRing 1s ease-in-out infinite}
+@keyframes walkRing{50%{box-shadow:0 0 0 .5rem rgba(180,140,255,.15)}}
+.cadrow{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--dim)}
+.cadrow input{flex:1}
+#cadv{width:2rem;text-align:right;font-variant-numeric:tabular-nums;color:var(--fg);font-weight:800}
+#walklock{padding:.2rem .5rem;font-size:.75rem}
+#ctlbox{grid-area:ctl;display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:.6rem;align-items:start;min-height:0;padding:.45rem .7rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+#ctlbox .lab{font-size:.75rem;letter-spacing:.12em;color:var(--dim);font-weight:800;display:flex;flex-direction:column;gap:.35rem}
+#ctl{font-size:.85rem;padding:.25rem .4rem;width:100%}
+.params{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.1rem 1rem;min-height:0}
+.params div{display:grid;grid-template-columns:minmax(0,1fr) auto 2.8rem auto;align-items:center;gap:.25rem;margin:0;font-size:.78rem}
+.params .n{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;padding-bottom:.35rem}
+.params .n small{display:none}
+.params .n::after{content:"";position:absolute;left:0;bottom:.05rem;height:.15rem;width:100%;background:var(--line);border-radius:1rem}
+.params .n i{position:absolute;left:0;bottom:.05rem;height:.15rem;width:calc(var(--p,0)*100%);background:var(--acc);border-radius:1rem}
+.params .v{text-align:right;font-variant-numeric:tabular-nums;font-size:.95rem;font-weight:900;width:auto}
+.params button{padding:0 .45rem;font-size:.95rem;line-height:1.35;border-radius:.3rem}
+#memrow,#sayrow{display:flex;gap:.35rem}#memrow{grid-area:mem}#sayrow{grid-area:say}
+#memrow input,#sayrow input{flex:1}
+#sayb{background:var(--acc);border-color:var(--acc);color:#000;white-space:nowrap}
+#wearerb{white-space:nowrap}
+/* 调试抽屉：折着是一条小标签，点开盖在底部（不撑页面） */
+details.dbg{position:static;flex:none}
+details.dbg>summary{cursor:pointer;list-style:none;font-size:.7rem;letter-spacing:.12em;color:var(--mute);padding:.3rem .6rem;border-radius:.3rem;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
+details.dbg>summary::-webkit-details-marker{display:none}
+details.dbg>summary::before{content:"▸ "}details.dbg[open]>summary::before{content:"▾ "}
+details.dbg>.dbody{position:fixed;left:1rem;right:1rem;top:3.6rem;z-index:8;display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:var(--gap);max-height:70vh;overflow:auto;padding:var(--gap);background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);box-shadow:0 1rem 3rem #000c}
+.dbody .dp h2{margin:0 0 .4rem;font-size:.8rem;letter-spacing:.12em;color:var(--dim);font-weight:800}
+.dbody canvas{width:100%;display:block;background:var(--panel2);border-radius:var(--r2)}
+.row{display:flex;gap:.6rem;flex-wrap:wrap}.kv{flex:1;min-width:5.5rem}.kv .k{color:var(--dim);font-size:.75rem}.kv .v{font-size:1.3rem;font-weight:800;font-variant-numeric:tabular-nums}
+#padmap td{padding:.15rem .25rem;border-bottom:1px solid var(--line);vertical-align:top;font-size:.8rem}#padmap td:first-child{white-space:nowrap;width:5rem}
+#toast{position:fixed;left:50%;top:.9rem;transform:translate(-50%,-150%);background:var(--panel2);border:1px solid var(--acc);color:var(--fg);padding:.6rem 1rem;border-radius:var(--r);font-size:1rem;font-weight:700;z-index:9;transition:transform .35s,visibility .35s;visibility:hidden;max-width:calc(100% - 2rem);box-shadow:0 .5rem 2rem #000a}
 #toast.show{transform:translate(-50%,0);visibility:visible}
-/* 手机竖屏：单列、16px 边距 */
+/* ---------- 窄屏（iPad 竖屏 / 手机）：放弃一屏，单列可滚 ---------- */
+@media (max-width:1500px){#link{display:none}}
 @media (max-width:900px){
- main{grid-template-columns:1fr;padding:10px 16px}
- header{padding:10px 16px;gap:10px}.hbtns{margin-left:0;width:100%}.hbtns .seg{flex:1}.seg button{flex:1}#gameb{flex:1}
- .trstats{grid-template-columns:1fr 1fr}.sent{font-size:26px}
- .row>.panel{min-width:100%!important}
- main>div{display:contents}#safetyPanel{order:-2}main .panel{margin-top:0!important}.row{gap:12px}#estop{height:110px;font-size:40px}
- .seg button{white-space:nowrap;padding:9px 8px}#gameb{white-space:nowrap}
- .holdb{height:92px;font-size:24px}#walk{height:72px;font-size:21px}
- #wname{font-size:24px}.state{font-size:24px}
+ html{font-size:14px}
+ body{height:auto;overflow:auto;display:block}
+ header.top{flex-wrap:wrap}#hsum{flex-basis:100%;border:0;padding:0}.who{margin-left:0}
+ main{grid-template-columns:1fr;grid-template-rows:none}
+ #gaitPanel .gv{flex-direction:row}.g+.g{border-top:0;border-left:1px solid var(--line);padding-left:.5rem}.g{flex:1}.g .sp{height:3rem}
+ #evPanel,#memPanel{height:auto}#events,#cards,#swarm{max-height:14rem}
+ #forcePanel .lanes{height:12rem}
+ footer.ops{grid-template-columns:1fr 1fr;grid-template-rows:none;grid-template-areas:"estop estop" "rearm seg" "hold hold" "sim sim" "ctl ctl" "mem mem" "say say";height:auto}
+ #estop{height:6rem}
+ details.dbg>.dbody{position:static;max-height:none}
 }
 </style></head><body>
 <div id="toast"></div>
-<header><h1>SHELLOS</h1><div id="st" class="state">…</div><div id="reason" class="reason"></div>
- <div class="lights"><span class="lt" id="lBrain"><i></i><span>大脑</span></span><span class="lt" id="lVoice"><i></i><span>峰哥语音</span></span><span class="lt" id="lPad"><i></i><span>手柄</span></span></div>
- <div class="hbtns">
-  <div class="seg" title="演示态：每位评委前复位参数与步态（经验库、影子保留）；累积态：一直累积不复位"><button id="mDemo">演示态</button><button id="mAcc">累积态</button></div>
-  <button id="gameb">打开游戏屏 ↗</button>
- </div>
- <div id="link"></div></header>
-<main>
-<div>
- <div class="panel" id="safetyPanel"><h2>安全 <small>急停 = 立刻断使能（手柄 × 也行），要「重新上膛」才恢复</small></h2>
-  <button id="estop">急停<small>手柄 ×</small></button>
-  <div class="row" style="margin-top:10px"><button id="rearm" style="flex:1">重新上膛（手柄 ○）</button></div>
-  <button id="hold" class="holdb" style="margin-top:10px">按住 → 助力</button>
-  <div id="simbox" style="display:none;margin-top:10px">
-   <button id="walk" class="holdb">按住走路（模拟）</button>
-   <div class="row" style="margin-top:6px;align-items:center"><span style="color:var(--dim)">步频</span><input id="cadr" type="range" min="60" max="140" step="10" value="110" style="flex:1;padding:0"><span id="cadv" style="width:44px;text-align:right">110</span><button id="walklock" style="padding:6px 12px">一直走</button></div>
-  </div>
-  <div style="margin-top:10px" class="sent">发出 <span class="l" id="tl">0.00</span> / <span class="r" id="tr">0.00</span> Nm</div>
-  <div style="font-size:15px;color:var(--dim)">软限 <span id="cap"></span> · 死人开关 <span id="dm"></span></div>
- </div>
- <div class="panel" style="margin-top:12px"><h2>记忆 · 经验卡 <span id="memst" class="h2x"></span></h2>
-  <div class="row"><input id="wearer" placeholder="穿戴者（评委-03）" style="flex:1;min-width:120px"><button id="wearerb">换人</button></div>
-  <div class="row" style="margin-top:8px"><input id="say" placeholder="评委说：太陡了 / 轻一点 / 早一点" style="flex:1;min-width:150px"><button id="sayb" style="background:#173524;color:var(--ok);font-weight:700">学</button></div>
-  <div id="cards" style="margin-top:8px"></div>
- </div>
-</div>
-<div>
- <div class="panel"><h2>蜂群 · 教练 / 地形导演 / 记忆员 / 安全员 <span id="brainst" class="h2x"></span></h2>
-  <div class="row"><input id="mk" placeholder="一句话造一座山：峰哥被追到山顶，一路狂奔上台阶" style="flex:1;min-width:150px"><button id="mkb" style="background:#2a1d3a;color:#d9b8ff;font-weight:700">造山</button></div>
-  <div id="swarm" style="margin-top:8px"></div>
- </div>
- <div class="panel" id="terrainPanel" style="margin-top:12px">
-  <div class="trhead"><span id="wname">–</span><span id="wsub"></span><select id="trsel"></select></div>
-  <div class="trstats">
-   <div><div class="k">当前路段 <span id="pulseTag">脉冲</span></div><div class="v" id="trlabel">–</div><div class="s" id="trkind"></div></div>
-   <div><div class="k">前方</div><div class="v" id="trnext">–</div><div class="s" id="trnextin"></div></div>
-   <div><div class="k">海拔</div><div class="v" id="tralt">–</div></div>
-   <div><div class="k">进度</div><div class="v" id="trpos">–</div><div class="s" id="trlap"></div></div>
-   <div><div class="k">影子 <span style="color:var(--ghost)">●</span></div><div class="v" id="trghost">–</div><div class="s" id="trghost2"></div></div>
-  </div>
-  <canvas id="c4" height="160"></canvas>
-  <div class="legend"><span style="color:#3ddc84">■</span>上坡 <span style="color:#4fc3f7">■</span>下坡 <span style="color:#ffd54f">■</span>上台阶 <span style="color:#ff8a65">■</span>下台阶 <span style="color:#ff4d4f">■</span>红灯 · <span style="color:#ffd54f">▼</span>本圈吃到脉冲的步 · <span style="color:var(--ghost)">●</span>影子 · ◉你</div>
-  <div id="trnote"></div>
- </div>
-</div>
-<div class="full row">
- <div class="panel" style="flex:1;min-width:300px"><h2>控制律</h2>
-  <select id="ctl" style="width:100%"></select>
-  <div class="params" id="params"></div>
- </div>
- <div class="panel" style="flex:1.4;min-width:300px"><h2>事件</h2>
-  <div id="events"></div>
- </div>
-</div>
-<details class="dbg" id="dbg"><summary>调试 · 髋角 / 力矩曲线 · 相位 · 腿部 3D · 步态签名 · 手柄键位（点开才画，省 CPU）</summary><div class="dbody">
-  <div class="panel"><h2>髋角 · 左 <span style="color:var(--l)">■</span> 右 <span style="color:var(--r)">■</span> · 发出力矩 <span style="color:var(--t)">■</span></h2>
+<header class="top">
+ <div class="brand">SHELLOS<small>操作台</small></div>
+ <div id="st" class="state">…</div><div id="reason" class="reason"></div>
+ <div class="lights"><span class="dot" id="lExo"><i></i><span>外骨骼</span></span><span class="dot" id="lPad"><i></i><span>手柄</span></span><span class="dot" id="lBrain"><i></i><span>大脑</span></span><span class="dot" id="lVoice"><i></i><span>峰哥语音</span></span></div>
+ <div id="hsum">…</div>
+ <div class="who"><b id="hwho">–</b><span class="num" id="htime">0:00</span><small id="link"></small></div>
+ <button id="gameb">打开游戏屏 ↗</button>
+<details class="dbg" id="dbg"><summary>调试 · 髋角 / 力矩 · 相位 · 腿部 3D · 手柄键位</summary><div class="dbody">
+  <div class="dp"><h2>髋角 · 左 <span style="color:var(--seg-down)">■</span> 右 <span style="color:#ff8a65">■</span> · 发出力矩 <span style="color:var(--seg-stairs)">■</span></h2>
   <canvas id="c1" height="240"></canvas></div>
-    <div class="panel" ><h2>相位</h2><canvas id="c2" height="190"></canvas></div>
-  <div class="panel" ><h2>腿部 3D <small>拖动旋转 · 滚轮缩放</small> <span id="c3info" class="h2x" style="float:right"></span></h2><div id="c3" style="clear:both;height:300px;border-radius:8px;background:#0b0f13;overflow:hidden"></div></div>
-  <div class="panel" ><h2>步态签名</h2>
+    <div class="dp"><h2>相位</h2><canvas id="c2" height="190"></canvas></div>
+  <div class="dp"><h2>腿部 3D <small>拖动旋转 · 滚轮缩放</small> <span id="c3info" style="float:right;color:var(--mute)"></span></h2><div id="c3" style="clear:both;height:300px;border-radius:8px;background:#0b0f13;overflow:hidden"></div></div>
+  <div class="dp"><h2>步态签名</h2>
    <div class="row">
-    <div class="kv"><div class="k">步频 步/分</div><div class="v" id="cad">–</div></div>
-    <div class="kv"><div class="k">左/右 对称比</div><div class="v" id="sym">–</div></div>
     <div class="kv"><div class="k">周期变异</div><div class="v" id="var">–</div></div>
     <div class="kv"><div class="k">置信度</div><div class="v" id="conf">–</div></div>
-    <div class="kv"><div class="k">活动度 L/R °</div><div class="v" id="rom">–</div></div>
     <div class="kv"><div class="k">周期数</div><div class="v" id="str">–</div></div>
    </div>
-   <div class="row" style="margin-top:10px">
+   <div class="row" style="margin-top:.5rem">
     <div class="kv"><div class="k">躯干 pitch / roll</div><div class="v" id="imu">–</div></div>
     <div class="kv"><div class="k">气压 kPa</div><div class="v" id="kpa">–</div></div>
     <div class="kv"><div class="k">控制循环最大间隔</div><div class="v" id="loop">–</div></div>
    </div></div>
-  <div class="panel"><h2>PS5 手柄 <span id="padst" class="h2x"></span></h2>
-  <div style="background:#0b0f13;border-radius:6px;height:14px;overflow:hidden;margin:4px 0 8px"><div id="r2bar" style="height:100%;width:0;background:var(--ok)"></div></div>
-  <table style="width:100%;font-size:14px;border-collapse:collapse" id="padmap">
+  <div class="dp"><h2>PS5 手柄 <span id="padst" style="color:var(--mute);font-weight:600"></span></h2>
+  <div style="background:var(--panel2);border-radius:.3rem;height:.6rem;overflow:hidden;margin:.2rem 0 .4rem"><div id="r2bar" style="height:100%;width:0;background:var(--ok)"></div></div>
+  <table style="width:100%;border-collapse:collapse" id="padmap">
    <tr><td><b>R2</b> 右扳机</td><td>按住才有力，按多深力多大；松开归零</td></tr>
    <tr><td><b>×</b></td><td>急停（DISABLE，要重新上膛）</td></tr>
    <tr><td><b>○</b></td><td>重新上膛</td></tr>
@@ -177,7 +214,70 @@ input,select{font:inherit;background:#0b0f13;color:var(--fg);border:1px solid #3
   </table>
  </div>
 </div></details>
+</header>
+<main>
+<div class="col">
+ <div class="dp" id="gaitPanel"><div class="pt">步态<span class="x" id="gaitx"></span></div>
+  <div class="gv">
+   <div class="g"><div class="k">步频 <span style="color:var(--mute)">步/分</span></div><div class="v num" id="cad">–</div><div class="sp"><canvas class="spark" id="spCad"></canvas></div></div>
+   <div class="g"><div class="k">对称 <span style="color:var(--mute)">左/右活动度比 · 1 = 对称</span></div><div class="v num" id="sym">–</div><div class="sp"><canvas class="spark" id="spSym"></canvas></div></div>
+   <div class="g"><div class="k">活动度 <span style="color:var(--mute)">ROM ° <i style="color:var(--acc)">● 左</i> <i style="color:#f29cc0">● 右</i></span></div><div class="v num" id="rom">–</div><div class="sp"><canvas class="spark" id="spRom"></canvas></div></div>
+  </div>
+ </div>
+ <div class="dp" id="evPanel"><div class="pt">事件</div><div id="events"></div></div>
+</div>
+<div class="col">
+ <div class="dp" id="forcePanel"><div class="pt">腿上的力 <span class="chip" id="fKind"></span><span class="x"><span class="sent">发出 <span class="l" id="tl">0.00</span> / <span class="r" id="tr">0.00</span> Nm · 软限 <span id="cap"></span> · 死人开关 <span id="dm"></span></span></span></div>
+  <div class="lanes" id="lanes">
+   <div class="ln"><div class="ll">左<br>腿</div><div class="cv"><canvas class="spark" id="fl"></canvas></div><div class="lv"><div class="num" id="flv">0.0<small>Nm</small></div><div class="sk">近 1.5 s 峰值</div></div></div>
+   <div class="ln"><div class="ll">右<br>腿</div><div class="cv"><canvas class="spark" id="fr"></canvas></div><div class="lv"><div class="num" id="frv">0.0<small>Nm</small></div><div class="sk">近 1.5 s 峰值</div></div></div>
+  </div>
+  <div class="lg" style="margin-top:.4rem">最近 6 s · 刻度 Nm · 颜色 = 出力那一刻的路段：<i style="background:var(--seg-up)"></i>上坡 <i style="background:var(--seg-stairs)"></i>台阶 <i style="background:var(--seg-down)"></i>下坡 <i style="background:var(--seg-wait)"></i>红灯 / 站定 <i style="background:var(--seg-flat)"></i>平地</div>
+ </div>
+ <div class="dp" id="terrainPanel">
+  <div class="empty trempty"><b>没有地形</b><span>控制律不是 terrain——底部「控制律」选 terrain，或在游戏屏选一座山</span></div>
+  <div class="trbody">
+  <div class="trhead"><span id="wname">–</span><span id="wsub"></span><select id="trsel"></select></div>
+  <div class="trstats">
+   <div class="cur"><div class="k">当前路段 <span id="pulseTag">脉冲</span></div><div class="v" id="trlabel">–</div><div class="s" id="trkind"></div></div>
+   <div><div class="k">下一段</div><div class="v" id="trnext">–</div><div class="s" id="trnextin"></div></div>
+   <div><div class="k">海拔</div><div class="v" id="tralt">–</div></div>
+   <div><div class="k">进度</div><div class="v" id="trpos">–</div><div class="s" id="trlap"></div></div>
+   <div><div class="k">影子 <span style="color:var(--who-ghost)">●</span></div><div class="v" id="trghost">–</div><div class="s" id="trghost2"></div></div>
+  </div>
+  <canvas id="c4" height="160"></canvas>
+  <div class="legend lg"><i style="background:var(--seg-up)"></i>上坡 <i style="background:var(--seg-down)"></i>下坡 <i style="background:var(--seg-stairs)"></i>台阶 ▲▼ <i style="background:var(--seg-wait)"></i>红灯 · <span style="color:var(--seg-stairs)">▼</span> 本圈吃到脉冲的步 · <span style="color:var(--who-ghost)">●</span> 影子 · ◉ 你</div>
+  <div id="trnote"></div>
+  </div>
+ </div>
+</div>
+<div class="col">
+ <div class="dp" id="swarmPanel"><div class="pt">蜂群<span class="x" id="brainx"></span></div>
+  <div class="banner" id="brainBanner"></div>
+  <div class="mkrow"><input id="mk" placeholder="一句话造一座山：峰哥被追到山顶，一路狂奔上台阶"><button id="mkb">造山<span class="k">⏎</span></button></div>
+  <div class="lg" style="margin-bottom:.4rem"><span class="role" style="background:#ffb03a">峰哥</span> <span class="role" style="background:#5fd3ff">教练</span> <span class="role" style="background:#b48cff">地形导演</span> <span class="role" style="background:#f29cc0">记忆员</span> <span class="role" style="background:#ff6b57">安全员</span></div>
+  <span id="brainst"></span>
+  <div id="swarm" class="tl"></div>
+ </div>
+ <div class="dp" id="memPanel"><div class="pt">记忆 · 经验卡<span class="x" id="memst"></span></div>
+  <div id="cards"></div>
+ </div>
+</div>
 </main>
+<footer class="ops" id="safetyPanel">
+ <button id="estop">急停<small>手柄 ×</small></button>
+ <button id="rearm">重新上膛<span class="k">○</span></button>
+ <div class="seg" title="演示态：每位评委前复位参数与步态（经验库、影子保留）；累积态：一直累积不复位"><button id="mDemo">复位 · 演示态<span class="k">Options</span></button><button id="mAcc">累积态</button></div>
+ <button id="hold" class="holdb two">按住 → 助力<span class="k">R2</span></button>
+ <div id="simbox" style="display:none">
+  <button id="walk" class="holdb">按住走路（模拟）<span class="k">空格</span></button>
+  <div class="cadrow"><span>步频</span><input id="cadr" type="range" min="60" max="140" step="10" value="110"><span id="cadv">110</span><button id="walklock">一直走</button></div>
+ </div>
+ <div id="ctlbox"><div class="lab">控制律<select id="ctl"></select></div><div class="params" id="params"></div></div>
+ <div id="memrow"><input id="wearer" placeholder="穿戴者（评委-03）"><button id="wearerb">换人<span class="k">⏎</span></button></div>
+ <div id="sayrow"><input id="say" placeholder="评委说：太陡了 / 轻一点 / 早一点"><button id="sayb">学<span class="k">⏎</span></button></div>
+</footer>
+
 <script>
 const $=id=>document.getElementById(id);
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
@@ -198,10 +298,11 @@ $('estop').onclick=()=>post('/estop');$('rearm').onclick=()=>post('/rearm');
 $('sayb').onclick=()=>{const t=$('say').value.trim();if(t){post('/feedback',{text:t});$('say').value=''}};
 $('wearerb').onclick=()=>{post('/wearer',{name:$('wearer').value.trim()});toast('换人：参数回缺省，走 6 步后检索经验')};
 $('say').addEventListener('keydown',e=>{if(e.key==='Enter')$('sayb').click()});
+$('wearer').addEventListener('keydown',e=>{if(e.key==='Enter')$('wearerb').click()});
 $('mkb').onclick=async()=>{const t=$('mk').value.trim();if(!t)return;$('mkb').disabled=true;$('mkb').textContent='造山中…';
- try{const r=await (await post('/world/generate',{text:t})).json();if(r.world){toast('造好了：'+r.world.name);$('mk').value=''}}catch(e){}$('mkb').disabled=false;$('mkb').textContent='造山'};
+ try{const r=await (await post('/world/generate',{text:t})).json();if(r.world){toast('造好了：'+r.world.name);$('mk').value=''}}catch(e){}$('mkb').disabled=false;$('mkb').innerHTML='造山<span class="k">⏎</span>'};
 $('mk').addEventListener('keydown',e=>{if(e.key==='Enter')$('mkb').click()});
-const WHO={'峰哥':'#3ddc84','教练':'#7fd1ff','地形导演':'#d9b8ff','记忆员':'#ffd54f','安全员':'#ff8a65'},VC={'解说':'#3ddc84','否决':'#ff5252','裁剪':'#ff8a65','生效':'#3ddc84','同意':'#9aa7b4','提议':'#7fd1ff'};let swSig='';let S_brainModel='';
+const WHO={'峰哥':'#ffb03a','教练':'#5fd3ff','地形导演':'#b48cff','记忆员':'#f29cc0','安全员':'#ff6b57'},VC={'解说':'#98a3b3','否决':'#ff4d4f','裁剪':'#ff9f1a','生效':'#3ddc84','同意':'#3ddc84','提议':'#b48cff'};let swSig='';let S_brainModel='';
 $('ctl').onchange=()=>post('/ctl',{name:$('ctl').value});$('trsel').onchange=()=>post('/terrain',{preset:$('trsel').value});
 $('gameb').onclick=()=>window.open('/game','shellos_game');
 // 演示态 / 累积态：只是操作员习惯，记在本机浏览器
@@ -218,10 +319,10 @@ function renderParams(c){
   for(const [k,[v,lo,hi]] of Object.entries(c.params)){
    const step=(hi-lo)>=50?5:(hi-lo)>=3?0.5:(hi-lo)>=1?0.1:(hi-lo)>=0.5?0.02:0.01;
    const d=document.createElement('div');
-   d.innerHTML=`<span class="n">${esc(k)} <small style="color:var(--dim)">${lo}…${hi}</small></span><button data-k="${esc(k)}" data-d="${-step}">−</button><span class="v" id="p_${esc(k)}"></span><button data-k="${esc(k)}" data-d="${step}">+</button>`;
+   d.innerHTML=`<span class="n" id="pn_${esc(k)}" title="${lo}…${hi}">${esc(k)} <small style="color:var(--dim)">${lo}…${hi}</small><i></i></span><button data-k="${esc(k)}" data-d="${-step}">−</button><span class="v" id="p_${esc(k)}"></span><button data-k="${esc(k)}" data-d="${step}">+</button>`;
    $('params').appendChild(d)}
   $('params').querySelectorAll('button').forEach(b=>b.onclick=()=>post('/param',{name:b.dataset.k,delta:+b.dataset.d}))}
- for(const [k,[v]] of Object.entries(c.params)){const e=$('p_'+k);if(e)e.textContent=(+v).toFixed(2)}
+ for(const [k,[v,lo,hi]] of Object.entries(c.params)){const e=$('p_'+k);if(e)e.textContent=(+v).toFixed(2);const n=$('pn_'+k);if(n)n.style.setProperty('--p',Math.max(0,Math.min(1,(v-lo)/((hi-lo)||1))))}
  if($('ctl').options.length!==c.available.length){$('ctl').innerHTML=c.available.map(n=>`<option>${esc(n)}</option>`).join('')}
  if(document.activeElement!==$('ctl'))$('ctl').value=c.name;
 }
@@ -235,13 +336,13 @@ function drawSeries(){
  ctx.fillStyle='#a9b6c5';ctx.font='13px sans-serif';ctx.fillText('髋角 ±40°',6,16);ctx.fillText('力矩 ±3 Nm（实线左 / 虚线右）',6,H*0.8-36)}
 let updateBody=()=>{};
 // 状态灯：cls = ok / warn / bad / ''（灰）
-function light(id,cls,text){const e=$(id);e.className='lt '+cls;e.lastChild.textContent=text}
+function light(id,cls,text){const e=$(id);e.className='dot '+cls;e.lastChild.textContent=text}
 const KIND={flat:'平地',up:'上坡',down:'下坡',stairs_up:'上台阶',stairs_down:'下台阶',wait:'红灯停'};
-const KCOL={flat:'#56657a',up:'#3ddc84',down:'#4fc3f7',stairs_up:'#ffd54f',stairs_down:'#ff8a65',wait:'#ff4d4f'};
-const chip=k=>`<span class="chip" style="background:${KCOL[k]||'#888'}">${KIND[k]||esc(k)}</span>`;
+const KCOL={flat:'#8a95a3',up:'#3ddc84',down:'#4fc3f7',stairs_up:'#ffd54f',stairs_down:'#ffd54f',wait:'#ff4d4f'};
+const chip=k=>`<span class="chip ${esc(k)}">${KIND[k]||esc(k)}</span>`;
 let lastPulse={t:-1e9,mag:0},pulsed=new Set(),lastPos=-1,lastLaps=-1,lastWorld='';
 function drawTerrain(t,sent){
- const panel=$('terrainPanel');if(!t){panel.style.display='none';return}panel.style.display='';
+ const panel=$('terrainPanel');panel.classList.toggle('none',!t);if(!t)return;
  if($('trsel').options.length!==t.presets.length){$('trsel').innerHTML=t.presets.map(n=>`<option>${esc(n)}</option>`).join('')}
  if(document.activeElement!==$('trsel'))$('trsel').value=t.preset;
  const w=t.world||{},u=w.unit||'m',p=t.profile||[],n=p.length||t.total||1;
@@ -260,22 +361,23 @@ function drawTerrain(t,sent){
  else{const d=t.pos-t.ghost_pos;$('trghost').textContent=d===0?'并排':d>0?`领先 ${d} 步`:`落后 ${-d} 步`;$('trghost2').textContent=`${t.ghost_who||'上一位'} · 第 ${Math.min(t.ghost_pos+1,t.total)} 步`}
  $('trnote').innerHTML=t.segment==='wait'?`<span class="w">红灯：站定 ${t.wait_need||1.5} s 放行</span>`+(t.wait_still!=null?` · 已站 ${t.wait_still.toFixed(1)} s`:' · 还在动'):'';
  // 剖面
- const [ctx,W,H]=sizeCanvas($('c4'),160);if(!p.length)return;
+ const c4=$('c4'),[ctx,W,H]=sizeCanvas(c4,c4.clientHeight||160);if(!p.length)return;
  const hs=p.map(x=>x.h),hmin=Math.min(...hs),hmax=Math.max(...hs,hmin+1),bw=W/n;
  const X=i=>i*bw,Y=h=>H-26-(h-hmin)/(hmax-hmin)*(H-60);
  // 当前步列高亮（脉冲时亮黄）
  const cx=X(t.pos);ctx.fillStyle=pulse?'rgba(255,213,79,.28)':'rgba(255,255,255,.07)';ctx.fillRect(cx,0,bw,H-18);
  ctx.beginPath();ctx.moveTo(0,H-18);p.forEach((x,i)=>{ctx.lineTo(X(i),Y(x.h));ctx.lineTo(X(i+1),Y(x.h))});ctx.lineTo(W,H-18);ctx.closePath();
- const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#2b4150');g.addColorStop(1,'#141c23');ctx.fillStyle=g;ctx.fill();
- ctx.beginPath();p.forEach((x,i)=>{i?ctx.lineTo(X(i),Y(x.h)):ctx.moveTo(0,Y(x.h));ctx.lineTo(X(i+1),Y(x.h))});ctx.strokeStyle='#8fb3c9';ctx.lineWidth=2;ctx.stroke();
- p.forEach((x,i)=>{ctx.fillStyle=KCOL[x.kind]||'#888';ctx.globalAlpha=i<t.pos?0.45:1;ctx.fillRect(X(i)+0.5,H-14,Math.max(1,bw-1.5),9)});ctx.globalAlpha=1;
+ const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(180,140,255,.22)');g.addColorStop(1,'rgba(180,140,255,.02)');ctx.fillStyle=g;ctx.fill();
+ ctx.beginPath();p.forEach((x,i)=>{i?ctx.lineTo(X(i),Y(x.h)):ctx.moveTo(0,Y(x.h));ctx.lineTo(X(i+1),Y(x.h))});ctx.strokeStyle='rgba(232,236,243,.75)';ctx.lineWidth=1.5;ctx.stroke();
+ p.forEach((x,i)=>{ctx.fillStyle=KCOL[x.kind]||'#888';ctx.globalAlpha=i<t.pos?0.4:1;ctx.fillRect(X(i)+0.5,H-15,Math.max(1,bw-1.5),11)});ctx.globalAlpha=1;
+ ctx.fillStyle=pulse?'#ffd54f':'rgba(232,236,243,.55)';ctx.fillRect(Math.round(cx+bw/2)-0.5,0,1,H-16);   // 当前步竖针
  // 本圈吃到脉冲的步：路面上方小三角
  ctx.fillStyle='#ffd54f';pulsed.forEach(i=>{if(!p[i])return;const x=X(i)+bw/2,y=Y(p[i].h)-4;ctx.beginPath();ctx.moveTo(x-4,y-7);ctx.lineTo(x+4,y-7);ctx.lineTo(x,y);ctx.fill()});
  // 路段名（空间够才写）
- ctx.font='13px sans-serif';ctx.textAlign='left';ctx.fillStyle='#c6d2de';let lastX=-999;
+ ctx.font='700 12px -apple-system,"PingFang SC",sans-serif';ctx.textAlign='left';ctx.fillStyle='rgba(232,236,243,.7)';let lastX=-999;
  p.forEach((x,i)=>{if(i&&p[i-1].label===x.label)return;let j=i;while(j<n&&p[j].label===x.label)j++;const w=(j-i)*bw;if(w>44&&X(i)-lastX>40){ctx.fillText(x.label.length>7&&w<100?x.label.slice(0,6)+'…':x.label,X(i)+3,14+(i%2)*15);lastX=X(i)}});
  // 影子
- if(t.ghost_pos!=null&&p[Math.min(t.ghost_pos,n-1)]){const gi=Math.min(t.ghost_pos,n-1),gx=X(gi)+bw/2,gy=Y(p[gi].h)-10;ctx.fillStyle='#b39dff';ctx.globalAlpha=.8;ctx.beginPath();ctx.arc(gx,gy,7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+ if(t.ghost_pos!=null&&p[Math.min(t.ghost_pos,n-1)]){const gi=Math.min(t.ghost_pos,n-1),gx=X(gi)+bw/2,gy=Y(p[gi].h)-10;ctx.fillStyle='#9fe8ff';ctx.globalAlpha=.8;ctx.beginPath();ctx.arc(gx,gy,7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
  // 自己
  const pi=Math.min(t.pos,n-1),px=X(pi)+bw/2,py=Y(p[pi].h)-10;
  if(pulse){ctx.strokeStyle='#ffd54f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(px,py,11+4*Math.sin(performance.now()/80),0,Math.PI*2);ctx.stroke()}
@@ -292,14 +394,45 @@ let cardSig='',cardPrev=null;
 function renderCards(m){
  const sig=JSON.stringify([m.cards.map(c=>[c.id,c.enabled,c.hits]),m.applied]);if(sig===cardSig)return;cardSig=sig;
  const prev=cardPrev,now={};
- $('cards').innerHTML=m.cards.slice().reverse().map(c=>{
+ $('cards').innerHTML=m.cards.length?m.cards.slice().reverse().map(c=>{
   const on=m.applied.includes(c.id);now[c.id]={hits:c.hits,on};
   const anim=!prev?'':!prev[c.id]?'new':(c.hits>prev[c.id].hits||(on&&!prev[c.id].on))?'hit':'';
   const cls=!c.enabled?'off':on?'on':'';
-  return `<div class="card ${cls} ${anim}"><button data-id="${c.id}" data-on="${c.enabled?0:1}">${c.enabled?'删除':'恢复'}</button><b>#${c.id}</b> <span class="q">「${esc(c.quote)}」</span> → ${Object.entries(c.delta).map(([k,v])=>esc(k)+' '+(v>0?'+':'')+(+v).toFixed(2)).join(', ')}${on?' <span style="color:var(--ok);font-weight:700">已套用</span>':''}<div class="meta">${esc(c.wearer)} · 步频 ${c.trigger.cadence[0]}–${c.trigger.cadence[1]} · ${esc(c.controller)} · 命中 ${c.hits} · ${esc(c.source==='claude'?((S_brainModel||'大模型').split(' / ')[0]):c.source)} · ${esc(c.ts)}</div></div>`}).join('');
+  return `<div class="card ${cls} ${anim}"><button data-id="${c.id}" data-on="${c.enabled?0:1}">${c.enabled?'删除':'恢复'}</button><b>#${c.id}</b> <span class="q">「${esc(c.quote)}」</span> → ${Object.entries(c.delta).map(([k,v])=>esc(k)+' '+(v>0?'+':'')+(+v).toFixed(2)).join(', ')}${on?' <span style="color:var(--ok);font-weight:700">已套用</span>':''}<div class="meta">${esc(c.wearer)} · 步频 ${c.trigger.cadence[0]}–${c.trigger.cadence[1]} · ${esc(c.controller)} · 命中 ${c.hits} · ${esc(c.source==='claude'?((S_brainModel||'大模型').split(' / ')[0]):c.source)} · ${esc(c.ts)}</div></div>`}).join('')
+  :'<div class="empty"><b>还没有经验卡</b><span>评委说一句「太陡了 / 轻一点」，敲进底部输入框 → 存成卡，下一位接着用</span></div>';
  $('cards').querySelectorAll('button').forEach(b=>b.onclick=()=>post(b.dataset.on==='1'?'/memory/enable':'/memory/delete',{id:+b.dataset.id}));
  if(prev)for(const c of m.cards)if(!prev[c.id])toast(`新经验卡 #${c.id}「${c.quote}」`);
  cardPrev=now}
+// D 线：步态迷你曲线（最近 60 s，10 Hz → 600 点）和腿上的力波形（最近 6 s，颜色 = 路段）的历史，只在这个页面里存
+const SP={cad:[],sym:[],roml:[],romr:[]},FH=[[],[]],SPN=300;
+function drawVis(s){
+ const D=window.__D;if(!D)return;
+ const g=s.gait,now=performance.now()/1000,kind=s.terrain?s.terrain.segment:null,c=KCOL[kind]||KCOL.flat,cap=Math.max(1,Math.round(s.safety.cap||3));
+ SP.cad.push(g.cadence);SP.sym.push(g.symmetry);SP.roml.push(g.rom_l);SP.romr.push(g.rom_r);for(const a of Object.values(SP))while(a.length>SPN)a.shift();
+ D.spark($('spCad'),SP.cad,{color:'#b48cff',lo:40,hi:150});D.spark($('spSym'),SP.sym,{color:'#b48cff',lo:.5,hi:1.5,base:1});D.spark($('spRom'),null,{series:[{a:SP.roml,color:'#b48cff'},{a:SP.romr,color:'#f29cc0'}],lo:0,hi:60,unit:'°'});
+ $('gaitx').textContent=g.moving?`走动中 · 置信 ${g.conf.toFixed(2)} · ${g.strides} 周期`:'静止';$('gaitx').className='x'+(g.moving?' ok':'');
+ const fk=$('fKind');fk.textContent=kind?(KIND[kind]||kind):'共驾';fk.className='chip '+(kind||'flat');
+ for(let k=0;k<2;k++){const H=FH[k],v=+s.safety.sent[k]||0;H.push({t:now,v,c});while(H.length>2&&now-H[1].t>6)H.shift();
+  let pk=0;for(const x of H)if(now-x.t<=1.5&&Math.abs(x.v)>Math.abs(pk))pk=x.v;
+  const e=$(k?'frv':'flv');e.firstChild.textContent=`${pk>0.05?'+':pk<-0.05?'−':''}${Math.abs(pk).toFixed(1)}`;e.style.color=Math.abs(pk)>=0.05?c:'';
+  D.lane($(k?'fr':'fl'),H,{cap,win:6,now})}
+}
+// 顶条：外骨骼点 + 一句话 + 穿戴者 / 用时
+function drawTop(s){
+ const D=window.__D,L=s.link||{},st=s.safety.state;
+ const dead=L.age_ms>800||(!L.enabled&&L.port!=='sim'&&!L.n);
+ light('lExo',dead?'bad':L.enabled?'ok':'warn',dead?'外骨骼没数据':L.enabled?(L.port==='sim'?'外骨骼 · 模拟':'外骨骼 · 已使能'):'外骨骼 · 未使能');
+ const T=s.terrain,sum=$('hsum');let txt='',cls='';
+ if(dead){txt=`外骨骼没数据：${L.port}${L.last_err?' · '+L.last_err:''}，检查线和电源`;cls='bad'}
+ else if(st==='DISARMED'){txt='急停中——腿上没力，按「重新上膛」才恢复';cls='bad'}
+ else if(st==='ACTIVE'){txt=T?`腿上有力 · ${T.label||''} ${KIND[T.segment]||''}${T.next?` · ${T.next.in} 步后 ${T.next.label}`:' · 快到山顶'}`:'腿上有力';}
+ else if(st==='ARMED'){txt='已上膛：按住手柄 R2 或「按住 → 助力」才有力';cls='warn'}
+ else{txt=s.safety.reason||'连接中';cls='warn'}
+ sum.textContent=txt;sum.className=cls;
+ const ln=$('lanes');if(dead){ln.dataset.note='外骨骼没数据';ln.className='lanes bad'}else if(st==='DISARMED'){ln.dataset.note='急停中 · 腿上没力';ln.className='lanes bad'}else if(st!=='ACTIVE'){ln.dataset.note='没出力：按住 R2 / 按住 → 助力';ln.className='lanes'}else{delete ln.dataset.note;ln.className='lanes'}
+ document.body.classList.remove('offline');
+ $('hwho').textContent=(s.memory&&s.memory.wearer)||s.wearer||'–';$('htime').textContent=D?D.fmtTime(T?T.elapsed:0):'0:00';
+}
 let evSig='';
 async function tick(){
  try{const s=await (await fetch('/state')).json();
@@ -312,8 +445,8 @@ async function tick(){
   const g=s.gait;$('cad').textContent=g.cadence.toFixed(0);$('sym').textContent=g.symmetry.toFixed(2);$('var').textContent=(g.variability*100).toFixed(0)+'%';
   $('conf').textContent=g.conf.toFixed(2);$('rom').textContent=g.rom_l.toFixed(0)+' / '+g.rom_r.toFixed(0);$('str').textContent=g.strides;$('loop').textContent=s.loop_ms+' ms';
   const sim=s.sim||{};$('simbox').style.display=sim.on?'':'none';
-  if(sim.on){if(document.activeElement!==$('cadr')&&sim.cadence){$('cadr').value=sim.cadence;$('cadv').textContent=sim.cadence|0}$('walk').classList.toggle('on',!!sim.walk);$('walklock').textContent=walkLock?'停下':'一直走';$('walk').textContent=sim.walk?`走路中 · ${sim.cadence|0} 步/分`:'按住走路（模拟）'}
-  renderParams(s.ctl);drawTerrain(s.terrain,s.safety.sent);
+  if(sim.on){if(document.activeElement!==$('cadr')&&sim.cadence){$('cadr').value=sim.cadence;$('cadv').textContent=sim.cadence|0}$('walk').classList.toggle('on',!!sim.walk);$('walklock').textContent=walkLock?'停下':'一直走';$('walk').innerHTML=(sim.walk?`走路中 · ${sim.cadence|0} 步/分`:'按住走路（模拟）')+'<span class="k">空格</span>'}
+  renderParams(s.ctl);drawTerrain(s.terrain,s.safety.sent);drawVis(s);drawTop(s);
   if($('dbg').open){drawSeries();drawPhase(g);updateBody(s.frame);if(s.frame)$('c3info').textContent=`L ${s.frame.l.toFixed(0)}° R ${s.frame.r.toFixed(0)}° · pitch ${s.frame.pitch.toFixed(0)}°`}
   $('padst').textContent=s.pad.connected?('已连接 · R2 '+Math.round(s.pad.r2*100)+'%'):'未连接（用网页按钮或键盘）';$('r2bar').style.width=(s.pad.r2*100)+'%';
   light('lPad',s.pad.connected?(s.pad.r2>0.05?'ok':'warn'):'',s.pad.connected?`手柄 · R2 ${Math.round(s.pad.r2*100)}%`:'手柄未连接');
@@ -323,11 +456,17 @@ async function tick(){
   light('lBrain',b.up===false||b.ok===false||b.key===false?'bad':b.up?'ok':'',b.up===false?'大脑离线 → 规则兜底':b.up&&b.key===false?'大脑没 key → 兜底':b.up?'大脑在线':'大脑检测中');
   const fg=s.fengge||{};light('lVoice',fg.source==='claude'?'ok':fg.source?'warn':'',fg.source==='claude'?'峰哥 · 大模型现写':fg.source?'峰哥 · 兜底语录':'峰哥 · 还没开口');
   $('brainst').style.color=(b.ok||(b.up&&b.key))&&b.ok!==false?'var(--ok)':(b.ok===false||b.up===false||b.key===false)?'#ff8a65':'';
+  // 蜂群面板标题右侧：模型名；横幅：离线 / 没 key / 限频等错误
+  const bx=$('brainx');bx.textContent=b.up===false?'大脑离线':b.up&&b.key===false?'没配 key':b.up?(b.model||'Claude').split(' / ')[0]:'检测中';bx.className='x '+(b.up===false||b.key===false?'bad':b.ok===false?'warn':b.up?'ok':'');
+  const bb=$('brainBanner'),msg=String(b.msg||''),rate=/429|限频|rate|quota|too many/i.test(msg);
+  bb.className='banner'+(b.up===false?' on bad':b.key===false?' on warn':b.ok===false?' on warn':'');
+  bb.textContent=b.up===false?'大脑离线 → 造山和「学」走规则模板，卡片 source = rule':b.key===false?'大脑在线但没配 key → 规则兜底':b.ok===false?(rate?'大脑限频（'+msg.slice(0,60)+'）→ 稍等再试，期间走规则兜底':'大脑上次出错：'+msg.slice(0,80)+' → 规则兜底'):'';
   const sw=s.swarm||[],ss=sw.length+'|'+(sw.length?sw[sw.length-1].t+sw[sw.length-1].msg:'');
-  if(ss!==swSig){swSig=ss;$('swarm').innerHTML=sw.slice().reverse().map(e=>`<div><span style="color:var(--dim)">${esc(e.t)}</span> <span class="who" style="color:${WHO[e.who]||'#fff'}">${esc(e.who)}</span>${e.verdict?`<span class="v" style="color:${VC[e.verdict]||'#fff'}">${esc(e.verdict)}</span>`:''}${esc(e.msg)}</div>`).join('')}
+  if(ss!==swSig){swSig=ss;$('swarm').innerHTML=sw.length?sw.slice().reverse().map(e=>`<div style="--c:${WHO[e.who]||'#fff'}"><span class="t">${esc(e.t)}</span><span class="who" style="color:${WHO[e.who]||'#fff'}">${esc(e.who)}</span>${e.verdict?`<span class="v" style="color:${VC[e.verdict]||'#fff'}">${esc(e.verdict)}</span>`:' '}${esc(e.msg)}</div>`).join('')
+   :'<div class="empty"><b>蜂群还没说话</b><span>评委开口、造山、换人时，教练 / 地形导演 / 记忆员 / 安全员会在这里逐条商量</span></div>'}
   const es=s.events.length+'|'+(s.events.length?s.events[s.events.length-1].t+s.events[s.events.length-1].text:'');
-  if(es!==evSig){evSig=es;$('events').innerHTML=s.events.slice().reverse().map(e=>`<div><span style="color:var(--dim)">${esc(e.t)}</span> ${esc(e.text)}</div>`).join('')}
- }catch(e){$('st').textContent='断开';$('st').className='state DISARMED';console.error(e)}
+  if(es!==evSig){evSig=es;$('events').innerHTML=s.events.slice().reverse().map(e=>`<div><span>${esc(e.t)}</span>${esc(e.text)}</div>`).join('')}
+ }catch(e){$('st').textContent='断开';$('st').className='state DISARMED';$('hsum').textContent='连不上 ShellOS：进程没起来或端口不对';$('hsum').className='bad';light('lExo','bad','外骨骼 · 断开');document.body.classList.add('offline');const ln=$('lanes');ln.dataset.note='连不上 ShellOS';ln.className='lanes bad';console.error(e)}
 }
 setInterval(tick,100);
 </script>

@@ -4,6 +4,9 @@
 游戏页读 GET /guide/<world>.json、/guide/<world>/<i>.wav（server.py，只读缓存，不现场合成）。
 事实拿不准的不写；口吻：短句、辩证反转、「这是个好事儿啊」。不碰两性、政治。
 """
+import os
+import threading
+
 GUIDE = {
     "tokyo_night": [
         "兄弟，欢迎来东京，今晚我当导游。",
@@ -46,6 +49,11 @@ GUIDE = {
         "吸氧不丢人，恰恰相反，不吸才丢命。",
         "排队是好事儿啊，前面的人替我试过梯子了。",
         "旗靠风吹开，恰恰相反，人得自己走上来。",
+        "慢点，一步一档。",                                 # 5 横梯不稳
+        "过了，这是个好事儿啊。",                           # 6 过梯
+        "掉下去？恰恰相反，是梯子把我弹回来了。",           # 7 失足
+        "两边是悬崖？恰恰相反，中间才是路。",               # 8 刀脊
+        "路窄是好事儿啊，想走错都难。",                     # 9 横切
     ],
     "wutong_haohan": [
         "回深圳了，梧桐山，深圳最高峰，鹏城第一峰。",
@@ -81,9 +89,35 @@ def lines(world_id):
     return GUIDE.get(world_id, [])
 
 
-if __name__ == "__main__":        # 字数 / 时长 / 费用：python3 -m shellos.agent.guide；加 --tts 顺便预生成语音（已缓存的不花钱）。断言在 tests/test_guide.py
-    import os
+def missing():
+    """缓存里还没有语音的句子：[(world, i, 句子)]（按 voice.path 查 data/voice/）。"""
+    from . import voice
+    return [(w, i, s) for w, ls in GUIDE.items() for i, s in enumerate(ls) if not os.path.isfile(voice.path(s))]
+
+
+def check(fill=False):
+    """ShellOS 启动时调一次：打印缺语音的清单。fill=True 在后台线程向 brain/tts.py 要（隧道通着就补进缓存，断着就算了，不卡启动）。
+    客户端那边缺的句子只出气泡、按字数估时长，不会卡住。"""
+    miss = missing()
+    if not miss:
+        print(f"[导游] 语音齐全：{sum(map(len, GUIDE.values()))} 句")
+        return miss
+    print(f"[导游] 缺 {len(miss)} 句语音（开发机主工作区跑 python3 -m shellos.agent.guide --tts 补，再 ./deploy.sh）：")
+    for w, i, s in miss:
+        print(f"  {w}/{i} {s}")
+    if fill:
+        def run():
+            from . import voice
+            got = sum(bool(voice.get(s)) for _, _, s in miss)
+            print(f"[导游] 向 TTS 补了 {got}/{len(miss)} 句")
+        threading.Thread(target=run, name="guide-fill", daemon=True).start()
+    return miss
+
+
+if __name__ == "__main__":        # 字数 / 时长 / 费用：python3 -m shellos.agent.guide；--tts 预生成语音（已缓存的不花钱）；--check 查缓存齐不齐（缺了退出码 1）
     import sys
+    if "--check" in sys.argv:
+        sys.exit(1 if check() else 0)
     n = 0
     for w, ls in GUIDE.items():
         c = sum(len(s) for s in ls)

@@ -211,8 +211,8 @@ export function stepFx(ctx, { dust = '#d8cbb4', flash = '#fff2c8', add = false, 
 export function edge() { let was = false; return on => { const r = on && !was; was = !!on; return r; }; }
 
 // 音效：WebAudio 现合成（不下载文件）。sfx('can' | 'bell' | 'splash' | 'chime' | 'flutter' | 'click' | 'clink' | 'creak' | 'wind' | 'hiss' | 'yakbell'
-//   | 'crunch' | 'ice' | 'rock' | 'rope' | 'ladder' | 'breath' | 'voice' | 'flap', vol, { pitch })；
-//   持续音 sfxLoop('rotor' | 'wind' | 'stove') → { set(vol, rate) } 每帧调（rotor = E 线直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
+//   | 'crunch' | 'ice' | 'rock' | 'rope' | 'ladder' | 'breath' | 'voice' | 'flap' | 'taiko' | 'camo' | 'glitch', vol, { pitch })；
+//   持续音 sfxLoop('rotor' | 'wind' | 'stove' | 'rain' | 'pad') → { set(vol, rate) } 每帧调（rotor = E 线直升机旋翼）。?sfx=0 静音；离线预览（?preview=）不出声（选山页一排预览不会一起响）。
 //   音量再乘 U 设置页的「捷风 / 音效音量」（window.__settings.get('vSfx')，0–100；设置页只管 <audio>，WebAudio 这里自己乘）。
 //   浏览器不让没交互过的页面出声：上下文挂起时等第一次按键 / 点击再恢复（空格走路就算）。音量都压低，峰哥说话时不抢
 const SFX_Q = new URLSearchParams(location.search), SFX_ON = SFX_Q.get('sfx') !== '0' && !SFX_Q.has('preview');
@@ -276,6 +276,13 @@ export function sfx(name, vol = 1, { pitch = 1 } = {}) {
     t0 += d + 0.04 + Math.random() * 0.12;
   }
   else if (name === 'flap') for (let k = 0, n = 2 + (Math.random() * 2 | 0); k < n; k++) noise(0.07, 700 + Math.random() * 500, 0.7, 1.1, k * (0.09 + Math.random() * 0.07), 'lowpass');   // 帐篷布被风抽两三下
+  // 东京攻壳致敬版：太鼓（正弦 110→45 Hz 快滑 + 皮面噪声，长尾）、光学迷彩（上扫的滤波噪声「嘶啦」）、故障字幕（环形调制的电子脑通信「嗞」）
+  else if (name === 'taiko') { const o = tone(110 * pitch, 1.3, 1.2, 'sine'); o.frequency.setValueAtTime(110 * pitch, t); o.frequency.exponentialRampToValueAtTime(45 * pitch, t + 0.14); noise(0.06, 900, 1, 0.9, 0, 'lowpass'); noise(0.02, 3000, 2, 0.3); }
+  else if (name === 'camo') { const bp = noise(0.7, 800, 3, 0.9, 0, 'bandpass', true); bp.frequency.setValueAtTime(800, t); bp.frequency.exponentialRampToValueAtTime(6000, t + 0.6); tone(1320, 0.5, 0.12, 'sine', 0.1); }
+  else if (name === 'glitch') {
+    const o = tone(1200 * pitch, 0.35, 0.5, 'square'), rm = ac.createOscillator(), rg = ac.createGain(); rm.frequency.value = 30; rg.gain.value = 600; rm.connect(rg); rg.connect(o.frequency); rm.start(t); rm.stop(t + 0.4);
+    for (let k = 0; k < 4; k++) noise(0.03, 2500 + Math.random() * 3000, 4, 0.7, k * 0.07 + Math.random() * 0.03);
+  }
 }
 // 持续音：sfxLoop(name) 返回 { set(vol 0..1, rate 0..1) }，每帧调；第一次真要响才搭线路（音量乘设置页音量，?sfx=0 / 预览不出声）。
 //   rotor = 低通噪声 × 桨叶拍频（「突突突」，E 线直升机），rate 降 → 拍频变慢；
@@ -307,6 +314,17 @@ export function sfxLoop(name) {
       lfo = ac.createOscillator(); lfo.frequency.value = 7; const lg = ac.createGain(); lg.gain.value = 0.12; lfo.connect(lg); lg.connect(am.gain); lfo.start();
       src.connect(hp); hp.connect(lp); lp.connect(am); am.connect(g);
       mod = r => lg.gain.setTargetAtTime(0.05 + 0.25 * r, ac.currentTime, 0.3);
+    } else if (name === 'rain') {                        // 雨：白噪声 高通 + 低通 = 细密沙沙；rate 高 = 更亮
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5000;
+      src.connect(hp); hp.connect(lp); lp.connect(g);
+      mod = r => lp.frequency.setTargetAtTime(3000 + 5000 * r, ac.currentTime, 0.5);
+    } else if (name === 'pad') {                         // 低音垫：A1 × 2（左右失谐）+ E2 + A2 锯齿 → 低通，截止随 rate 抬、再慢慢晃（不是任何原曲）
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 2;
+      for (const [f, d] of [[55, -6], [55, 7], [82.41, 3], [110, -4]]) { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; og.gain.value = 0.16; o.connect(og); og.connect(lp); o.start(); }
+      lfo = ac.createOscillator(); lfo.frequency.value = 0.07; const lg = ac.createGain(); lg.gain.value = 80; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+      lp.connect(g);
+      mod = r => lp.frequency.setTargetAtTime(220 + 520 * r, ac.currentTime, 1.5);
     } else return false;
     src.start(); return true;
   };

@@ -9,6 +9,7 @@
 // ?fx=low：雪粒 / 经幡 / 排队人数减半、不要模糊层、地面网格粗一档（展位机器吃紧时用）。
 // 互动（只动画面和声音）：走过经幡，近处的旗被一阵猛风抽得乱飞、啪啪响；排队段前面的人一个个往上挪，轮到你时最前面那个往右让一步；
 //   北坳吸氧：化身旁边弹出氧气面罩图标、嘶——一口、呼出白气（缺氧暗角也松一点）；登顶时觇标上卷着的红旗展开。?fx=low 不要白气。
+// 悬崖三段（北坳裂缝·横梯 / 大风口·刀脊 / 北壁横切·贴壁栈道）：snow_summit/cliff.js（几何、过梯晃 / 失足、镜头 FOV、雾带、滚石）。
 // 子模块：snow_summit/sky.js（天、群峰、远处北壁、云海）、snow.js（雪粒）、props.js（道具几何）、hypoxia.js（缺氧）；头顶图标用 cliff_path/interact.js，音效用 kit.sfx / kit.sfxLoop。
 import * as THREE from 'three';
 import { STEP, ROAD_W } from '../path.js';
@@ -17,7 +18,7 @@ import { stairNoses } from './cliff_path/props.js';
 import { buildSky } from './snow_summit/sky.js';
 import { buildSnow } from './snow_summit/snow.js';
 import { makeHypoxia } from './snow_summit/hypoxia.js';
-import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, rockGeo, revealable, beaconFlag, crevasseGeo, iceSheen } from './snow_summit/props.js';
+import { prayerFlags, bottleGeo, spireGeo, seracGeo, fixedRope, ladderParts, beaconParts, rockGeo, revealable, beaconFlag, crevasseGeo, iceSheen, spindrift } from './snow_summit/props.js';
 import { climberGeo, climberMaterials } from './snow_summit/climber_model.js';
 import { sfx as play } from './kit.js';
 import { popIcon } from './cliff_path/interact.js';
@@ -25,7 +26,9 @@ import { buildCamp } from './snow_summit/camp.js';
 import { buildHeli } from './snow_summit/heli.js';
 import { buildYaks } from './snow_summit/yaks.js';
 import { fgSay } from './snow_summit/lines.js';
+import { makeSoundscape } from './snow_summit/soundscape.js';
 import { tentGeo, glowMaterial } from './snow_summit/tent_model.js';
+import { cliffZones, cliffGround, shapeRoad, buildCliff, makeCliffState, updateCliff } from './snow_summit/cliff.js';
 
 const LOW = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fx') === 'low';
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -104,7 +107,7 @@ export function pathMaterials(ctx) {
 }
 
 export function build(scene, ctx) {
-  const { route, kit, util, lights, meshes: M, world } = ctx, N = route.N, R = ctx.rand, Z = zonesOf(route);
+  const { route, kit, util, lights, meshes: M, world } = ctx, N = route.N, R = ctx.rand, Z = zonesOf(route), CZ = cliffZones(route);
   const c = kit.routeCenter(route);
   // 远处的珠峰：大本营开场看出去的方向（前 8 步的平均朝向）
   let hs = 0; const n8 = Math.min(8, N); for (let i = 0; i < n8; i++) hs += route.H[i]; const fwdA = n8 ? hs / n8 : 0;
@@ -132,7 +135,7 @@ export function build(scene, ctx) {
       const V = (nr.side > 0 ? 2.6 : 2.0) * smooth(4, 16, d) * (1 - smooth(26, 55, d)) * (0.5 + n1) - 6 * smooth(30, 70, d) + 0.7 * (n2 - 0.5) * smooth(2.5, 6, d);
       const drop = nr.side > 0 ? 3.2 * smooth(2.6, 9, d) + 17 * smooth(9, 48, d) : 4.2 * smooth(2.6, 9, d) + 27 * smooth(9, 52, d);
       const Mh = -drop * (0.75 + 0.5 * n1) * (1 + 0.45 * top) * (1 - 0.85 * col * (1 - smooth(6, 14, d))) + 1.3 * (n2 - 0.5) * smooth(2.6, 8, d) * (1 - col);
-      p.setY(i, p.getY(i) + near * mix(Mh, V, valley));
+      p.setY(i, cliffGround(CZ, route, x, z, p.getY(i) + near * mix(Mh, V, valley)));   // 刀脊 / 横切两侧挖到坡面下面
       meta[i * 3] = zs; meta[i * 3 + 1] = d * (nr.side > 0 ? 1 : -1); meta[i * 3 + 2] = valley;
     }
     g.computeVertexNormals(); g.computeBoundingSphere(); g.computeBoundingBox();
@@ -155,6 +158,7 @@ export function build(scene, ctx) {
     col.needsUpdate = true;
   }
   const hAt = util.gridHeight(ground);
+  const CLF = buildCliff(scene, ctx, { C: CZ, ground, hAt });                  // 裂缝（地面挖洞）+ 横梯、刀脊坡面、横切岩壁、雾带、滚石
 
   // ---------- 路面：碛石 → 雪道（顶点色 × 冰爪印贴图）；台阶：冰壁 = 冰、之后 = 岩 ----------
   {
@@ -175,6 +179,9 @@ export function build(scene, ctx) {
     });
     M.stairs.instanceColor.needsUpdate = true;
   }
+  shapeRoad(CZ, route, M.road);                                               // 刀脊 / 横切路面收窄，裂缝上那段挖掉
+  // 给追兵 NPC（J，npc.js）用：路面半宽 [左, 右] + 横梯上该走哪条（化身 0.35 / 影子 −0.5 两道梯子）
+  window.__fgRoad = st => { const w = CZ.hw(st); return { left: w[0], right: w[1], lane: CZ.xing && st > CZ.g0 - 0.6 && st < CZ.g1 + 0.6 ? -0.5 : null }; };
   const nose = stairNoses(ctx, SEG.stairs_up); if (nose) scene.add(nose);   // 美术范式：雪白台阶在雪地里认不出，每级前缘一条台阶黄
   const sfx = kit.stepFx(ctx, { dust: '#f4f8ff', flash: '#dff0ff' });       // 落阶反馈：雪地踩下去是雪沫
   for (const k of ['lines', 'edges', 'startLine', 'camp', 'flag']) if (M[k]) M[k].visible = false;
@@ -187,6 +194,7 @@ export function build(scene, ctx) {
   const texts = [];
   const rightOf = (s, lat, h = 0) => { const a = route.at(s, lat); return a.pos.clone().setY(Math.max(hAt(a.pos.x, a.pos.z), route.heightAt(s) - 0.4) + h); };
   const clearOfRoad = (x, z, m) => util.offRoad(route, x, z, m);
+  const clearH = lat => Math.abs(lat) < HW + 2 ? 1.5 : Math.abs(lat) < HW + 3 ? 2.4 : 99;   // 路两侧净空：离路沿 2 m 内 ≤ 1.5、3 m 内 ≤ 2.4（跟拍镜头左右各 3 m 看得见路）
 
   // ---------- 大本营：玛尼堆 + 经幡杆（路右 4.5）、帐篷群、大本营石 ----------
   const flagLines = [];
@@ -197,7 +205,7 @@ export function build(scene, ctx) {
     P.push({ geo: new THREE.CylinderGeometry(0.45, 0.62, 0.55, 8), p: [pole.x, pole.y + 0.9, pole.z], color: '#d8d2c6' });
     P.push({ geo: new THREE.ConeGeometry(0.3, 0.6, 8), p: [pole.x, pole.y + 1.45, pole.z], color: '#c9a64a' });
     for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283, r = 0.9 + 0.3 * R(); P.push({ geo: new THREE.IcosahedronGeometry(0.22 + 0.12 * R(), 0), p: [pole.x + Math.cos(a) * r, pole.y + 0.1, pole.z + Math.sin(a) * r], color: R() < 0.6 ? '#8d877d' : '#e6e2da' }); }
-    // 从杆顶往四周拉到地上（避开路面那一侧），再拉一条高高跨过路面到左边的杆
+    // 从杆顶往四周拉到地上（避开路面那一侧）
     const aim = route.at(0.6), away = aim.left.clone().negate();
     for (let k = 0; k < 9; k++) {
       const ang = (k / 9 - 0.5) * 2.6, dir = away.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ang), L = 5.5 + 2 * R();
@@ -206,7 +214,8 @@ export function build(scene, ctx) {
     }
     const pole2 = rightOf(3.2, 5.8), top2 = pole2.clone().setY(pole2.y + 4.0);
     P.push({ geo: new THREE.CylinderGeometry(0.05, 0.07, 4.2, 6), p: [pole2.x, pole2.y + 2.1, pole2.z], color: '#8a6a44' });
-    flagLines.push({ a: top.clone().setY(top.y - 0.2), b: top2, sag: 0.45, shift: 2 }, { a: top.clone().setY(top.y - 0.8), b: top2.clone().setY(top2.y - 0.6), sag: 0.4, shift: 4 });
+    // 左边那根也往四周斜拉到地上（评审 r1：别横跨路面拉成节日彩带）；靠路那几条落在路沿外 1 m，走过时照样被风抽
+    for (const [ds, lt, k] of [[-2.6, 2.1, 2], [0, 2.0, 3], [2.6, 2.2, 4], [-2.2, 9.2, 0], [2.4, 9.6, 1]]) { const g = rightOf(3.2 + ds, lt, 0.15); flagLines.push({ a: top2.clone(), b: g, sag: 0.45, shift: k }); }
     const chorten = new THREE.Mesh(util.merged(P), lowVc); chorten.name = 'chorten'; scene.add(chorten); hideLow.push(chorten);
   }
   // 大本营村落（石碑、玛尼堆、餐厅大帐、大穹顶帐篷、停机坪、晾衣绳）：snow_summit/camp.js
@@ -216,7 +225,7 @@ export function build(scene, ctx) {
   for (const m of CAMP.meshes) { scene.add(m); hideLow.push(m); }
   // 帐篷：大本营、前进营地、北坳营地；路右（影子那侧）多、路左少且在 3.5 以外
   const tents = [], bottles = [];
-  const TC = ['#f2c21b', '#f2c21b', '#f2c21b', '#e8781c', '#d63b2a', '#2f78d0'];
+  const TC = ['#f2c21b', '#f2c21b', '#f2c21b', '#e8781c', '#d63b2a', '#2f8f4e'];   // 黄最多，其次橙 / 红 / 绿（考据 §3；蓝撞下坡蓝 / 捷风）
   const camp = (s0, s1, latR, latL, n, seedK, squash = 1) => {                  // squash < 1：被风压低的帐篷（北坳）
     for (let k = 0, tries = 0; k < n && tries < n * 12; tries++) {
       const s = mix(s0, s1, R()), side = R() < 0.72 ? -1 : 1, lat = side * mix(...(side < 0 ? latR : latL), R()), a = route.at(s, lat);
@@ -225,7 +234,7 @@ export function build(scene, ctx) {
       k++;
     }
   };
-  camp(-14, 2.5, [2.8, 12], [4, 11], LOW ? 9 : 18, 0);
+  camp(-3, 3.5, [2.8, 12], [4, 11], LOW ? 7 : 12, 0);                        // 圆顶帐只在登山大本营（起点往前）；起点身后是游客营地（camp.js）
   if (Z.abc) camp(Z.abc.start - 2, Z.end(Z.abc) + 1, [2.6, 8], [4, 8], LOW ? 5 : 10, 2);
   if (Z.col) {
     camp(Z.col.start - 0.5, Z.col.start + 3.5, [2.4, 6], [4.2, 6], LOW ? 3 : 6, 4, 0.7);
@@ -244,10 +253,12 @@ export function build(scene, ctx) {
 
   // ---------- 冰川：碛石 + 冰塔林（右侧），谷里零星冰塔（左侧远处） ----------
   const spires = [], boulders = [];
+  //   评审 r1 #6 + 考据 §2 §9-6：冰川走过 35% 才有（大本营、冰川口看不到）；每座离路沿 ≥ 6（跟拍镜头在身后 5–6、高 2，左右留 3 m 以上）；高 ×2.5
+  const sp0 = Z.glacier ? Z.glacier.start + 0.35 * Z.glacier.steps : 7;
   for (let k = 0, tries = 0; k < (LOW ? 30 : 55) && tries < 1500; tries++) {       // 冰塔林：只在右侧冰川面上，成片（噪声高处）
-    const s = mix(7, Z.snowS - 0.5, R()), lat = -(4.5 + Math.pow(R(), 1.2) * 13), a = route.at(s, lat);
-    if (kit.fbm(a.pos.x * 0.12 + 5, a.pos.z * 0.12, 3) < 0.5 || !clearOfRoad(a.pos.x, a.pos.z, 2.8)) continue;
-    const hgt = (1.1 + 2.2 * R()) * (0.7 + 0.5 * smooth(4, 12, -lat));          // 离路越远越高（冰塔林往冰川中间越来越密越高）
+    const s = mix(sp0, Z.snowS - 0.5, R()), lat = -(HW + 6.2 + Math.pow(R(), 1.2) * 11), a = route.at(s, lat);
+    if (kit.fbm(a.pos.x * 0.12 + 5, a.pos.z * 0.12, 3) < 0.5 || !clearOfRoad(a.pos.x, a.pos.z, 6.0)) continue;
+    const hgt = 2.5 * (1.1 + 2.2 * R()) * (0.7 + 0.5 * smooth(7, 15, -lat));    // 离路越远越高（冰塔林往冰川中间越来越密越高）
     spires.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) - 0.15, a.pos.z], ry: R() * 6.28, s: [0.45 + 0.4 * R(), hgt, 0.45 + 0.4 * R()] }); k++;
   }
   if (spires.length) { const sm = util.instanced(spireGeo(3), iceSheen(revealable(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#10202c' }), revLow), 1), spires); sm.name = 'icePinnacles'; scene.add(sm); hideLow.push(sm); }
@@ -264,7 +275,7 @@ export function build(scene, ctx) {
   }
   for (let k = 0, tries = 0; k < (LOW ? 50 : 90) && tries < 1500; tries++) {                    // 雪线以上：零星积雪的岩头，离路远一点
     const s = Z.snowS + R() * (N - Z.snowS + 6), side = R() < 0.5 ? 1 : -1, lat = side * (2.1 + Math.pow(R(), 1.4) * 12), a = route.at(s, lat);
-    if (!clearOfRoad(a.pos.x, a.pos.z, 0.9) || (s > N - 2 && Math.abs(lat) < 5)) continue;
+    if (!clearOfRoad(a.pos.x, a.pos.z, 0.9) || (s > N - 3 && Math.abs(lat) < 6)) continue;   // 顶峰半径内不放岩头（考据 §7：岩石不露）
     const sz = 0.15 + R() * R() * 0.6;
     if (side > 0 && lat < 3 && sz > 0.35) continue;
     crags.push({ p: [a.pos.x, hAt(a.pos.x, a.pos.z) + sz * 0.1, a.pos.z], ry: R() * 6.28, s: [sz * (1 + R() * 0.6), sz * (0.6 + R() * 0.5), sz], color: new THREE.Color().setScalar(0.85 + 0.3 * R()) });
@@ -281,14 +292,21 @@ export function build(scene, ctx) {
     const s0 = Z.wall.start - 2, s1 = Z.end(Z.wall) - 0.4;              // 冰塔只沿冰壁：坳口（营地、氧气瓶）空出来
     for (let s = s0; s <= s1; s += 0.55) {
       // 冰块几何是 ±1 的多面体（顶面在 +0.85·tall）：p.y = 路面 + 露出高度 − 半高，扎进雪里
-      const put = (lat, w, up) => { const a = route.at(s, lat), y0 = route.heightAt(s); seracs.push({ p: [a.pos.x, y0 + up - 1.15 * (up + 0.8) / 2, a.pos.z], ry: R() * 6.28, s: [w, (up + 0.8) / 2, w * (0.7 + 0.4 * R())] }); };
+      // 净空（评审 r1）：路沿外 2 m 内不高于 1.5、跟拍视野左右 3 m 内不高于 2.4（镜头在身后 5–6、高 2）
+      const put = (lat, w, up) => { up = Math.min(up, clearH(lat)); const a = route.at(s, lat), y0 = route.heightAt(s); seracs.push({ p: [a.pos.x, y0 + up - 1.15 * (up + 0.8) / 2, a.pos.z], ry: R() * 6.28, s: [w, (up + 0.8) / 2, w * (0.7 + 0.4 * R())] }); };
       put(-(2.0 + R() * 0.5), 0.45 + 0.35 * R(), (0.7 + 1.4 * R()) * smooth(s0, s0 + 2, s) + 0.2);
       if (R() < 0.45) put(-(3.0 + R() * 2.5), 0.55 + 0.4 * R(), 1.0 + 1.4 * R());
       if (R() < 0.5) put(1.7 + R() * 0.8, 0.3 + 0.25 * R(), 0.3 + 0.6 * R());   // 左侧 < 1.0
       if (R() < 0.35) put(3.8 + R() * 3, 0.6 + 0.5 * R(), 0.8 + 1.4 * R());
     }
     const sm = util.instanced(seracGeo(5), iceSheen(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: '#0e1c28' }), 1.2), seracs); sm.name = 'seracs'; scene.add(sm);
-    for (const m of fixedRope(ctx, [[Z.wall.start - 1, N - 1.5]], { lat: -1.5, every: 2, sway: ropeSway })) scene.add(m);   // 路右沿外：镜头在左边，别从镜头底下穿过去
+    const E = CZ.end, rr = [];                                                 // 路右沿外：镜头在左边，别从镜头底下穿过去
+    let r0 = Z.wall.start - 1;
+    if (CZ.xing) { rr.push([r0, CZ.g0 - 0.7]); r0 = CZ.g1 + 1.2; }                 // 横梯段断开（梯子两侧自己有扶手绳）
+    if (CZ.knife) { rr.push([r0, CZ.knife.start - 6.4], [CZ.knife.start - 6, E(CZ.knife) - 0.4, { lat: -0.05, h: 0.3 }]); r0 = E(CZ.knife) + 0.2; }   // 刀脊：只剩脊上一根，贴着雪
+    if (CZ.trav) { rr.push([r0, CZ.trav.start + 0.2, { lat: -1.2 }], [CZ.trav.start + 0.8, E(CZ.trav) - 0.2, { lat: -0.78, h: 1.0 }]); r0 = E(CZ.trav) + 0.2; }   // 横切：拉在岩壁那侧、手扶高度
+    rr.push([r0, N - 4]);
+    for (const m of fixedRope(ctx, rr, { lat: -1.5, every: 2, sway: ropeSway })) scene.add(m);
   }
   // 冰裂缝：北坳上下两侧的雪坡上（不压帐篷、冰塔、停机坪，彼此隔开），横着坡走向（和路大致垂直）、贴着地面斜度；离路 ≥ 1.1
   {
@@ -296,7 +314,7 @@ export function build(scene, ctx) {
     for (let k = 0, tries = 0; k < (LOW ? 8 : 16) && tries < 900; tries++) {
       const s = mix(s0, s1, R()), side = R() < 0.5 ? 1 : -1, lat = side * (2.6 + Math.pow(R(), 1.4) * 6.5), a = route.at(s, lat);
       const far = (arr, r) => !arr.some(t => Math.hypot((t.p ? t.p[0] : t.x) - a.pos.x, (t.p ? t.p[2] : t.z) - a.pos.z) < r + (t.r || 0));
-      if (!clearOfRoad(a.pos.x, a.pos.z, 1.1) || !far(tents, 2.6) || !far(seracs, 1.4) || !far(CAMP.blockers, 1.0) || !far(cr, 2.6)) continue;   // 路绕回来时别落到停机坪边上；彼此隔开，不叠成一簇
+      if (!clearOfRoad(a.pos.x, a.pos.z, 1.1) || !far(tents, 2.6) || !far(seracs, 1.4) || !far(CAMP.blockers, 1.0) || !far(cr, 2.6) || (CZ.xing && Math.abs(s - CZ.sc) < 4 + Math.abs(lat) * 0.6)) continue;   // 路绕回来时别落到停机坪边上；彼此隔开，不叠成一簇
       const x = a.pos.x, z = a.pos.z, e = 0.4, h0 = hAt(x, z);
       nrm.set(hAt(x - e, z) - hAt(x + e, z), 2 * e, hAt(x, z - e) - hAt(x, z + e)).normalize();
       qa.setFromUnitVectors(new THREE.Vector3(0, 1, 0), nrm); qb.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a.heading + Math.PI / 2 + (R() - 0.5) * 0.6);
@@ -317,6 +335,7 @@ export function build(scene, ctx) {
       for (const side of [1, -1]) for (const far of [0, 1]) {
         if (far && R() < 0.55) continue;
         const lat = side * (far ? 2.4 + R() * 2.8 : 1.55 + R() * 0.45), a = route.at(s + (R() - 0.5) * 0.3, lat);
+        if (CZ.wK(s) > 0.05 || (side > 0 && CZ.wT(s) > 0.05) || (CZ.knife && far && side > 0 && sg !== Z.ladder) || (CZ.trav && side > 0 && s < CZ.end(CZ.trav) + 2.5)) continue;   // 刀脊 / 横切的深渊那侧不摆（第一台阶左边远处的也不要：挡住刀脊左边的深渊）
         const up = Math.min(cap, side > 0 && !far ? 0.3 + 0.6 * R() : 0.4 + 0.8 * R()), deep = 2.4 + R();
         const w = far ? 0.55 + 0.5 * R() : 0.4 + 0.3 * R();
         blocks[yel].push({ p: [a.pos.x, y0 + (up - deep) / 2, a.pos.z], ry: R() * 6.28, s: [w, (up + deep) / 2, w * (0.7 + 0.4 * R())], color: new THREE.Color().setScalar(0.8 + 0.35 * R()) });
@@ -337,7 +356,7 @@ export function build(scene, ctx) {
           transformed.y -= uDip * sin(3.14159 * clamp(d / uLen, 0.0, 1.0)) * exp(-x * x); }`);
     };
     lmat.customProgramCacheKey = () => 'snowRevLadder';
-    const lm = new THREE.Mesh(util.merged(ladderParts(ctx, Z.ladder, { lat: 0.35 })), lmat);
+    const lm = new THREE.Mesh(util.merged([...ladderParts(ctx, Z.ladder, { lat: 0.35 }), ...ladderParts(ctx, Z.ladder, { lat: -0.3, width: 0.5 })]), lmat);   // 两副并排（考据 §6：现役 1–2 副；影子走右边那副）
     lm.name = 'ladder'; scene.add(lm); hideRock.push(lm);
   }
 
@@ -373,17 +392,18 @@ export function build(scene, ctx) {
   let people = null;
   if (Z.queue) {
     // 登山者：一个 InstancedMesh（climber_model.js），羽绒服 / 背包颜色、跺脚 / 搓手 / 抬头 / 走都是实例属性
-    const n = LOW ? 3 : 5, geo = climberGeo(), CM = climberMaterials(revealable, revTop);
-    const SUIT = ['#e0402c', '#f2b01e', '#3a7bd8', '#2f9c55', '#7a3fc0'], PK = ['#2b2f36', '#d63b2a', '#2b2f36', '#e8781c', '#3a5a8a'];
+    const n = LOW ? 3 : 4, geos = [0, 1, 2].map(l => climberGeo(l)), geo = geos[0], CM = climberMaterials(revealable, revTop);   // LOD 三级：离镜头最近那人 < 10 全细节、< 24 中、再远粗
+    // 评审 r1 #2（盖过美术范式 §10.6 的低饱和）：8000 m 以上的连体羽绒 红 / 黄 / 黑 / 橙（考据 §6：红 45%、黄橙 35%、黑 15%）；不用钴蓝 / 紫
+    const SUIT = ['#c8352b', '#e2a922', '#1e2024', '#e0701f'], PK = ['#2b2f36', '#3a3c40', '#5a5040', '#40464e'];
     const suitA = new Float32Array(n * 3), packA = new Float32Array(n * 3), anim = new Float32Array(n * 4), c = new THREE.Color();
     for (let k = 0; k < n; k++) { suitA.set(c.set(SUIT[k]).toArray(), k * 3); packA.set(c.set(PK[k]).toArray(), k * 3); }
-    geo.setAttribute('aSuit', new THREE.InstancedBufferAttribute(suitA, 3)); geo.setAttribute('aPack', new THREE.InstancedBufferAttribute(packA, 3));
-    const aAnim = new THREE.InstancedBufferAttribute(anim, 4); geo.setAttribute('aAnim', aAnim);
+    const aSuit = new THREE.InstancedBufferAttribute(suitA, 3), aPk = new THREE.InstancedBufferAttribute(packA, 3), aAnim = new THREE.InstancedBufferAttribute(anim, 4);
+    for (const gg of geos) { gg.setAttribute('aSuit', aSuit); gg.setAttribute('aPack', aPk); gg.setAttribute('aAnim', aAnim); }
     const sm = new THREE.InstancedMesh(geo, CM.mat, n); sm.customDepthMaterial = CM.depth;
     sm.frustumCulled = false; sm.name = 'queue'; scene.add(sm); hideTop.push(sm);
     const q0 = Z.queue.start;
-    people = { sm, n, anim, aAnim, ph: Array.from({ length: n }, (_, k) => k * 1.7), wk: new Array(n).fill(0), rb: new Array(n).fill(0), lk: new Array(n).fill(0), ps: new Array(n).fill(null), s: Array.from({ length: n }, (_, k) => q0 + 1.3 + k * 1.3), lat: Array.from({ length: n }, (_, k) => 0.25 + 0.2 * (k % 2)),
-      red: k => q0 + 1.3 + k * 1.3, go: k => N + 4 + k * 1.1, sig: M.signals.find(g => g.seg.start === q0), wt: 0, aside: false, asideS: 0 };
+    people = { sm, n, anim, aAnim, geos, lod: 0, ph: Array.from({ length: n }, (_, k) => k * 1.7), wk: new Array(n).fill(0), rb: new Array(n).fill(0), lk: new Array(n).fill(0), ps: new Array(n).fill(null), s: Array.from({ length: n }, (_, k) => q0 + 1.2 + k * 1.8), lat: Array.from({ length: n }, (_, k) => 0.15 + 0.4 * (k % 2)),
+      red: k => q0 + 1.2 + k * 1.8, go: k => N + 4 + k * 1.1, sig: M.signals.find(g => g.seg.start === q0), wt: 0, aside: false, asideS: 0 };   // 间距 1.8 步（2.0 时第 4 个人站到顶峰外、被「翻过去」藏掉）
     people.cl = people.lat.slice();                                          // 当前横向位置（让路时往右挪）
   }
 
@@ -405,12 +425,12 @@ export function build(scene, ctx) {
   const hyp = makeHypoxia({ blur: !LOW });
 
   ctx.theme.summitCard = 'left';                                              // 化身 + 觇标在画面正中，登顶卡放左下
-  S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, sfx, anchors: camAnchors(Z, N),
+  S = { ctx, sky, snow: snowFx, hyp, flags: [PF.U, summitFlags].filter(Boolean), people, Z, route, lights, scene, summitK: 0, sfx, anchors: camAnchors(Z, N, CZ),
     I: buildInteract(scene, ctx, { flagLines, BF, windDir }), tentGlow, smoke, smokeAt: CAMP.smokeAt, smokeT: 0, ropeSway, ladderU, flagT: 0, ldK: 0, ldStep: null,
     heli: buildHeli(ctx, { Z, pad: CAMP.pad, LOW, onTouchdown: () => fgSay('heli') }),
     yaks: LOW ? null : buildYaks(ctx, { Z, hAt, onYield: () => fgSay('yak') }),
     a0: world.alt ? +world.alt[0] : 0, a1: world.alt ? +world.alt[1] : 0, revRock, revTop, revLow, hideRock, hideTop, hideLow,
-    rockS: Z.rocks.length ? Z.rocks[0].start : N, topS: Z.queue ? Z.queue.start : N - 4 };
+    rockS: Z.rocks.length ? Z.rocks[0].start : N, topS: Z.queue ? Z.queue.start : N - 4, CZ, CL: CLF, CX: makeCliffState(), fovK: 0, windDir, frames: 0, sd: spindrift(scene, { n: LOW ? 60 : 150 }), sdK: 0, confetti: null };
   if (S.yaks) hideLow.push(...S.yaks.meshes);                                 // 牦牛跟山下的东西一起：过了北坳就不画
   rigFor(0, rig, false);
   update(0, { t: 0, s: 0, progress: 0, summit: false, preview: ctx.preview, camera: ctx.camera, kind: 'flat', terrain: null });
@@ -425,16 +445,22 @@ const CAM = {
   ridge: { back: 4.6, side: 1.3, height: 2.2, lookY: 1.3, clear: 1.7 },
   rock:  { back: 4.0, side: 0.9, height: 1.25, lookY: 2.05, clear: 1.2 }, // 台阶：低机位，梯子和岩壁
   queue: { back: 4.6, side: 1.05, height: 1.45, lookY: 2.2, clear: 1.3 }, // 排队：低机位，看见梯子上和坡上的人
+  xing:  { back: 2.5, side: 1.35, height: 1.0, lookY: -0.55, clear: 0.55 }, // 横梯：压到腰高、偏外，低头看脚下的裂缝（往下看得见深蓝 → 黑）
+  edge:  { back: 2.9, side: 0.8, height: 1.2, lookY: 0.7, clear: 0.9, fov: 1 },    // 刀脊 / 横切：1.2 m 高、往外 0.8（悬在深渊上）、略低头看得见脚下，FOV +8°
 };
-function camAnchors(Z, N) {
-  const A = [[-1e9, CAM.open], [1.5, CAM.open], [4.5, CAM.walk]];
+function camAnchors(Z, N, CZ) {
+  const A = [[-1e9, CAM.open], [1.5, CAM.open], [4.5, CAM.walk]], X = CZ || {};
   if (Z.wall) A.push([Z.wall.start - 2, CAM.walk], [Z.wall.start, CAM.wall], [Z.end(Z.wall) - 0.3, CAM.wall]);
-  if (Z.col) A.push([Z.col.start + 0.2, CAM.col], [Z.col.start + 1.4, CAM.col], [Z.col.start + 3.2, CAM.ridge]);
+  if (X.xing) A.push([X.g0 - 0.2, CAM.xing], [X.g1 + 0.4, CAM.xing]);
+  if (Z.col) A.push([Z.col.start + (X.xing ? 1.2 : 0.2), CAM.col], [Z.col.start + 1.4, CAM.col], [Z.col.start + 3.2, CAM.ridge]);
   else if (Z.wall) A.push([Z.end(Z.wall) + 2, CAM.ridge]);
+  if (X.knife) A.push([X.knife.start - 4, CAM.ridge], [X.knife.start - 1.5, CAM.edge], [X.end(X.knife) - 0.3, CAM.edge]);
+  if (X.trav) A.push([X.trav.start + 0.8, CAM.edge], [X.end(X.trav) - 1.2, CAM.edge]);
   const q = Z.queue, rs = Z.rocks.length ? Z.rocks[0].start : null, re = Z.rocks.length ? Z.end(Z.rocks[Z.rocks.length - 1]) : null;
   const qIn = q && rs !== null && q.start >= rs && q.start <= re;           // 排队在台阶之间（第二台阶下）
   if (rs !== null) {
-    A.push([rs - 2.4, CAM.ridge], [rs - 0.4, CAM.rock]);
+    if (X.knife) A.push([rs + 0.4, CAM.rock]);                              // 刀脊直接接第一台阶：不回 ridge
+    else A.push([rs - 2.4, CAM.ridge], [rs - 0.4, CAM.rock]);
     if (qIn) A.push([q.start - 0.3, CAM.queue], [q.start + 0.7, CAM.queue], [q.start + 1.4, CAM.rock]);
     A.push([re + 0.2, CAM.rock]);
   }
@@ -450,6 +476,7 @@ export function rigFor(s, r, summit) {
   let i = 0; while (i < A.length - 2 && s > A[i + 1][0]) i++;
   const [sa, pa] = A[i], [sb, pb] = A[i + 1], t = smooth(sa, sb, s);
   for (const k of ['back', 'side', 'height', 'lookY', 'clear']) F[k] = mix(pa[k], pb[k], t);
+  S.fovK = mix(pa.fov || 0, pb.fov || 0, t);                                   // 刀脊 / 横切 FOV +8°（cliff.js 每帧套上）
   F.backStairs = F.back; F.sideStairs = F.side;
   F.upBonus = 0; F.stairsBonus = 0; F.lookUp = 0; F.footMin = -0.8;
 }
@@ -458,16 +485,21 @@ export function rigFor(s, r, summit) {
 const _c = new THREE.Vector3(), _mid = new THREE.Vector3(), _head = new THREE.Vector3(), _sc = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _m4 = new THREE.Matrix4(), _t = new THREE.Vector3(), _u = new THREE.Vector3();
 // 「藏」= 缩成一个点（退化三角形，不出片元、不投影），不用 visible = false：还在绘制列表里，第一帧就把着色器 / 管线建好
 //   （ANGLE / Metal 在第一次绘制时才建管线，隐藏的东西第一次露面那帧会卡 0.2 s）；缩成点后包围球也缩了，关掉视锥裁剪保证照画
+//   前两帧画过之后管线已经建好：改成直接 visible = false（连这次绘制也省了）
 export function show(m, on) {
-  if (m.userData.on === on) return;
+  const warm = !!S && S.frames > 2;
+  if (m.userData.on === on && m.userData.warm === warm) return;
   if (m.userData.fc === undefined) { m.userData.fc = m.frustumCulled; m.userData.s0 = m.scale.clone(); }   // 记下原来的缩放（有的石头 build 里就缩放过）
-  m.userData.on = on; if (on) m.scale.copy(m.userData.s0); else m.scale.setScalar(1e-6); m.frustumCulled = on && m.userData.fc;
+  m.userData.on = on; m.userData.warm = warm;
+  if (warm) { m.scale.copy(m.userData.s0); m.frustumCulled = m.userData.fc; m.visible = on; return; }
+  if (on) m.scale.copy(m.userData.s0); else m.scale.setScalar(1e-6); m.frustumCulled = on && m.userData.fc;
 }
 const _A = {};
 // 点 p 到线段 ab 的距离
 function segDist(p, a, b) { _t.subVectors(b, a); _u.subVectors(p, a); const u = Math.max(0, Math.min(1, _t.dot(_u) / (_t.lengthSq() || 1))); return p.distanceTo(_t.multiplyScalar(u).add(a)); }
 export function update(dt, st) {
   if (!S) return;
+  if (st.t > 0) S.frames++;
   S.sfx.update(dt, st);
   const { route, Z } = S, N = route.N, p = Math.max(0, Math.min(1, st.s / N));
   S.summitK = st.summit ? (st.preview ? 1 : Math.min(1, S.summitK + dt * 0.8)) : Math.max(0, S.summitK - dt * 2);
@@ -477,6 +509,8 @@ export function update(dt, st) {
   blend(K, PAL.low, PAL.high, smooth(0.25, 1, p));
   blendInto(K, PAL.storm, storm);
   blendInto(K, PAL.summit, sk);
+  const clr = Math.max(S.CZ.wK(st.s), S.CZ.wT(st.s)) * (1 - sk);                 // 刀脊 / 横切：雾拉开，看得见脚下的深渊和下面的雾带
+  K.fogN = mix(K.fogN, 14, clr); K.fogF = mix(K.fogF, 130, clr);
   const fog = S.scene.fog;
   fog.color.copy(K.fog); fog.near = K.fogN; fog.far = K.fogF;
   S.scene.background.copy(K.fog);
@@ -486,7 +520,7 @@ export function update(dt, st) {
     sink: 48 * Math.max(smooth(0.08, 1, p), sk), cloud: Math.max(smooth(0.38, 0.62, p), sk), everest: (1 - smooth(0.3, 0.46, p)) * (1 - sk) }, st.t || 0);
   const vh = S.ctx.renderer.domElement.clientHeight || innerHeight;
   // 雪：风雪强度 + 越高越密；大风口（北坳后的上坡）贴地吹雪（?fx=low 不要）
-  const R_ = Z.ridge, rz = R_ ? smooth(R_.start - 1, R_.start + 1, st.s) * (1 - smooth(Z.end(R_), Z.end(R_) + 2, st.s)) : 0;
+  const R_ = Z.ridge, R2 = S.CZ.knife && R_ && S.CZ.knife.start >= R_.start ? S.CZ.knife : R_, rz = R_ ? smooth(R_.start - 1, R_.start + 1, st.s) * (1 - smooth(Z.end(R2), Z.end(R2) + 2, st.s)) : 0;   // 北山脊 → 刀脊
   S.snow.update(st.t || 0, st.dt || dt || 0, Math.min(1, storm * (LOW ? 0.7 : 1) + (0.12 * smooth(0.3, 0.42, p) + 0.3 * smooth(0.55, 0.9, p)) * (1 - sk)), st.camera, vh,
     LOW ? 0 : rz * (0.45 + 0.55 * storm) * (1 - sk), route.heightAt(st.s));
   // 风力分级：大本营微风 → 前进营地起风 → 北山脊风雪里大风（旗被扯平）；再叠一点阵风。旗的抖动频率也跟着风走（相位按帧累加，不跳）
@@ -514,7 +548,9 @@ export function update(dt, st) {
   S.heli.update(dt, st);
   if (S.yaks) S.yaks.update(dt, st);
   const oxy = interact(dt, st);                                                     // 互动；北坳吸上氧，缺氧暗角松一点
-  S.hyp.update(Math.pow(smooth(5300, 8849, alt), 1.1) * (1 - 0.25 * sk) * (1 - 0.45 * oxy), st.t || 0);
+  const hypK = Math.pow(smooth(5300, 8849, alt), 1.1) * (1 - 0.25 * sk) * (1 - 0.45 * oxy);
+  S.hyp.update(hypK, st.t || 0);
+  (S.snd ||= makeSoundscape(S.ctx.kit)).update(Object.assign(st, { alt, hyp: hypK }));   // 声景（M2：风 / 脚步 / 路绳 / 喘气 / 营地）
   // 排队的人：红灯时站成一串（梯子上 + 坡上）；放行 / 登顶后往上走，翻过顶峰就不见了（登顶画面干净）；
   //   始终在化身前面；挡在镜头和化身之间（正面镜头）或贴着镜头的藏起来
   const P = S.people;
@@ -526,7 +562,7 @@ export function update(dt, st) {
     if (go && !P.aside && !st.summit && st.s > q0 - 0.5 && st.s < q0 + 1.5) { P.aside = true; P.asideS = P.s[0]; fgSay('queue'); }   // 轮到你：最前面那个人往右让一步
     for (let k = 0; k < P.n; k++) {
       const aside = k === 0 && P.aside, hop = Math.max(0, Math.min(2, Math.floor((P.wt - 0.15 - (P.n - 1 - k) * 0.3) / 1.3) + 1));
-      const floor = aside ? -1e9 : st.s + 1.1 + k * 1.2, want = aside ? P.asideS : Math.max(go ? P.go(k) : P.red(k) + 0.55 * hop, floor);
+      const floor = aside ? -1e9 : st.s + 1.1 + k * 1.8, want = aside ? P.asideS : Math.max(go ? P.go(k) : P.red(k) + 0.55 * hop, floor);
       // 往前走限速（慢慢挪上梯子）；但永远在化身前面（硬约束，走得快的人不会穿过去）；不往回走：新一圈直接回到排队位置；让路的人站住不动
       P.s[k] = st.preview || (want < P.s[k] - 0.5 && !aside) ? want : Math.max(floor, P.s[k] + Math.min(dt * 1.2, want - P.s[k]));
       const lt = aside ? -1.3 : P.lat[k];
@@ -549,7 +585,18 @@ export function update(dt, st) {
       P.anim.set([P.ph[k], P.wk[k], P.rb[k], P.lk[k]], k * 4);
     }
     P.sm.instanceMatrix.needsUpdate = true; P.aAnim.needsUpdate = true;
+    if (st.camera) {                                                               // LOD：按离镜头最近那人算，带回差
+      let dmin = 1e9; for (let k = 0; k < P.n; k++) { route.at(P.s[k], P.cl[k], A); dmin = Math.min(dmin, st.camera.position.distanceTo(A.pos)); }
+      const want = dmin < (P.lod === 0 ? 11 : 9) ? 0 : dmin < (P.lod === 1 ? 26 : 22) ? 1 : 2;
+      if (want !== P.lod) { P.lod = want; P.sm.geometry = P.geos[want]; }
+    }
   }
+  // 登顶：引擎的彩纸（fx.js，一团 360 粒的 Points）在雪山里藏掉，换成风吹雪烟（评审 r1 #8）
+  if (S.confetti === null && st.t > 0) S.confetti = S.scene.children.find(o => o.isPoints && o.material && o.material.isPointsMaterial && o.geometry.attributes.position.count === 360) || 0;
+  if (S.confetti && st.summit) S.confetti.visible = false;
+  S.sdK += ((st.summit ? 1 : 0) - S.sdK) * Math.min(1, dt * (st.summit ? 1.5 : 3));
+  S.sd.update(st.t || 0, S.sdK, st.camera, vh); S.sd.mesh.visible = S.sdK > 0.01 || S.frames <= 2;
+  if (S.CL) updateCliff(S.CL, S.CX, dt, st, { kit: S.ctx.kit, route, fovK: S.fovK, fogColor: fog.color, windDir: S.windDir });   // 过梯晃 / 失足、镜头、雾带、滚石
 }
 
 // ---------- 互动（只动画面和声音，不碰控制） ----------
@@ -561,7 +608,7 @@ function buildInteract(scene, ctx, { flagLines, BF, windDir }) {
     g.fillStyle = UI.warn; g.beginPath(); g.arc(0, 2, 16, 0, 6.283); g.fill();
     g.strokeStyle = UI.warn; g.lineWidth = 7; g.beginPath(); g.moveTo(0, 20); g.quadraticCurveTo(8, 62, 62, 58); g.stroke();
     g.fillStyle = '#ffffff'; g.font = `800 34px ${UI.font}`; g.textAlign = 'center'; g.fillText('O₂', 74, -34);
-  }, '吸氧');
+  }, '吸氧', { size: 0.32 });                                                      // 评审：图标缩到 1/3
   let puffs = null;
   if (!LOW) {                                                                   // 呼出来的白气（?fx=low 不要）
     const tex = ctx.util.canvasTexture(64, 64, (g, w) => {
@@ -593,8 +640,8 @@ function interact(dt, st) {
   I.oxyT = atCol ? I.oxyT + dt : 0;
   const onO2 = atCol && I.oxyT > 0.3;
   if (onO2 && !I.icon.wasOn) fgSay('oxygen');
-  I.icon.wasOn = onO2; I.icon.on(onO2);
-  if (av) I.icon.update(dt, _p.copy(av).addScaledVector(route.at(s).left, 1.05).setY(av.y + 1.6));   // 化身左边胸口高（头顶是 HUD 的站定面板）
+  I.icon.wasOn = onO2; I.icon.on(onO2 && I.oxyT < 1.8);                              // 弹出 1.5 s 后淡掉（吸氧照常继续）
+  if (av) I.icon.update(dt, _p.copy(av).addScaledVector(route.at(s).left, 0.62).setY(av.y + 1.0));   // 化身左边腰高（头顶是 HUD 的站定面板）
   I.oxy += ((onO2 ? 1 : 0) - I.oxy) * Math.min(1, dt * 2);
   if (onO2) {
     if ((I.bT -= dt) <= 0) { play('hiss', 0.8); I.bT = 1.9; I.puffAt = 0.95; }
@@ -607,7 +654,11 @@ function interact(dt, st) {
   }
   // 登顶：觇标上卷着的红旗展开（啪啦一声）
   if (I.BF) {
-    if (st.summit && !I.wasSummit) { play('flutter', 1.3); fgSay('summit'); }
+    if (st.summit && !I.wasSummit) {
+      play('flutter', 1.3); fgSay('summit');
+      const o = route.at(route.N + 2.6, -0.2).pos; o.y = route.heightAt(route.N) + 0.05;   // 雪烟：从顶峰雪脊上被西风扯向东侧雪檐
+      S.sd.start(o, route.at(route.N).dir, S.windDir);
+    }
     I.wasSummit = !!st.summit;
     I.unf += ((st.summit ? 1 : 0) - I.unf) * Math.min(1, dt * (st.summit ? 1.8 : 6));
     I.BF.set(I.unf, t);

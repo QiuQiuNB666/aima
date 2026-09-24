@@ -14,13 +14,15 @@ import { PALETTE, UI, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
 import { makeRunner, damp } from './runner.js';
 import { makeCloth } from './cloth.js';
-import { TUNE, TIERS, tierAt, rng, H4, atLeg, yawOf, makeLevel, makeRun, makeLegs, speedFor, forceKind, nextThreat } from './logic.js';
+import { TUNE, TIERS, tierAt, jumpLen, rng, H4, atLeg, yawOf, makeLevel, makeRun, makeLegs, makeKneeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
 import { makeRiso } from './riso.js';
 
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
 const Q = new URLSearchParams(location.search);
 const DEMO = Q.has('demo'), MANUAL = DEMO && Q.has('manual'), CAM = Q.get('cam'), CAD_DEMO = +(Q.get('cad') || 150);
+const KNEE = Q.get('lane') === 'knee';   // 免手换道：抬一条腿保持 0.3 s = 往那边换一道 / 路口往那边转；快速抬腿仍是跳（缺省 = 手柄 / 键盘换道）
+const TALK = Q.get('npctalk') === '1';   // 9/24 球球「跑酷还是有捷风的废话」：和主游戏一样缺省不说话（不出气泡不出声），?npctalk=1 才开
 const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : DEMO ? 1 : 0, MUTE = Q.get('voice') === '0' || DEMO;
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
 const LEG_READY_S = 5;          // 走满 5 s（anim.js 学完零点）才认高抬腿 / 下蹲：零点没学出来时穿戴偏屈 15–20°，正常走路会被当成高抬腿
@@ -70,9 +72,10 @@ async function main() {
   const jf = await makeJifeng(scene);
   if (Q.get('hud') === '0') document.body.classList.add('clean');
   if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
+  if (KNEE) document.body.classList.add('knee');
 
   // ---------- 一局 ----------
-  let level, run, legs = makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', bubbleUntil = 0, autoWalk = false;
+  let level, run, legs = KNEE ? makeKneeLegs() : makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', bubbleUntil = 0, autoWalk = false;
   const seed0 = +(Q.get('seed') || (DEMO ? 5 : Date.now() % 100000));
   const rand = DEMO ? rng(7) : Math.random;
   let seed = seed0;
@@ -97,7 +100,7 @@ async function main() {
       if (f && S.t !== lastT) {
         lastT = S.t;
         if (legWalk >= LEG_READY_S && !runner) {      // 关了跑步层（?runner=0）才走老路：直接用 10 Hz 原始样本
-          const off = av.body.off, r = legs.push(-f.l - off, -f.r - off, -(f.ldps || 0), -(f.rdps || 0));
+          const off = av.body.off, r = legs.push(-f.l - off, -f.r - off, -(f.ldps || 0), -(f.rdps || 0), 0.1);
           if (r.jump) pend.jump = true;
           pend.slideHold = r.slide; if (r.slide) pend.slide = true;
         }
@@ -118,7 +121,10 @@ async function main() {
     S = { t: clock, frame: { l: -a, r: -b, ldps: -va * f, rdps: -vb * f }, gait: { moving: on, cadence: on ? CAD_DEMO : 0, phase_l: pl, phase_r: (pl + 0.5) % 1 }, sim: { on: false }, terrain: { hs_phase: 0.5 } };
   }
   const say = key => {
-    jfSaid = key; $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
+    jfSaid = key;
+    const ic = $('jfIcon'); ic.classList.remove('ping'); void ic.offsetWidth; ic.classList.add('ping');   // 不说话时只剩右上角小图标亮一下
+    if (!TALK) return;
+    $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
     if (MUTE || AUTO) return;
     if (audio) audio.pause();
     audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(JF[key])); audio.play().catch(() => {});
@@ -163,6 +169,7 @@ async function main() {
 
   // ---------- 自动驾驶（?auto=p）：每个障碍按概率 p 决定躲不躲 ----------
   // 离下一次 lift 出力还有几秒（两条腿取近的）：/state 的步态相位按步频外推到现在
+  const CAD_NOW = () => (S && S.gait && S.gait.cadence) || 0;           // 现在的步频（没有 = 0，jumpLen 按 150 算）
   const liftIn = () => {
     const g = S && S.gait; if (!g || !(g.cadence > 0) || g.phase_l == null) return 9;
     const f = g.cadence / 120, lp = (((S.terrain && S.terrain.hs_phase) ?? 0.5) + TUNE.LIFT_LIT) % 1, age = DEMO ? clock - S.t : performance.now() / 1000 - sAt + 0.01;   // 样本多旧（真机：收到时刻 + 服务端 ~10 ms）
@@ -180,10 +187,10 @@ async function main() {
     //   /state 里就有这两个数：把 gait.phase_l / phase_r 按步频外推到现在，哪条腿这一帧跨过 lift 相位就起跳——和腿上出力用的是同一个钟。只在安全窗口里等：
     //   最早 = 还跳得过（楼缝：落点过对面楼沿 0.6 m；矮障碍：够高的那段滞空盖住它），最晚 = 原来的起跳距离（不会比以前更晚）
     if (th.what === 'jump') {
-      // 安全窗口按物理算：矮障碍 = 脚在 LOW_H 以上的那段滞空 [t1, t2] 盖住它（碰撞 ±0.3 再留 0.3）；楼缝 = 楼沿前 0.35 m 以内起跳、落点过对面 0.6 m；最晚再留两帧的路
-      const v = Math.max(run.speed, 1), G = TUNE.G, V0 = TUNE.V0, gap = th.o.kind === 'gap';
-      const q = Math.sqrt(Math.max(0, V0 * V0 - 2 * G * TUNE.LOW_H)), t1 = (V0 - q) / G, t2 = (V0 + q) / G;
-      const late = (gap ? 0.35 : t1 * v + 0.6) + v * 2 / 60, early = gap ? v * 2 * V0 / G - (th.o.x1 - th.o.x0) - 0.6 : t2 * v - th.o.len - 0.6;
+      // 安全窗口按弧线算（第 8 轮：跳按路程参数化）：矮障碍 = 脚在 LOW_H 以上的那段 r ∈ [r1, 1 − r1] 盖住它（盒子 ±0.75 再留 0.3）；
+      //   楼缝 = 楼沿前 0.35 m 以内起跳、落点过对面 0.6 m；最晚再留两帧的路
+      const v = Math.max(run.speed, 1), Lj = jumpLen(run.speed, CAD_NOW(), TUNE), gap = th.o.kind === 'gap', r1 = Math.asin(Math.min(1, TUNE.LOW_H / TUNE.JUMP_H)) / Math.PI;
+      const late = (gap ? 0.35 : r1 * Lj + 0.6) + v * 2 / 60, early = gap ? Lj - (th.o.x1 - th.o.x0) - 0.6 : (1 - r1) * Lj - 1.5;
       const li = liftIn(), beat = li < dtNow / 2 || li > liPrev + dtNow / 2;   // 这一帧最接近 lift 出力（刚要到 / 刚过去）
       liPrev = li;
       if (th.dx < late || (th.dx < early && beat)) pend.jump = true;
@@ -213,7 +220,7 @@ async function main() {
     if (AUTO) autopilot();
     const vT = speedFor(g ? g.cadence : 0, moving);
     {
-      const inp = { v: vT, jump: pend.jump, slide: pend.slide || pend.slideHold, lane: pend.lane, turn: pend.turn };
+      const inp = { v: vT, cad: g ? g.cadence : 0, jump: pend.jump, slide: pend.slide || pend.slideHold, lane: pend.lane, turn: pend.turn };
       pend.jump = pend.slide = false; pend.lane = 0; pend.turn = 0;
       const n = Math.ceil(dtR / (1 / 120));
       for (let i = 0; i < n; i++) { run.step(dtR / n, i ? { v: vT } : inp); }
@@ -261,8 +268,9 @@ async function main() {
     // 第 5 轮：高抬腿 / 下蹲识别用 A2 跟踪后的髋角（按设备角速度外推到现在 + one-euro，60 fps），再往前看 JUMP_LEAD 秒。
     //   原来等 10 Hz 样本（平均晚 ~50 ms，外加跨阈值要等下一拍），起跳帧离 lift 出力那一拍更远
     if (runner && !DEMO && legWalk >= LEG_READY_S && S && S.frame) {
-      const h = runner.hip, off = av.body.off, L = TUNE.JUMP_LEAD, r = legs.push(h.fl - off + h.wl * L, h.fr - off + h.wr * L, h.wl, h.wr);
+      const h = runner.hip, off = av.body.off, L = TUNE.JUMP_LEAD, r = legs.push(h.fl - off + h.wl * L, h.fr - off + h.wr * L, h.wl, h.wr, dtR);
       if (r.jump) pend.jump = true;
+      if (r.lane) laneOrTurn(r.lane);                                        // 免手模式：保持的那条腿那边（路口转弯区里方向对 = 转弯）
       pend.slideHold = r.slide; if (r.slide) pend.slide = true;
     }
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
@@ -311,6 +319,9 @@ async function main() {
 
     // HUD
     if (!document.body.dataset.ready) document.body.dataset.ready = '1';
+    if (KNEE) for (const [k, i] of [['kneeL', 0], ['kneeR', 1]]) {             // 免手模式：两个膝盖图标，过阈值点亮，保持进度条 0.3 s 填满
+      const el = $(k); el.classList.toggle('on', !!(legs.up && legs.up[i])); el.firstChild.style.height = `${Math.round((legs.hold ? legs.hold[i] : 0) * 100)}%`;
+    }
     $('dist').textContent = Math.floor(run.dist);
     { const tr = tierAt(run.x), i = TIERS.indexOf(tr); if (i !== tierShown) { if (tierShown >= 0) { $('tier').classList.add('up'); tierUpAt = clock; } tierShown = i; $('tier').textContent = `第 ${i + 1} 级 · ${tr.name}`; }   // 第 7 轮：难度只随距离升
       if (clock - tierUpAt > 2.5) $('tier').classList.remove('up'); }

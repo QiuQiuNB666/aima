@@ -305,7 +305,8 @@ function dressAvatar() {
   const local = (bone, v) => v.clone().applyQuaternion(bone.getWorldQuaternion(wq).invert());
   const avQ = av.getWorldQuaternion(new THREE.Quaternion());
   const leftW = new THREE.Vector3(0, 0, -1).applyQuaternion(avQ);
-  for (const [sd, sgn] of [['L', 1], ['R', -1]]) {
+  const newBody = !!av.userData.fenggeBody;                            // P 线新身体自带外骨骼连杆：不再加发光条和腰环（会穿模）
+  for (const [sd, sgn] of newBody ? [] : [['L', 1], ['R', -1]]) {
     for (const [a, b, rad] of [[`leg_joint_${sd}_1`, `leg_joint_${sd}_2`, 0.072], [`leg_joint_${sd}_2`, `leg_joint_${sd}_3`, 0.056]]) {
       const bone = B[a], child = B[b]; if (!bone || !child) continue;
       const ax = child.position.clone(), len = ax.length(); ax.normalize();
@@ -316,14 +317,14 @@ function dressAvatar() {
     }
   }
   const pel = B.Skeleton_torso_joint_1;
-  if (pel) {
+  if (pel && !newBody) {
     const ax = (B.Skeleton_torso_joint_2 ? B.Skeleton_torso_joint_2.position.clone() : new THREE.Vector3(0, 0, 1)).normalize();
     const belt = new THREE.Mesh(new THREE.TorusGeometry(0.118, 0.014, 6, 28), mat);
     belt.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), ax); belt.position.copy(ax).multiplyScalar(0.03); belt.name = 'exoBelt'; pel.add(belt);
   }
   const head = B.Skeleton_neck_joint_2;
   const fg = av.userData.fengge;                                       // 引擎换了峰哥头：头盔让位，头灯挂到峰哥帽檐正前方
-  if (head && fg) { const hl = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), lamp); hl.position.copy(fg.lamp); hl.name = 'exoHeadlamp'; head.add(hl); }
+  if (head && fg) { const hl = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), lamp); hl.position.copy(fg.lamp); hl.name = 'exoHeadlamp'; head.add(hl); }
   else if (head) helmet(av, head, lamp);                              // ?fengge=0 / 峰哥头没加载上：白头盔
   return true;
 }

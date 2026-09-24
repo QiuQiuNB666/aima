@@ -68,6 +68,17 @@ export function pickMode(prev, { forced, state, title, summit, idleFor, notActiv
 const fmt = s => s == null ? '—' : s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// 成绩卡两行。新纪录只在本圈 < 之前最佳（best=null 不算）；影子是自己上一圈就写「比上一圈快 / 慢」；
+// 「新纪录」和「…慢」互斥：慢是本圈实测，胜出（prevBest 来自内存，可能过期）。
+export function summitLines({ lap, prevBest, ghostDone, ghostWho, ghostPos, total, wearer, prevLap }) {
+  if (lap == null) return { rec: false, ghost: '' };
+  const who = ghostWho || '上一位', d = ghostWho && ghostWho === wearer && prevLap != null ? lap - prevLap : null;
+  const ghost = d != null ? (Math.abs(d) <= 0.05 ? '和上一圈打平' : d > 0 ? `比上一圈慢 ${d.toFixed(1)} s` : `比上一圈快 ${(-d).toFixed(1)} s`)
+    : ghostDone != null ? (lap - ghostDone <= 0.05 ? `和影子（${who}）同时登顶` : `比影子（${who}）慢 ${(lap - ghostDone).toFixed(1)} s`)
+    : ghostPos != null ? `甩开影子（${who}）${Math.max(1, total - ghostPos)} 步` : '你是第一个爬上这座山的人';
+  return { rec: prevBest != null && lap < prevBest - 1e-6 && !ghost.includes('慢'), ghost };
+}
+
 export function makeFlow(world, preview) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.append(st);
   const add = (id, cls, html) => { const d = document.createElement('div'); d.id = id; d.className = cls; d.innerHTML = html; document.body.append(d); return d; };
@@ -146,10 +157,9 @@ export function makeFlow(world, preview) {
         if (r.best == null || lap < r.best) R[world.id] = { best: lap, who: (lastS && lastS.wearer) || '', at: Date.now() };
         localStorage.setItem(RECS, JSON.stringify(R));
       } catch (e) { /* 隐身窗口 */ }
-      document.getElementById('sRec').style.display = lap != null && (prevBest == null || lap < prevBest - 1e-6) ? '' : 'none';
-      const P = lastT || T, who = P.ghost_who || '上一位';
-      document.getElementById('sGhost').textContent = lap == null ? '' : ghostDone != null ? (lap - ghostDone <= 0.05 ? `和影子（${who}）同时登顶` : `比影子（${who}）慢 ${(lap - ghostDone).toFixed(1)} s`)
-        : P.ghost_pos != null ? `甩开影子（${who}）${Math.max(1, P.total - P.ghost_pos)} 步` : '你是第一个爬上这座山的人';
+      const P = lastT || T, L = summitLines({ lap, prevBest, ghostDone, ghostWho: P.ghost_who, ghostPos: P.ghost_pos, total: P.total, wearer: lastS && lastS.wearer, prevLap: lastT && lastT.last_lap });
+      document.getElementById('sRec').style.display = L.rec ? '' : 'none';
+      document.getElementById('sGhost').textContent = L.ghost;
       const m = lastS && lastS.memory, mine = m && m.cards ? m.cards.filter(c => c.enabled !== false && c.wearer === lastS.wearer) : [];
       const c = mine[mine.length - 1];
       document.getElementById('sCard').textContent = c ? `你的手感已存为经验卡 #${c.id}「${c.quote}」` : '说一句「太陡了 / 没感觉」，手感就能存成经验卡';

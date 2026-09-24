@@ -13,11 +13,14 @@ export const TUNE = {                  // 现场调这里（也可以 URL 覆盖
   TURN_EVERY: 3,   // 第 6 轮：每 3 栋楼一个 90° 转弯（楼尾就是路口）
   TURN_ZONE: 10,   // 路口前多少米内按转弯才算（提前按也记着，到路口再转 = 输入缓冲）
   WALL_D: 3.6,     // 过了路口还能补按多远；再往前就撞上路口尽头的墙（扣一次，自动转过去接着跑）
+  HOLD_S: 0.3,     // 免手换道（?lane=knee）：一条腿抬到高抬腿阈值并保持这么久 = 往那边换一道
+  PEAK_DROP: 8,    // 免手模式里「膝盖开始往下落」= 从这次抬腿的最高点落下 8°（没保持够就落 = 跳）；不用角速度：抬到顶一停，滤波后的角速度会短暂过冲成负的
   LIFT_LIT: 0.68,  // lift 脉冲中心在文献相位 68%（摆动早期，terrain.py pulse('lift')）；估计器相位 = (hs_phase + 0.68) % 1，自动驾驶把起跳对到这一拍
   CAD_V: 0.075,    // 步频 → 跑速：100 步/分 = 7.5 m/s，200 = 15 m/s（夸张一点才有跑酷感）
   V_MIN: 4, V_MAX: 15,
-  G: 20, V0: 7.2,  // 跳：顶点 1.3 m，滞空 0.72 s
-  SLIDE_T: 0.75,
+  G: 20,           // 自由落体（从楼沿走下去、弧线走完还没着地）
+  JUMP_H: 1.3, JUMP_STEPS: 2, SLIDE_STEPS: 2,   // 第 8 轮：跳高 1.3 m、跳 / 滑都占 2 步的路程（= 一个步态周期）
+  ARC_VMIN: 3, JUMP_MIN: 3,   // 弧线路程至少按 3 m/s 走、最短 3 m（站着跳）
   LOW_H: 0.85,     // 低障碍（空调外机 / 矮墙）高度：脚离地要超过它
   HIGH_Y: 1.0,     // 高障碍（晾衣杆）下沿：滑铲时身高 0.8 能钻过去
   LIVES: 3, INVULN: 1.5,
@@ -54,8 +57,8 @@ const BASE9 = ['jumpL', 'jumpC', 'jumpR', 'slideL', 'slideC', 'slideR', 'blockLC
 export const TIERS = [
   { from: 0, name: '热身', roof: [26, 44], space: [30, 40], gap: [2.4, 3.0], ramp: 0.35, pats: BASE9 },
   { from: 250, name: '上楼顶', roof: [28, 50], space: [24, 34], gap: [2.6, 3.4], ramp: 0.3, pats: [...BASE9, 'jumpAll'] },
-  { from: 600, name: '夜奔', roof: [30, 56], space: [20, 30], gap: [2.8, 3.8], ramp: 0.28, pats: [...BASE9, 'jumpAll', 'slideAll'] },
-  { from: 1000, name: '亡命', roof: [34, 62], space: [15, 22], gap: [3.0, 4.2], ramp: 0.25, pats: [...BASE9, 'jumpAll', 'slideAll', 'jumpAll', 'slideAll'] },
+  { from: 600, name: '夜奔', roof: [34, 62], space: [18, 26], gap: [2.8, 3.8], ramp: 0.28, pats: [...BASE9, 'jumpAll', 'slideAll'] },
+  { from: 1000, name: '亡命', roof: [40, 70], space: [14, 20], gap: [3.0, 4.2], ramp: 0.25, pats: [...BASE9, 'jumpAll', 'slideAll', 'jumpAll', 'slideAll'] },
 ];
 export const tierAt = s => { let t = TIERS[0]; for (const q of TIERS) if (s >= q.from) t = q; return t; };
 // 碰撞盒（沿路 ±len/2、横向 ±w/2、离地 y0..y1），和 three 的 Box3.intersectsBox 一样是 6 个比较；logic.js 不依赖 three 所以自己写
@@ -88,7 +91,8 @@ export function makeLevel(seed = 7, T = TUNE) {
         roofs++;
         L.roof(x0, x1, h, { ...(turnIn ? { turnIn } : {}), ...(turnHere ? { turnOut: true } : {}) });
         if (segs.length > 1) {                                      // 屋顶上的障碍：离两头各留一段；路口前的转弯区不放
-          let ox = x0 + (turnIn ? 18 : 9);                          // 刚转过路口的那栋：镜头还在甩（~0.4 s），第一个障碍放远一点
+          const prev = segs[segs.length - 2];                       // 刚转过路口（镜头还在甩 ~0.4 s）/ 刚跳过楼缝（一跳 ~9 m、跳下矮楼落得更远）：第一个障碍放远一点，别落地就撞
+          let ox = x0 + (turnIn || (prev && prev.kind === 'gap') ? 18 : 9);
           while (ox < x1 - (turnHere ? T.TURN_ZONE + 5 : 7)) {
             let name, tries = 0;                                     // 抽一个模式，不和前两个重复
             do name = tier.pats[Math.floor(R() * tier.pats.length)]; while (recent.includes(name) && ++tries < 20);
@@ -149,6 +153,37 @@ export function makeLegs(T = TUNE) {
   };
 }
 
+// 一步走多远（米）：速度 × 60 / 步频；没有步频（键盘 / 刚起步）按 150 步/分算
+export const stepLen = (v, cad, T = TUNE) => v * 60 / (cad > 30 ? cad : 150);
+export const jumpLen = (v, cad, T = TUNE) => Math.max(T.JUMP_MIN, T.JUMP_STEPS * stepLen(v, cad, T));
+// 免手模式（?lane=knee）：同一路信号（A2 跟踪后的髋角）先判「保持」再判「跳」，互斥。
+//   一条腿抬过 JUMP_FLEX（另一条腿在 JUMP_OTHER 以下）→ 开始计时：0.3 s 内从最高点落下 PEAK_DROP = 跳；还抬着到 0.3 s = 往那条腿那边换一道。
+//   跳在最高点就触发（不等放下），比缺省模式晚大约抬腿到最高点那一段。两条腿都放回 REARM 以下才能再来。两条腿都高 = 下蹲滑铲，和缺省一样。
+//   push(往前看过的屈曲角 ×2, 角速度 ×2, dt) → {jump, slide, lane: −1 左 / +1 右 / 0}；过阈值用往前看的角（早），最高点 / 落下用没往前看的角；hold[k] = 0..1 保持进度、up[k] = 这条腿过没过阈值（HUD 膝盖图标用）
+export function makeKneeLegs(T = TUNE) {
+  let armed = true, cand = null;
+  const hold = [0, 0], up = [false, false];
+  return {
+    hold, up,
+    push(fl, fr, vl, vr, dt) {
+      const f = [fl, fr], v = [vl || 0, vr || 0], slide = fl > T.SLIDE_FLEX && fr > T.SLIDE_FLEX;
+      let jump = false, lane = 0;
+      up[0] = fl > T.JUMP_FLEX; up[1] = fr > T.JUMP_FLEX;
+      if (slide) cand = null;
+      const raw = [fl - v[0] * T.JUMP_LEAD, fr - v[1] * T.JUMP_LEAD];     // 去掉往前看的那部分：抬到顶一停，往前看的量会一下子缩回去，看起来像「落下来」
+      if (!cand && armed && !slide) for (let k = 0; k < 2; k++) if (f[k] > T.JUMP_FLEX && f[1 - k] < T.JUMP_OTHER) { cand = { k, t: 0, pk: raw[k] }; break; }
+      if (cand) {
+        const k = cand.k; cand.t += dt; cand.pk = Math.max(cand.pk, raw[k]);
+        if (raw[k] < cand.pk - T.PEAK_DROP) { jump = true; cand = null; armed = false; }   // 没保持够就从最高点往下落 = 跳
+        else if (cand.t >= T.HOLD_S) { lane = k === 0 ? -1 : 1; cand = null; armed = false; }                 // 保持够了 = 换道
+      }
+      hold[0] = cand && cand.k === 0 ? Math.min(1, cand.t / T.HOLD_S) : 0; hold[1] = cand && cand.k === 1 ? Math.min(1, cand.t / T.HOLD_S) : 0;
+      if (!armed && fl < T.REARM && fr < T.REARM) armed = true;
+      return { jump, slide, lane };
+    },
+  };
+}
+
 export const speedFor = (cadence, moving, T = TUNE) => moving && cadence > 0 ? Math.max(T.V_MIN, Math.min(T.V_MAX, cadence * T.CAD_V)) : 0;
 
 // ---------- 一局 ----------
@@ -156,7 +191,7 @@ export function makeRun(level, T = TUNE) {
   const S = {
     x: 0, z: 0, lane: 1, y: level.ground(0), vy: 0, air: false, slideT: 0, speed: 0, lives: T.LIVES, invuln: 0,
     dist: 0, jfGap: T.JF_GAP0, jfV: 0, started: false, startT: 0, over: false, t: 0, landT: -9, fell: false, events: [],
-    leg: level.legs[0], turnPend: 0,
+    leg: level.legs[0], turnPend: 0, arc: 0, jump: null, slide: null,
   };
   const laneZ = l => (l - 1) * LANE;
   const hit = why => {
@@ -172,7 +207,7 @@ export function makeRun(level, T = TUNE) {
     S.lane = Math.max(0, Math.min(2, Math.round(S.z / LANE) + 1));
     S.leg = nl; tn.done = true; S.turnPend = 0; S.events.push(missed ? 'turnMiss' : 'turn');
   };
-  // inp = {v: 目标速度, jump, slide, lane: −1/0/+1, turn: −1 左 / +1 右 / 0}
+  // inp = {v: 目标速度, cad: 步频（跳 / 滑的长度按步算）, jump, slide, lane: −1/0/+1, turn: −1 左 / +1 右 / 0}
   S.step = (dt, inp) => {
     S.t += dt;
     if (S.over) { S.speed = Math.max(0, S.speed - dt * 12); S.x += S.speed * dt; return; }
@@ -190,26 +225,35 @@ export function makeRun(level, T = TUNE) {
     if (inp.lane) S.lane = Math.max(0, Math.min(2, S.lane + inp.lane));
     S.z += (laneZ(S.lane) - S.z) * (1 - Math.exp(-dt * 12));
     S.invuln = Math.max(0, S.invuln - dt);
-    // 竖直
-    const g = level.ground(S.x);
-    if (inp.jump && !S.air) { S.vy = T.V0; S.air = true; S.slideT = 0; S.events.push('jump'); }
-    if (inp.slide && S.air && S.vy > -8) S.vy = -12;                          // 空中下蹲 = 快速落地
-    if (inp.slide && !S.air && S.slideT <= 0) { S.slideT = T.SLIDE_T; S.events.push('slide'); }
-    if (inp.slide && S.slideT > 0) S.slideT = Math.max(S.slideT, 0.2);          // 蹲着不起来 = 一直滑
-    S.slideT = Math.max(0, S.slideT - dt);
+    // 竖直（第 8 轮）：跳 / 滑按「路程」参数化（Trash Dash 的思路，公式自己写）：r = (弧线路程 − 起跳时) / 跳长，y = 起跳高度 + sin(π·r)·JUMP_H。
+    //   跳长 = JUMP_STEPS 步的路程（步长 = 速度 × 60 / 步频）→ 滞空正好 JUMP_STEPS 步 = 一个步态周期：起跳在 lift 那一拍，落地就是同一条腿的下一拍；
+    //   速度跟步频成正比，所以跳长基本恒定 ~9 m，变的是滞空时间（100 步/分 1.2 s、150 → 0.8 s、200 → 0.6 s）。空中步频变了，弧线照样在同一个路程落地。
+    //   弧线路程至少按 ARC_VMIN 走：站着不动按跳也会落下来。走完弧线脚下更低（跳下矮楼 / 楼缝）就按收尾的下落速度接重力。
+    const g = level.ground(S.x), arcV = Math.max(S.speed, T.ARC_VMIN), step = stepLen(S.speed, inp.cad, T);
+    S.arc += arcV * dt;
+    if (inp.jump && !S.air) { S.air = true; S.jump = { a0: S.arc, len: Math.max(T.JUMP_MIN, T.JUMP_STEPS * step), y0: S.y }; S.slide = null; S.events.push('jump'); }
+    if (inp.slide && S.air && (S.jump || S.vy > -8)) { S.jump = null; S.vy = -12; }   // 空中下蹲 = 快速落地
+    if (inp.slide && !S.air && !S.slide) { S.slide = { end: S.arc + Math.max(T.JUMP_MIN, T.SLIDE_STEPS * step) }; S.events.push('slide'); }
+    if (S.slide) { if (inp.slide) S.slide.end = Math.max(S.slide.end, S.arc + 0.2 * arcV); if (S.arc >= S.slide.end || S.air) S.slide = null; }   // 蹲着不起来 = 一直滑
+    S.slideT = S.slide ? (S.slide.end - S.arc) / arcV : 0;                        // 还剩几秒（> 0 = 在滑；画面 / 碰撞 / HUD 用）
     if (!S.air) {
       if (g === null) { S.air = true; S.vy = 0; } else S.y = g;
     }
     if (S.air) {
-      S.vy -= T.G * dt; const py = S.y; S.y += S.vy * dt;
-      if (g !== null && S.y <= g && py >= g - 0.35) { S.y = g; S.air = false; S.vy = 0; S.landT = S.t; S.events.push('land'); }
-      else if (g !== null && S.y < g - 0.35) { hit('wall'); S.y = g; S.air = false; S.vy = 0; }   // 撞到更高的楼沿：爬上去
+      const py = S.y;
+      if (S.jump) {
+        const J = S.jump, r = (S.arc - J.a0) / J.len, k = T.JUMP_H * Math.PI / J.len * arcV;
+        if (r < 1) { S.y = J.y0 + Math.sin(Math.PI * r) * T.JUMP_H; S.vy = k * Math.cos(Math.PI * r); }
+        else { S.y = J.y0; S.vy = -k; S.jump = null; }                             // 弧线走完：接着按这个下落速度 + 重力
+      } else { S.vy -= T.G * dt; S.y += S.vy * dt; }
+      if (g !== null && S.y <= g && py >= g - 0.35 && S.vy <= 0) { S.y = g; S.air = false; S.vy = 0; S.jump = null; S.landT = S.t; S.events.push('land'); }   // 只在往下落时着地（起跳那一帧 y 还等于地面）
+      else if (g !== null && S.y < g - 0.35) { hit('wall'); S.y = g; S.air = false; S.vy = 0; S.jump = null; }   // 撞到更高的楼沿：爬上去
       else if (g === null && S.vy < 0) {
         const s = level.seg(S.x);
         if (s && S.y < s.h0 - 3) {                                            // 掉下去了：扣一次，放到下一栋楼头上
           hit('fall');
           const nx = level.segs.find(q => q.x0 >= s.x1 && q.kind !== 'gap');
-          if (nx) { S.x = nx.x0 + 0.5; S.y = nx.h0; S.air = false; S.vy = 0; S.landT = S.t; }
+          if (nx) { S.x = nx.x0 + 0.5; S.y = nx.h0; S.air = false; S.vy = 0; S.jump = null; S.landT = S.t; }
         }
       }
     }

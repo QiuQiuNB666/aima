@@ -39,6 +39,7 @@ export const PALETTE = {
   night_to_dawn: { main: '#5a3b2e', sub: '#1a1f4a', accent: ['#ff8a3d'] },             // 富士：火山褐 / 夜蓝紫 / 御来光橙
   subtropical: { main: '#3f6b3a', sub: '#bfe3f2', accent: ['#f29cc0'] },               // 梧桐：林绿 / 天青 / 毛棉杜鹃粉
   snow_summit: { main: '#e8eef5', sub: '#1447a2', accent: ['#d7342b'] },               // 珠峰：雪白 / 高空蓝 / 觇标经幡红
+  cliff_path: { main: '#c2b9ac', sub: '#2f6fc0', accent: ['#c8231b'], harness: '#7cfc00' },   // 华山：花岗岩灰 / 晴空蓝 / 摩崖朱红；harness = 安全带荧光绿（离琥珀 45°+，别用橙：和外骨骼只差 9°；P 线 outfits.js 华山套装同色）
   grid: { main: '#141a22', sub: '#3b5a78', accent: ['#5fd3ff'] },                      // 训练场：深蓝灰 / 网格蓝 / 发光青（路段色本身就是主角）
   parkour: { main: '#1a1238', sub: '#2a2f3a', accent: ['#ff2e88', '#ffe9c4'] },        // 跑酷：夜紫 / 楼灰 / 品红 + 月光
 };

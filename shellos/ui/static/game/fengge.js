@@ -295,7 +295,7 @@ export async function dressFengge(av, look = {}) {
   }
 
   // 给主题挂头灯用（头骨局部坐标）：帽檐翻边正前方
-  const lamp = head.worldToLocal(H.localToWorld(headAt(edge(0) + 34, 0, new THREE.Vector3(), 1.16, false)));
+  const lamp = head.worldToLocal(H.localToWorld(headAt(edge(0) + 34, 0, new THREE.Vector3(), outfit.lampK || 1.16, false)));
   av.group.userData.fengge = { lamp };
   av.fengge = true;
   // 穿搭的配件（护目镜 / 氧气面罩 / 冰爪 / 安全带 / 背包 / 遮阳帽 / 头灯 …）：静止姿态下按骨骼摆好再挂上去
@@ -303,7 +303,7 @@ export async function dressFengge(av, look = {}) {
     tune: (m, key, rimK = L.rimK, glow = 0.15) => tune(m, U, key, rimK, glow),
     attach: (o, bone) => { av.group.add(o); (av.bones[bone] || av.group).attach(o); return o; } });
   // 手（hand.js）：自己的指骨，挂腕骨；身体的袖口收在腕骨上，手根往外 1 cm。登顶动作要用手，所以先建手、再包登顶、最后每帧收尾 apply
-  HANDS = makeHands(av, { skin: L.glove, shift: 0.01, tune: m => tune(m, U, 'hand', L.rimK, 0.18) });
+  HANDS = makeHands(av, { skin: outfit.hand || L.glove, shift: 0.01, tune: m => tune(m, U, 'hand', L.rimK, 0.18) });   // outfit.hand = 手套颜色（珠峰）
   armClearance(av);                                          // 手别插进髋部外骨骼（A2 的动作之后、登顶 / 伸手之前）
   summitGesture(av, head, SMILE, HANDS);
   const a2 = av.animate;
