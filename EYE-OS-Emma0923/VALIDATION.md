@@ -2,6 +2,13 @@
 
 最新日期：2026-09-24。验收范围是网页控制台、本机桥接与 ShellOS 只读状态联调，不是眼镜完整固件。下文 v0.1 / v0.2 保留为历史验证记录。
 
+## 合并准备复核：main 67e6783 + 开发代码 5726a8d
+
+- 获取远端最新 main 后，用 `git merge-tree --write-tree` 生成无文本冲突的合并树 `885b11111feb8e49bfbeaada8f10118beae8edbd`；没有合并任何正式分支。主分支的新 `shellos/ui/server.py` 内容与本分支角色字段同时保留。
+- 在合并树的隔离副本运行本目录 `npm test`：**118/118 通过**。Python `test_device_ownership.py test_hands_haptics.py test_guard.py test_serial_ports.py test_fault.py test_app.py -q -k "not stress"`：**92 passed、2 subtests passed、2 deselected**。使用假串口、假连接和回放，不启动真实设备。
+- 首次导出的精简测试副本漏了 `shellos/worlds/*.json`，11 项 App 测试因找不到默认场景失败；补齐来自同一合并树的场景配置后整套相关 Python 回归通过。没有修改项目实现或测试断言来消除失败。
+- 本轮新增提交只更新合并指引、README 与本记录；未改变运行代码。GitHub PR #3 无自动 CI 检查结果，以上是本地合并树测试证据。远程真机校准数据、实际力反馈及双设备端到端体验仍未验收。
+
 ## v0.8 穿戴自查与游戏操作教学
 
 - Node 九套 **118/118** 通过，无失败或跳过。新增按角色分组、未完成自查阻止校准与画面输入、切换穿戴方式和换人清空、独立角色连接、双套端口冲突、错误时间和过期快照、迟到返回、断连不自动恢复、每款游戏独立教学、主动暂停和清空练习结果等覆盖。

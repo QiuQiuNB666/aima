@@ -1,5 +1,55 @@
 # EYE OS · Emma0923 合并说明
 
+## 同事从这里开始：推荐合并路径
+
+先审阅 [PR #3：上肢、可选单/双套与穿戴教学](https://github.com/QiuQiuNB666/aima/pull/3)，合入 `codex/eye-os-Emma0924`；再审阅 [PR #2：Emma 控制台进入主项目](https://github.com/QiuQiuNB666/aima/pull/2)，合入 `main`。先合 #3 后，#2 会自动包含本次完整代码，无需重复复制文件或再挑选一次提交。
+
+```text
+emma0924/upper-limb-improvements -- PR #3 --> codex/eye-os-Emma0924 -- PR #2 --> main
+```
+
+两份 PR 当前均保留草稿，尚未执行合并。远程实机校准数据未回传，不在当前交付内；后续单独追加带来源和用途说明的数据/校准提交。页面演练、只读检查和软件力反馈内核可先评审，硬件启动与力反馈实测状态仍以验证记录为准。
+
+### 审阅范围与不能漏掉的依赖
+
+| 范围 | 在哪里看 | 合并选择 |
+| --- | --- | --- |
+| 穿戴流程、双杆画面、操作教学 | `EYE-OS-Emma0923/` | 保持整个目录的 HTML、脚本、服务、缓存及测试版本一致 |
+| 手部力反馈计算、姿态采集 | `shellos/hands/` | 与下列公共保护改动配套审阅；未开放网页电机输出 |
+| 设备身份和输出所有权 | `shellos/device/ownership.py`、`serial_link.py`、`shellos/safety/guard.py`、`shellos/ui/server.py` | 不能省略：负责串口独占、Guard 互斥、固定角色与状态声明 |
+| 对应回归测试 | `tests/test_device_ownership.py`、`test_hands_haptics.py`、`test_serial_ports.py` 及网页 `*.test.mjs` | 随实现一起合并 |
+
+如同事必须挑选提交，应在已包含 `86974dc` 的 Emma 基线上按顺序使用下表。推荐直接通过 PR 合并，避免重复引入提交。`5726a8d` 不是可直接贴进任意旧版本的独立补丁。
+
+| 顺序 | 提交 | 内容 | 依赖 |
+| --- | --- | --- | --- |
+| 1 | `6f711f0` | v0.5 双杆输入和独立游戏 | Emma 基线 `86974dc` |
+| 2 | `8f5a817` | v0.6 手部力反馈内核与采集 | 上一项 |
+| 3 | `d432055` | v0.7 单套/双套配置及控制隔离 | 前两项 |
+| 4 | `5726a8d` | v0.8 穿戴自查与每款游戏教学 | 前三项 |
+
+本节之后的版本记录仅用于追溯，历史文件数量和测试计数不是当前交付数量。当前目录为 50 个文件；当前 Node 全套为 118 项。
+
+### 2026-09-24 合并检查
+
+- GitHub PR #3 显示 `MERGEABLE / CLEAN`，目标确为 Emma 分支；没有修改 `main` 或实际执行合并。
+- 获取最新 `main` 的 `67e6783`，用 `git merge-tree --write-tree` 对完整开发分支 `5726a8d` 做虚拟合并：无文本冲突。生成的合并树为 `885b11111feb8e49bfbeaada8f10118beae8edbd`。虚拟合并不改工作区、分支或运行中的硬件。
+- 主分支相对共同基线已新增 83 个提交；双方涉及的公共文件中，主分支也修改了 `shellos/ui/server.py`。虚拟合并保留了主分支新功能与本分支 `link.role` 字段。
+- 从该合并树导出隔离的源代码和场景配置后，Node **118/118** 通过，Python 相关回归 **92 passed、2 subtests passed、2 deselected**（排除无关 stress）通过，均未连接真机。不是整个主项目所有测试或完整双设备端到端验收。
+- PR 文件清单没有新增录音、现场校准数据、虚拟环境、密钥配置、ZIP、海报或本机日志。GitHub 尚无自动 CI 检查结果；本地测试记录不能标为 GitHub CI 通过。
+
+### 合并后复验（不接外骨骼）
+
+在仓库根目录执行 Python 假设备/回放回归，在网页目录执行 Node 全套：
+
+```text
+python -m pytest tests/test_device_ownership.py tests/test_hands_haptics.py tests/test_guard.py tests/test_serial_ports.py tests/test_fault.py tests/test_app.py -q -k "not stress"
+cd EYE-OS-Emma0923
+npm test
+```
+
+网页需要 Node 22+，Python 依赖见仓库 `requirements.txt`。预览执行 `node server.mjs` 并打开 `http://127.0.0.1:4177/hands.html`；这不会启动 ShellOS 或打开串口。真机数据返回后继续在同一个 PR/Emma 分支追加，重新获取目标分支并检查差异，勿把本次无冲突结果视作永久保证。
+
 ## v0.8 当前增量：穿戴准备与每款游戏的操作教学
 
 本目录现为 50 个文件。新增 `wear-core.js`、`tutorial-core.js`、两份对应测试及 [接入说明](WEAR-AND-TUTORIAL-Emma0924.md)。一起带入页面、控制器、只读 reader、服务、缓存清单和版本信息；Service Worker 为 v8。本轮相对 `d432055` 只改本目录，没有修改或运行硬件控制代码。
