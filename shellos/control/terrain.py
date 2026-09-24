@@ -56,6 +56,7 @@ def _bump(phase_pct, center_pct, width_pct):
 
 class Terrain(Controller):
     name = "terrain"
+    input_mode = "exo"       # exo / keyboard / pad：App.set_input 改；非 exo 时 step() 出 0 力矩、位置只由 drive() 推进
 
     def __init__(self, preset=W.DEFAULT, strength=None):
         strength = DEFAULT_STRENGTH if strength is None else strength
@@ -143,10 +144,36 @@ class Terrain(Controller):
             if not was_wait and self.segment_at(self.pos) == "wait":
                 break                                  # 一拍来了好几步也停在红灯前
 
+    def drive(self, n):
+        """键盘 / 手柄模式：直接推进 n 步。红灯前照旧停住（_advance 自己停），红灯里再按 = 还在走，站定重新计时。"""
+        now = time.monotonic()
+        if self.segment_at(self.pos) == "wait" and not self.force:
+            self._wait_t0, self._still_since = now, None
+        else:
+            self._advance(n, now)
+
+    def _wait_tick(self, now, stepping, still):
+        """红灯：stepping = 这一拍还在出步；still = 腿静着。站定 WAIT_STILL_S 或到 WAIT_CAP_S 就放行整段。"""
+        if stepping or self._wait_t0 is None:
+            self._wait_t0 = now
+        if stepping or not still:
+            self._still_since = None
+        else:
+            self._still_since = self._still_since or now
+        if (self._still_since and now - self._still_since >= WAIT_STILL_S) or now - self._wait_t0 >= WAIT_CAP_S:
+            i, off = self.seg_index(self.pos)
+            self._advance(self.segments[i][1] - off, now)
+            self._still_since = self._wait_t0 = None
+
     def step(self, frame, gait=None):
+        now = time.monotonic()
+        if self.input_mode != "exo":                    # 键盘 / 手柄：不出力、不按步态计步（drive() 推进）；红灯 1.5 s 没按键就放行
+            self._strides = None                        # 切回 exo 时以那一拍的步数为基线，不把这期间走的步一下子算上
+            if self.segment_at(self.pos) == "wait" and not self.force:
+                self._wait_tick(now, stepping=False, still=True)
+            return 0.0, 0.0
         if gait is None:
             return 0.0, 0.0
-        now = time.monotonic()
         kind = self.segment_at(self.pos)
         strides = gait.l.n_strides + gait.r.n_strides
         if self._strides is None or strides < self._strides:   # 刚复位 / 步态估计被重置（换人）
@@ -154,17 +181,8 @@ class Terrain(Controller):
         new = strides - self._strides
         self._strides = strides
         if kind == "wait" and not self.force:           # 红灯：走着不前进；腿静下来才放行
-            if new > 0 or self._wait_t0 is None:
-                self._wait_t0 = now
             rms = math.sqrt((gait.l.omega_f ** 2 + gait.r.omega_f ** 2) / 2)
-            if new > 0 or rms >= STILL_DPS:             # 还在出步 / 腿还在摆就不算站定
-                self._still_since = None
-            else:
-                self._still_since = self._still_since or now
-            if (self._still_since and now - self._still_since >= WAIT_STILL_S) or now - self._wait_t0 >= WAIT_CAP_S:
-                i, off = self.seg_index(self.pos)
-                self._advance(self.segments[i][1] - off, now)
-                self._still_since = self._wait_t0 = None
+            self._wait_tick(now, stepping=new > 0, still=rms < STILL_DPS)
         elif new > 0:
             self._advance(new, now)
         kind = self.segment_at(self.pos)

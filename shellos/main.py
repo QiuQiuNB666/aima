@@ -68,6 +68,7 @@ class App:
         from .memory.store import Store
         self.store = Store()
         self.wearer = "anon"
+        self.input_mode = "exo"      # exo / keyboard / pad：展位上没穿外骨骼的人（评委、解说）用键盘 / 手柄让人物走；非 exo 不出力
         self.min_strides = 6
         self.swarm: list = []        # 蜂群发言：教练 / 地形导演 / 记忆员 / 安全员，仪表盘按时间线显示
         self._recent_changes: list = []   # (t, 参数)：安全员防拉锯
@@ -99,6 +100,8 @@ class App:
         ctl = self.ctl
         if isinstance(ctl, Puppet) and sticks is not None:
             ctl.sticks = sticks
+        if isinstance(ctl, Terrain):
+            ctl.input_mode = self.input_mode     # 复位 / 切换控制律会换实例：每拍同步一次最省事
         tl, tr = ctl.step(f, st)
         self.guard.submit(tl, tr, confidence=st.conf if isinstance(ctl, (PhaseProfile, Terrain)) else 1.0)
         return st
@@ -344,6 +347,24 @@ class App:
                 self.terrain = r
                 self.log(f"看路：{r.get('terrain')} ({float(r.get('confidence', 0)):.0%}) — {r.get('say', '')}")
         return self.glasses.photo(then=then)
+
+    # ---- 输入模式（键盘 / 手柄 / 外骨骼）----
+    def set_input(self, mode):
+        if mode not in ("exo", "keyboard", "pad"):
+            raise ValueError(f"input mode {mode!r}")
+        self.input_mode = mode
+        for c in (self.ctl, self._terrain):
+            if isinstance(c, Terrain):
+                c.input_mode = mode
+
+    def drive(self, steps):
+        """键盘 / 手柄模式推进 1–5 步；exo 模式拒绝（腿的事归步态估计）。"""
+        if self.input_mode == "exo":
+            return {"error": "exo mode"}
+        if not isinstance(self.ctl, Terrain):
+            return {"error": "not terrain"}
+        self.ctl.drive(max(1, min(5, int(steps))))
+        return {"pos": self.ctl.pos, "segment": self.ctl.segment_at(self.ctl.pos)}
 
     def set_ctl(self, name):
         """新控制律从 0 起，Guard 的斜率限负责平滑。terrain 例外：切走再切回沿用原实例（影子、最佳、世界）。"""

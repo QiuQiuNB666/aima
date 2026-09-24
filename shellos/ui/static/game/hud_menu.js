@@ -8,6 +8,7 @@
 //   （↑↓ 调参数、× 急停、○ 上膛、Options 复位），网页再用会连带改参数；手柄只有「按住 R2 = 开始」。鼠标也能点。
 // 设置的存取 / 生效在 settings.js（window.__settings）。
 import { qrHtml } from './hud_flow.js';
+import { MODES } from './input.js';
 
 const Q = new URLSearchParams(location.search);
 const FG = Q.get('fengge') !== '0';           // 备用版（峰哥改主意时）：不出峰哥的名字和照片
@@ -81,9 +82,11 @@ export function makeMenu(world, { preview, cut, poke }) {
     const s = top();
     if (s === 'title') return MAIN;
     if (s === 'pause') return PAUSE;
-    if (s === 'settings') return [...SET.defs.map(d => [d.k, d.name]), ['reset', '恢复默认'], ['back', '返回']];
+    if (s === 'settings') return [['input', '操作方式'], ...SET.defs.map(d => [d.k, d.name]), ['reset', '恢复默认'], ['back', '返回']];
     return [['back', '返回']];
   }
+  // 操作方式不存 localStorage：以 ShellOS 为准（/state 的 input.mode），改了就 POST /input
+  const inputRow = () => `<span class="val"><i>◀</i>${MODES[window.__inputMode] || MODES.exo}<i>▶</i></span>`;
   function valHtml(d) {
     const v = SET.get(d.k), lock = SET.fixed(d.k);
     if (d.vol) return `<span class="val"><span class="vb">${Array.from({ length: 10 }, (_, i) => `<b class="${i < Math.round(v / 10) ? 'on' : ''}"></b>`).join('')}</span>${v}${lock ? '' : ' <i>◀ ▶</i>'}</span>`;
@@ -97,7 +100,7 @@ export function makeMenu(world, { preview, cut, poke }) {
     const its = items(); sel = Math.max(0, Math.min(its.length - 1, sel));
     const list = its.map(([k, name], i) => {
       const d = s === 'settings' && SET.defs.find(x => x.k === k);
-      return `<div class="mi${i === sel ? ' sel' : ''}${d && SET.fixed(k) ? ' lock' : ''}" data-i="${i}">${esc(name)}${d ? valHtml(d) : ''}</div>`;
+      return `<div class="mi${i === sel ? ' sel' : ''}${d && SET.fixed(k) ? ' lock' : ''}" data-i="${i}">${esc(name)}${d ? valHtml(d) : k === 'input' && s === 'settings' ? inputRow() : ''}</div>`;
     }).join('');
     if (s === 'title') {
       el.innerHTML = `<div class="dim"></div><div class="tt"><div class="logo${FG ? '' : ' alt'}">${TITLE}</div><div class="tag">穿上外骨骼 · 原地踏步 · 腿上爬山</div>
@@ -131,6 +134,12 @@ export function makeMenu(world, { preview, cut, poke }) {
     const s = top(), [k] = items()[sel] || [];
     if (!k) return;
     if (s === 'settings') {
+      if (k === 'input') {
+        const ks = Object.keys(MODES), m = ks[(ks.indexOf(window.__inputMode || 'exo') + (dir || clickDir || 1) + ks.length) % ks.length];
+        window.__inputMode = m; render();
+        fetch('/input', { method: 'POST', body: JSON.stringify({ mode: m }) }).catch(() => {});
+        return;
+      }
       const d = SET.defs.find(x => x.k === k);
       if (d) {
         if (SET.fixed(k)) return;
@@ -216,6 +225,8 @@ const HELP = `<div class="keys">
 <span class="h">做什么</span><span class="h">键盘（大屏这台电脑）</span><span class="h">手柄（ShellOS 读）</span>
 <span>出力</span><span>操作台「按住 → 助力」</span><span class="pad">按住 R2（越深越大，松开即零）</span>
 <span>走路 / 爬山</span><span>按住 <kbd>空格</kbd>（模拟外骨骼时）</span><span class="pad">穿着原地踏步</span>
+<span>操作方式：键盘</span><span>按住 <kbd>↑</kbd> / <kbd>W</kbd> / <kbd>空格</kbd> 匀速走 · 单按 = 1 步</span><span class="pad">设置里切，腿上不出力</span>
+<span>操作方式：手柄</span><span>—</span><span class="pad">左摇杆向前 / 按住 × 匀速走 · 十字键上 = 1 步（浏览器读）</span>
 <span>步频 慢 / 中 / 快</span><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>（模拟时）</span><span class="pad">—</span>
 <span>换视角</span><span><kbd>V</kbd> 跟拍 → 正面 → 侧面</span><span class="pad">—</span>
 <span>换一座山</span><span><kbd>M</kbd></span><span class="pad">—</span>

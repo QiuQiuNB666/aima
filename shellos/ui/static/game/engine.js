@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { makeRoute, buildPathMeshes, updateSignals, hashStr, rng, APRON, STEP, ROAD_W } from './path.js';
 import { loadAvatar, flexFromFrame, preloadAvatar } from './avatar.js';
+import { synthHip } from './anim.js';   // 键盘 / 手柄模式：没人穿外骨骼，腿按虚拟步频合成摆动
 import { dressFengge } from './fengge.js';   // H 线：峰哥头（只给玩家化身，影子不换）；?fengge=0 关
 import { initFenggeHud } from './fengge_hud.js';   // H 线：峰哥画中画头像 + 解说气泡；?fengge=0 关
 import { initNpc } from './npc.js';   // J 线：峰哥的助理 NPC（只读 /state；?npc=jifeng 旧版追兵捷风）；?npc=0 关
@@ -195,7 +196,7 @@ async function main() {
 
   // ---------- 每帧 ----------
   const A = {}, G = {}, head = new THREE.Vector3();
-  let last = performance.now(), frames = 0, fpsT = last, yaw = null, gyaw = null;
+  let last = performance.now(), frames = 0, fpsT = last, yaw = null, gyaw = null, vph = 0, sPrev = 0;
   const lerpAng = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
   function hipAt(t) {
     if (!hip.length) return flexFromFrame(S.frame);
@@ -212,7 +213,7 @@ async function main() {
     const summit = t < summitUntil;
     let cut = false;                           // 登顶收起：化身从山顶回到当前步（登顶期间可能已走了几步）——硬切 + 淡入，镜头/朝向一起跳，不从山顶飞下来
     if (!summit && summitUntil) { summitUntil = 0; hud.summit(false); me.set(T.pos, t, true); cut = true; yaw = null; hud.cut(); }
-    const moving = !!(S.gait && S.gait.moving) && !!S.terrain && T.segment !== 'wait';
+    const moving = ((window.__inputMode || 'exo') !== 'exo' ? t - me.tChange < 0.8 : !!(S.gait && S.gait.moving)) && !!S.terrain && T.segment !== 'wait';   // 键盘 / 手柄：刚推进过一步就算在走
     const s = summit ? Math.min(route.N + 1.2, me.s + dt * 2) : (PREVIEW ? me.s : me.frame(dt, t, moving));
     if (summit) me.jump(s);
     route.at(s, AV_LAT, A);
@@ -220,7 +221,12 @@ async function main() {
     yaw = yaw === null ? -A.heading : lerpAng(yaw, -A.heading, 1 - Math.exp(-dt * 6));
     av.group.rotation.y = yaw;
     const [fl, fr] = flexFromFrame(S.frame);   // A2：全身动作（anim.js）；实机把 S 交给化身自己跟踪髋角（外推 + one-euro，不再落后 130 ms）
-    av.animate(dt, t, { state: PREVIEW ? null : S, fl, fr, kind: A.kind, summit });
+    if (!PREVIEW && (window.__inputMode || 'exo') !== 'exo') {   // 键盘 / 手柄：化身在路上挪就按 120 步/分合成摆腿（一个周期 = 两步 = 1 s）
+      if (s - sPrev > 1e-4) vph += dt;
+      const [l, wl] = synthHip(vph), [r, wr] = synthHip(vph + 0.5);
+      av.animate(dt, t, { fl: l, fr: r, wl, wr, kind: A.kind, summit });
+    } else av.animate(dt, t, { state: PREVIEW ? null : S, fl, fr, kind: A.kind, summit });
+    sPrev = s;
 
     const g = PREVIEW ? (ghost.visible ? { s: ghost.stepper.s, rel: '' } : null) : ghost.frame(dt, t, route.N);
     if (g) {

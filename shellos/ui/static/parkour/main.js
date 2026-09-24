@@ -2,6 +2,8 @@
 //   模拟模式下另外发 /sim（空格走路）。页面失焦 / 隐藏 / 关掉 / 一局结束 → force 设回 null。
 // 操作：步频 = 跑速；高抬腿（一条腿屈髋 > 45° 且还在抬）= 跳；双腿下蹲 = 滑铲；← → 换道。键盘备份：↑/W 跳、↓/S 滑、←→/AD 换道、回车再来一局。
 //   模拟：按住空格走，1/2/3/4 = 步频 100/130/160/180；页面在 sim 开着时自己把步频提到 160（缺省 100 是走路，没奔跑感），离开页面还原。
+// 操作方式（/state 的 input.mode；?input=keyboard|pad 进页面时 POST /input 切过去）：exo 照旧靠腿 + 免手换道；keyboard / pad 时
+//   按住空格 / 左摇杆向前 = 本地虚拟步频 150 驱动跑速（不发 /sim、腿上不出力），跳 / 滑 / 换道 / 转弯还是原来的键位（↑ ↓ ← → A D · × ○ 十字键 L1 R1）。
 // URL：?fx=low 降画质；?auto=0.8 自动驾驶（每个障碍 80% 概率躲过去，模拟模式下自己按空格；截图 / 展位待机用）；?seed=；?fengge=0；?voice=0；
 //   ?jump= ?slide= ?vjump= 现场调高抬腿 / 下蹲阈值。
 // 动作预览（调动作 / 截图用，确定性）：?demo=1 不连 ShellOS、不发任何请求，髋角用 A2 的 synthHip 合成（10 Hz 喂，和真机一样），自动驾驶用固定种子；
@@ -28,6 +30,8 @@ let simCad0 = null;
 const simRestore = () => { if (simCad0 != null && !DEMO) navigator.sendBeacon('/sim', JSON.stringify({ cadence: simCad0 })); simCad0 = null; };
 addEventListener('pagehide', simRestore);
 addEventListener('beforeunload', simRestore);
+let imode = ['exo', 'keyboard', 'pad'].includes(Q.get('input')) ? Q.get('input') : 'exo';   // 操作方式：poll() 每拍按 /state 更新
+const V_CAD = 150;                        // 键盘 / 手柄模式的虚拟步频
 const KNEE = Q.get('lane') !== 'pad';    // 9/24 展位缺省免手：抬一条腿保持 0.3 s = 往那边换一道 / 路口往那边转；快速抬腿仍是跳。跑起来按不了键盘，?lane=pad 才回手柄 / 键盘换道
 const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : DEMO ? 1 : 0, MUTE = Q.get('voice') === '0' || DEMO;
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
@@ -78,7 +82,9 @@ async function main() {
   const jf = makeMech(scene);                                          // 9/24：追兵 = 四脚机甲（mech.js），不加载任何 NPC 模型
   if (Q.get('hud') === '0') document.body.classList.add('clean');
   if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
-  if (KNEE) document.body.classList.add('knee');
+  const knee = () => KNEE && imode === 'exo';                           // 免手换道只在外骨骼模式
+  if (knee()) document.body.classList.add('knee');
+  if (!DEMO && Q.get('input') && imode === Q.get('input')) post('/input', { mode: imode });
 
   // ---------- 一局 ----------
   let level, run, legs = KNEE ? makeKneeLegs() : makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', autoWalk = false;
@@ -101,12 +107,13 @@ async function main() {
     const t0 = performance.now();
     try {
       S = await fetch('/state', { cache: 'no-store' }).then(r => r.json()); sAt = performance.now() / 1000;
+      imode = (S.input && S.input.mode) || 'exo'; document.body.classList.toggle('knee', knee());
       if (S.sim && S.sim.on && simCad0 == null) { simCad0 = S.sim.cadence || 100; if (simCad0 !== SIM_CAD) post('/sim', { cadence: SIM_CAD }); }
       $('banner').style.display = 'none';
       const f = S.frame;
       if (f && S.t !== lastT) {
         lastT = S.t;
-        if (legWalk >= LEG_READY_S && !runner) {      // 关了跑步层（?runner=0）才走老路：直接用 10 Hz 原始样本
+        if (legWalk >= LEG_READY_S && !runner && imode === 'exo') {      // 关了跑步层（?runner=0）才走老路：直接用 10 Hz 原始样本
           const off = av.body.off, r = legs.push(-f.l - off, -f.r - off, -(f.ldps || 0), -(f.rdps || 0), 0.1);
           if (r.jump) pend.jump = true;
           pend.slideHold = r.slide; if (r.slide) pend.slide = true;
@@ -138,11 +145,12 @@ async function main() {
   // ---------- 键盘 ----------
   const isSim = () => !!(S && S.sim && S.sim.on);
   const CAD = { Digit1: 100, Digit2: 130, Digit3: 160, Digit4: 180 };   // 模拟：1–4 = 走 / 慢跑 / 跑（缺省）/ 冲刺
-  let walking = false;
+  let walking = false, kbRun = false, padRun = false;                     // kbRun / padRun：键盘 / 手柄模式的「正在跑」
+  const vrun = () => imode !== 'exo' && (kbRun || padRun);
   const walk = on => { if (on === walking || !isSim()) return; walking = on; post('/sim', { walk: on }); };
   addEventListener('keydown', e => {
     const c = e.code;
-    if (c === 'Space') { e.preventDefault(); walk(true); }
+    if (c === 'Space') { e.preventDefault(); if (imode !== 'exo') kbRun = true; else walk(true); }
     else if (e.repeat) return;
     else if (c === 'ArrowUp' || c === 'KeyW') pend.jump = true;
     else if (c === 'ArrowDown' || c === 'KeyS') pend.slide = true;
@@ -154,7 +162,7 @@ async function main() {
     else if (CAD[c] && isSim()) post('/sim', { cadence: CAD[c] });
     if (c.startsWith('Arrow')) e.preventDefault();
   });
-  addEventListener('keyup', e => { if (e.code === 'Space') walk(false); });
+  addEventListener('keyup', e => { if (e.code === 'Space') { kbRun = false; walk(false); } });
   // 路口转弯区里按 ← → 且方向对 = 转弯，否则换道
   function laneOrTurn(d) { const tn = level.turns.find(q => !q.done), dx = tn ? tn.s - run.x : 99; if (tn && tn.d === d && dx < TUNE.TURN_ZONE && dx > -TUNE.WALL_D) pend.turn = d; else pend.lane = d; }
   // 手柄（浏览器 Gamepad API，只读；R2 死人开关仍归 ShellOS）：L1 / R1 转弯，十字键 / 左摇杆换道，× 跳，○ 滑。按一下触发一次
@@ -163,6 +171,7 @@ async function main() {
     const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(p => p && p.connected) : null;
     if (!gp) return;
     const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), ax = gp.axes[0] || 0;
+    padRun = (gp.axes[1] || 0) < -0.5;                                  // 左摇杆向前 = 跑（键盘 / 手柄模式）
     const now = { L1: b(4), R1: b(5), left: b(14) || ax < -0.5, right: b(15) || ax > 0.5, x: b(0), o: b(1) };
     const edge = k => now[k] && !padPrev[k];
     if (edge('L1')) pend.turn = -1; if (edge('R1')) pend.turn = 1;
@@ -170,7 +179,7 @@ async function main() {
     if (edge('x')) pend.jump = true; if (edge('o')) pend.slide = true;
     Object.assign(padPrev, now);
   }
-  addEventListener('blur', () => walk(false));
+  addEventListener('blur', () => { kbRun = false; walk(false); });
 
   // ---------- 自动驾驶（?auto=p）：每个障碍按概率 p 决定躲不躲 ----------
   // 离下一次 lift 出力还有几秒（两条腿取近的）：/state 的步态相位按步频外推到现在
@@ -183,6 +192,7 @@ async function main() {
   let dtNow = 1 / 60, liPrev = 9;
   function autopilot() {
     if (isSim() && !autoWalk) { autoWalk = true; post('/sim', { walk: true, cadence: SIM_CAD }); }
+    if (imode !== 'exo') kbRun = true;
     if (run.over) { if (clock - overAt > 8) newRun(); return; }
     const th = nextThreat(run, level, 6);
     if (!th) return;
@@ -211,22 +221,27 @@ async function main() {
   av.group.rotation.order = jf.group.rotation.order = 'YXZ';          // 先转朝向（路口 90°），再侧倾 / 前后倾——转弯以后侧倾还是绕身体自己的轴
   const legFor = s => s >= run.leg.s0 ? run.leg : level.legAt(s);   // 镜头在身后：还没过路口的那段用老腿
   let last = performance.now(), frames = 0, fpsT = last, camY = run.y, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, lastZ = 0, clock = DEMO ? 0 : last / 1000;
-  const HINT = KNEE ? { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '抬一条腿保持 · 换道！', turnL: '抬左腿保持 · 左转', turnR: '抬右腿保持 · 右转' }
-               : { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！', turnL: '← 左转（A / L1）', turnR: '右转 →（D / R1）' };
+  const HINTS = { knee: { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '抬一条腿保持 · 换道！', turnL: '抬左腿保持 · 左转', turnR: '抬右腿保持 · 右转' },
+                  hand: { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！', turnL: '← 左转（A / L1）', turnR: '右转 →（D / R1）' },
+                  keys: { jump: '↑ / × · 跳！', slide: '↓ / ○ · 滑铲！', lane: '← → 换道！', turnL: '← 左转（A / L1）', turnR: '右转 →（D / R1）' } };
+  const HINT = () => imode !== 'exo' ? HINTS.keys : knee() ? HINTS.knee : HINTS.hand;
+  const MODE_TXT = { keyboard: '键盘模式 · 按住 空格 跑', pad: '手柄模式 · 左摇杆向前 跑' };
+  let vph = 0;
   function frame(dtFix) {
     if (!MANUAL) requestAnimationFrame(() => frame());
     const nowMs = performance.now(), dtR = dtFix || Math.min(0.1, (nowMs - last) / 1000); last = nowMs;
     clock += dtR; const t = clock;
     if (DEMO) demoState(dtR);
     const g = S && S.gait;
-    const moving = !!(g && g.moving);
-    if (moving) legWalk += dtR;
+    const moving = imode !== 'exo' ? vrun() : !!(g && g.moving);
+    const cad = imode !== 'exo' ? (moving ? V_CAD : 0) : g ? g.cadence : 0;   // 键盘 / 手柄：虚拟步频；exo：步态估计的
+    if (moving && imode === 'exo') legWalk += dtR;
     dtNow = dtR;
     pollPad();
     if (AUTO) autopilot();
-    const vT = speedFor(g ? g.cadence : 0, moving);
+    const vT = speedFor(cad, moving);
     {
-      const inp = { v: vT, cad: g ? g.cadence : 0, jump: pend.jump, slide: pend.slide || pend.slideHold, lane: pend.lane, turn: pend.turn };
+      const inp = { v: vT, cad, jump: pend.jump, slide: pend.slide || pend.slideHold, lane: pend.lane, turn: pend.turn };
       pend.jump = pend.slide = false; pend.lane = 0; pend.turn = 0;
       const n = Math.ceil(dtR / (1 / 120));
       for (let i = 0; i < n; i++) { run.step(dtR / n, i ? { v: vT } : inp); }
@@ -275,13 +290,18 @@ async function main() {
     }
     // 第 5 轮：高抬腿 / 下蹲识别用 A2 跟踪后的髋角（按设备角速度外推到现在 + one-euro，60 fps），再往前看 JUMP_LEAD 秒。
     //   原来等 10 Hz 样本（平均晚 ~50 ms，外加跨阈值要等下一拍），起跳帧离 lift 出力那一拍更远
-    if (runner && !DEMO && legWalk >= LEG_READY_S && S && S.frame) {
+    if (runner && !DEMO && imode === 'exo' && legWalk >= LEG_READY_S && S && S.frame) {
       const h = runner.hip, off = av.body.off, L = TUNE.JUMP_LEAD, r = legs.push(h.fl - off + h.wl * L, h.fr - off + h.wr * L, h.wl, h.wr, dtR);
       if (r.jump) pend.jump = true;
       if (r.lane) laneOrTurn(r.lane);                                        // 免手模式：保持的那条腿那边（路口转弯区里方向对 = 转弯）
       pend.slideHold = r.slide; if (r.slide) pend.slide = true;
     }
-    av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
+    const kindA = run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat';
+    if (imode !== 'exo' && !DEMO) {                                         // 键盘 / 手柄：没人穿外骨骼，髋角按虚拟步频合成（和 ?demo 一样的曲线）
+      const f = V_CAD / 120; if (moving) vph = (vph + dtR * f) % 1;
+      const [a, va] = synthHip(vph), [b, vb] = synthHip((vph + 0.5) % 1);
+      av.animate(dtR, t, { fl: a, fr: b, wl: va * f, wr: vb * f, kind: kindA, summit: false });
+    } else av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: kindA, summit: false });
 
     // 机甲追兵：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
     //   jfGap ≤ 1.8（离镜头 ≥ 2.5）才现身；再远只留右上角距离条。逼近时只有红色轮廓光 + 一声低鸣，不说话
@@ -327,7 +347,7 @@ async function main() {
 
     // HUD
     if (!document.body.dataset.ready) document.body.dataset.ready = '1';
-    if (KNEE) for (const [k, i] of [['kneeL', 0], ['kneeR', 1]]) {             // 免手模式：两个膝盖图标，过阈值点亮，保持进度条 0.3 s 填满
+    if (knee()) for (const [k, i] of [['kneeL', 0], ['kneeR', 1]]) {             // 免手模式：两个膝盖图标，过阈值点亮，保持进度条 0.3 s 填满
       const el = $(k); el.classList.toggle('on', !!(legs.up && legs.up[i])); el.firstChild.style.height = `${Math.round((legs.hold ? legs.hold[i] : 0) * 100)}%`;
     }
     $('dist').textContent = Math.floor(run.dist);
@@ -335,14 +355,14 @@ async function main() {
       if (clock - tierUpAt > 2.5) $('tier').classList.remove('up'); }
     $('lives').innerHTML = [0, 1, 2].map(i => `<i class="${i < run.lives ? 'on' : ''}"></i>`).join('');
     $('spd').textContent = (run.speed * 3.6).toFixed(0);
-    $('cad').textContent = moving ? Math.round(g.cadence || 0) : '—';
+    $('cad').textContent = moving ? Math.round(cad) : '—';
     const gp = Math.max(0, Math.min(1, run.jfGap / TUNE.JF_GAPMAX));
     $('jfBar').style.width = `${(1 - gp) * 100}%`; $('jfM').textContent = `${run.jfGap.toFixed(1)} m`;
     document.body.classList.toggle('danger', run.started && run.jfGap < 4);
     $('flash').style.opacity = flash * 0.55;
     const th = run.started && !run.over ? nextThreat(run, level, run.speed * 1.4 + 3) : null;
     const hk = th ? (th.what === 'turn' ? (th.o.d < 0 ? 'turnL' : 'turnR') : th.what) : '';
-    $('hint').textContent = hk ? HINT[hk] : ''; $('hint').className = 'hud ' + (th ? th.what : '');
+    $('hint').textContent = hk ? HINT()[hk] : ''; $('hint').className = 'hud ' + (th ? th.what : '');
     if (S) {
       const sent = (S.safety && S.safety.sent) || [0, 0];
       for (const [k, i] of [['L', 0], ['R', 1]]) { const v = Math.max(-1, Math.min(1, sent[i] / ((S.safety && S.safety.cap) || 3))); const b = $('bar' + k); b.style.left = v < 0 ? `${50 + v * 50}%` : '50%'; b.style.width = `${Math.abs(v) * 50}%`; }
@@ -350,9 +370,10 @@ async function main() {
       const held = S.safety && S.safety.deadman > 0.05;
       $('force').textContent = !terrainOn ? '腿上的力：关（控制律不是 terrain）' : away ? '腿上的力：暂停（页面没焦点，点一下画面）'
         : `腿上的力：${{ up: '上坡 · 后面推', down: '落地 · 制动', lift: '准备起跳 · 帮抬腿' }[forceSent] || '平地'}`;
-      $('r2').textContent = isSim() ? '模拟模式' : held ? 'R2 按住 · 有力' : '按住 R2 才有力';
-      $('r2').className = held || isSim() ? 'ok' : '';
-      $('legs').textContent = legWalk >= LEG_READY_S ? '腿：高抬腿 = 跳 · 下蹲 = 滑铲' : `腿：校准中，先走 ${Math.ceil(LEG_READY_S - legWalk)} s`;
+      $('r2').textContent = MODE_TXT[imode] || (isSim() ? '模拟模式' : held ? 'R2 按住 · 有力' : '按住 R2 才有力');
+      $('r2').className = held || isSim() || imode !== 'exo' ? 'ok' : '';
+      $('legs').textContent = imode !== 'exo' ? '↑ / × 跳 · ↓ / ○ 滑铲 · ← → 换道 · A D / L1 R1 转弯（腿上不出力）'
+        : legWalk >= LEG_READY_S ? '腿：高抬腿 = 跳 · 下蹲 = 滑铲' : `腿：校准中，先走 ${Math.ceil(LEG_READY_S - legWalk)} s`;
       $('simHint').style.display = isSim() ? 'inline' : 'none';
     }
     frames++;

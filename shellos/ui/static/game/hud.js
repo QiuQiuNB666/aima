@@ -5,6 +5,8 @@ import { makeAi } from './hud_ai.js';         // U 线：AI 决策卡 + 造山�
 import { makeFlow } from './hud_flow.js';     // U 线：标题 / 待机 / 准备 / 游戏中 / 登顶 状态流 + 二维码
 import { makeMenu } from './hud_menu.js';     // U 线：开始界面 / 暂停 / 设置 / 玩法说明 / 制作团队
 import { SEG, applyCssVars } from './style.js';   // ART 美术范式：路段色、HUD 强调色全作品一份
+import { MODES } from './input.js';
+const IMODE_KEYS = { exo: '', keyboard: ' · 按住 ↑ / W / 空格 走', pad: ' · 左摇杆 / × 走 · 十字键上 1 步' };
 const $ = id => document.getElementById(id);
 const W = new Map();         // 每 100 ms 的 /state 只在值变了时才写 DOM（以前段名 / 安全灯每次都重建，白白重排）
 const put = (id, k, v) => { const key = id + '.' + k; if (W.get(key) !== v) { W.set(key, v); $(id)[k] = v; } };
@@ -70,6 +72,9 @@ export function makeHud(world, preview = false) {
       const now = performance.now() / 1000;
       if (ls) { lampSub = ls; lampSubT = now; } else if (now - lampSubT > LAMP_HOLD) lampSub = '';
       put('lamp', 'className', `hud ${lc}`); put('lampT', 'textContent', lt); put('lampS', 'textContent', lc === 'green' ? lampSub : ls);
+      const im = (S.input && S.input.mode) || 'exo';   // 操作方式：input.js / hud_menu.js 读 window.__inputMode
+      window.__inputMode = im;
+      put('imode', 'textContent', `操作：${MODES[im] || im}${IMODE_KEYS[im] || ''}`);
       const sim = S.sim && S.sim.on;
       $('hint').style.display = sim ? 'block' : 'none';
       if (sim) $('hintS').innerHTML = S.sim.walk ? `<span class="on">● 走 ${Math.round(S.sim.cadence)} 步/分</span>` : `○ 站 · ${Math.round(S.sim.cadence)} 步/分`;

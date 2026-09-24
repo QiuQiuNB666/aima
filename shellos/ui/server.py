@@ -10,6 +10,8 @@ POST /ctl         {"name":"dofc"}
 POST /feedback    {"text":...}   评委一句话 → 蜂群（教练 / 记忆员 / 安全员）→ 改参 + 经验卡
 POST /world/generate {"text":...} 一句话造一座山（地形导演 → 安全员裁剪 → 切过去）
 POST /terrain/force {"kind":..,"ttl":s} 强制路段（2AFC / 跑酷）；带 ttl 要按时续，页面崩了会自动回 None
+POST /input       {"mode":"exo"|"keyboard"|"pad"} 操作方式：键盘 / 手柄模式不出力、不按步态计步（/state 的 input.mode）
+POST /drive       {"steps":1..5} 键盘 / 手柄模式推进 n 步；exo 模式返回 {"error":"exo mode"}
 POST /log         {"text":...}   往事件流里写一条（评委原话先手工输入，Agent 层接上后由它改参）
 
 所有 POST 只认本机（127.0.0.1 / ::1），局域网来的一律 403：死人开关、强度、控制律只有操作员这台机器能动。
@@ -200,6 +202,7 @@ class Dashboard:
             "sim": {"on": hasattr(a.link, "set_walk"), "walk": getattr(a.link, "walking", False),
                     "cadence": getattr(a.link, "cadence", 0)},
             "wearer": a.wearer,
+            "input": {"mode": a.input_mode},
             "link": {"port": getattr(a.link, "port", "?"), "n": a.link.n_frames, "bad": a.link.n_bad,
                      "age_ms": round(min(a.link.stream_age(), 9.999) * 1000),
                      "replies": {k: v for k, v in getattr(a.link, "replies_seen", {}).items() if "\x00" not in k},
@@ -278,6 +281,14 @@ class Dashboard:
                     a.link.set_cadence(float(body["cadence"]))
                 return {"walk": a.link.walking, "cadence": a.link.cadence}
             return {"error": "not sim"}
+        if path == "/input":
+            mode, old = body.get("mode", "exo"), a.input_mode
+            a.set_input(mode)                   # 非法值抛 ValueError → 400
+            if mode != old:
+                a.log(f"操作方式：{ {'exo': '外骨骼', 'keyboard': '键盘', 'pad': '手柄'}[mode]}")
+            return {"mode": a.input_mode}
+        if path == "/drive":
+            return a.drive(body.get("steps", 1))
         if path == "/terrain":
             a.set_terrain(body.get("preset") or body.get("world") or "tokyo_night")
             return {"ok": True}
