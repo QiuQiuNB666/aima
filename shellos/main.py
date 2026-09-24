@@ -385,8 +385,8 @@ class App:
         elif b == BTN["down"]:  self.nudge(0, -1)
         elif b == BTN["right"]: self.nudge(1, +1)
         elif b == BTN["left"]:  self.nudge(1, -1)
-        elif b == BTN["r1"]:    self.cycle_ctl(+1)
-        elif b == BTN["l1"]:    self.cycle_ctl(-1)
+        elif b in (BTN["r1"], BTN["l1"]):   # 9/24 展位：L1/R1 不再切控制律（跑酷用它们转弯，误按会切到 puppet 力矩归零、人物不动）；换控制律只走仪表盘 / 选山页
+            self.log("手柄 L1/R1：控制律已锁定（仪表盘可换）")
         elif b == BTN["triangle"]: self.log("△ 标记：评委反馈点")
         elif b == BTN["square"]:   self.look()
         elif b == BTN["options"]:  self.demo_reset()
