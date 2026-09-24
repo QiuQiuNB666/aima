@@ -1,0 +1,643 @@
+{
+  "version": 1,
+  "sourceCommit": "621dfa3",
+  "sources": [
+    {
+      "id": "birds",
+      "author": "Spring Spring",
+      "page": "https://opengameart.org/content/birds-and-wind-ambient-birds-wind-and-synth",
+      "url": "https://opengameart.org/sites/default/files/Birds%20and%20Wind%20-%20Ambient_1.ogg",
+      "file": "birds.ogg",
+      "license": "CC0-1.0",
+      "sha256": "28f99f536a0772d80052f03bcb22c9ed8fd7c6e4db7f2e8356efcf26a8e24f01",
+      "retrieved": "2026-09-23"
+    },
+    {
+      "id": "wind",
+      "author": "Luke.RUSTLTD",
+      "page": "https://opengameart.org/content/wind1",
+      "url": "https://opengameart.org/sites/default/files/wind1.wav",
+      "file": "wind.wav",
+      "license": "CC0-1.0",
+      "sha256": "a2856f794fbf77e05f8241dc4adeade7f62fa21c3c9dc49f7725b6c6218060c3",
+      "retrieved": "2026-09-23"
+    },
+    {
+      "id": "rain",
+      "author": "Ylmir",
+      "page": "https://opengameart.org/content/rain-loopable",
+      "url": "https://opengameart.org/sites/default/files/Rain%20OGG.zip",
+      "file": "rain.zip",
+      "license": "CC0-1.0",
+      "sha256": "e68f3e1c77493cf43bec84cebff5043bff6be9ce16d59b24caa988cd460aa75b",
+      "retrieved": "2026-09-23"
+    },
+    {
+      "id": "steps",
+      "author": "TinyWorlds",
+      "page": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+      "url": "https://opengameart.org/sites/default/files/%5Bkdd%5DDifferentSteps_0.zip",
+      "file": "steps.zip",
+      "license": "CC0-1.0",
+      "sha256": "987d072b7deaa65177e005ddd8185f2351be7c9a76cd7575dea560549c39b33b",
+      "retrieved": "2026-09-23"
+    }
+  ],
+  "assets": [
+    {
+      "file": "assets/taishan.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -8.69,
+      "rmsDbFS": -25.97,
+      "seamJump": 0.002304531399723253,
+      "sha256": "1ede1fdcf3de3f19f4e7224a26720fee6e1df01ef8708ddb7f97ee87c1cd7f4a",
+      "sources": [
+        "wind",
+        "birds"
+      ],
+      "description": "松风感与稀疏鸟鸣；非泰山实地录音"
+    },
+    {
+      "file": "assets/fuji.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -9.27,
+      "rmsDbFS": -25.4,
+      "seamJump": 0.0004489850076955723,
+      "sha256": "2a3137b54ac1dfdf08ce6b1dc62a87a8744b661e10ca567a2d3a83a9445d0bbe",
+      "sources": [
+        "wind",
+        "original"
+      ],
+      "description": "高山风与合成低频阵风；无森林虫鸟"
+    },
+    {
+      "file": "assets/tokyo.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -6.59,
+      "rmsDbFS": -24.0,
+      "seamJump": 0.030655852638818565,
+      "sha256": "f441f5aa65adc35a3fcf6b9330ae44881a2fa1715b99270baf664d5cea95601b",
+      "sources": [
+        "rain",
+        "original"
+      ],
+      "description": "循环雨声与合成远处车流低鸣；非东京实地录音"
+    },
+    {
+      "file": "assets/wutong.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -6.52,
+      "rmsDbFS": -23.42,
+      "seamJump": 0.0042583182563644545,
+      "sha256": "0b150029fb749b0b8192131460c56935770725f47faeee7abd5846f1ba3a67b7",
+      "sources": [
+        "birds",
+        "wind"
+      ],
+      "description": "较密鸟鸣与林间风；鸟种和录音地点未做本地化"
+    },
+    {
+      "file": "assets/training.wav",
+      "seconds": 8.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -30.13,
+      "rmsDbFS": -41.94,
+      "seamJump": 0.0001318923082341268,
+      "sha256": "f23f8f0c0b992529cd755db136ede436e3c66f0de714158887ca4704e7044fb8",
+      "sources": [
+        "original"
+      ],
+      "description": "可选极轻室内底噪；训练模式默认完全静音"
+    },
+    {
+      "file": "assets/step_stone.wav",
+      "seconds": 0.293,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -3.1,
+      "rmsDbFS": -28.46,
+      "seamJump": null,
+      "sha256": "3a8d6809637c661292f50771722e2aed124a37351e9ab675c6a63bc7c2138604",
+      "sources": [
+        "steps"
+      ],
+      "description": "stone 单次脚步；由游戏进度触发"
+    },
+    {
+      "file": "assets/step_gravel.wav",
+      "seconds": 0.704,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -3.1,
+      "rmsDbFS": -30.24,
+      "seamJump": null,
+      "sha256": "8a2befc8ea96bdfd5304306bc29629ff93ed98083dbd28584d1f71ac2c5454b0",
+      "sources": [
+        "steps"
+      ],
+      "description": "gravel 单次脚步；由游戏进度触发"
+    },
+    {
+      "file": "assets/step_leaves.wav",
+      "seconds": 0.391,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -3.1,
+      "rmsDbFS": -26.72,
+      "seamJump": null,
+      "sha256": "0fc4827b03a583e66edbd4117a3f726b9890fff00531169e2ec4abe62374de93",
+      "sources": [
+        "steps"
+      ],
+      "description": "leaves 单次脚步；由游戏进度触发"
+    },
+    {
+      "file": "assets/step_mud.wav",
+      "seconds": 0.26,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -3.1,
+      "rmsDbFS": -27.89,
+      "seamJump": null,
+      "sha256": "92b2883e68485ead3bec4d3bc74d3687c4210a7053242cdca3889d954af24024",
+      "sources": [
+        "steps"
+      ],
+      "description": "mud 单次脚步；由游戏进度触发"
+    },
+    {
+      "file": "assets/arrive.wav",
+      "seconds": 1.5,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -13.29,
+      "rmsDbFS": -28.32,
+      "seamJump": null,
+      "sha256": "072d440ede73cdd85d276c92c60448fa7210dd8147fbf0f6bfa414acab073bb1",
+      "sources": [
+        "original"
+      ],
+      "description": "原创合成通关提示音，不模拟真实寺庙钟声"
+    },
+    {
+      "file": "assets/checkpoint.wav",
+      "seconds": 0.8,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -15.05,
+      "rmsDbFS": -27.35,
+      "seamJump": null,
+      "sha256": "92b1df16832c5ddce72bf016ed3f40d22e78624062c3a8e5fc873dfe2d531f11",
+      "sources": [
+        "original"
+      ],
+      "description": "原创合成路段切换提示音"
+    }
+  ],
+  "worlds": [
+    {
+      "name": "富士山·吉田线夜登",
+      "subtitle": "五合目 → Z 字坡 → 岩场 → 八合目 → 山顶日出",
+      "story": "头灯连成一条光线，长坡和折返，最后几级岩阶，在山顶等日出。",
+      "note": "按真实路段比例压缩；海拔：吉田口五合目约 2305 m，山顶 3776 m",
+      "alt": [
+        2305,
+        3776
+      ],
+      "unit": "m",
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "五合目"
+        },
+        {
+          "kind": "up",
+          "steps": 8,
+          "label": "六合目"
+        },
+        {
+          "kind": "up",
+          "steps": 8,
+          "label": "Z 字坡",
+          "turns": 4
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 4,
+          "label": "岩场"
+        },
+        {
+          "kind": "up",
+          "steps": 6,
+          "label": "七合目"
+        },
+        {
+          "kind": "flat",
+          "steps": 2,
+          "label": "八合目·山小屋"
+        },
+        {
+          "kind": "up",
+          "steps": 6,
+          "label": "九合目"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 3,
+          "label": "鸟居"
+        }
+      ],
+      "summit": {
+        "name": "剑峰",
+        "text": "御来光——日出了。"
+      },
+      "theme": {
+        "style": "night_to_dawn",
+        "sky": [
+          "#0b1026",
+          "#ff8a3d"
+        ],
+        "fog": "#2a2238",
+        "ground": "#5a3b2e",
+        "path": "#7a5544",
+        "accent": [
+          "#ffe08a",
+          "#ff6b35",
+          "#ffffff"
+        ],
+        "props": [
+          "headlamps",
+          "mountain_hut",
+          "torii",
+          "stars"
+        ]
+      },
+      "id": "fuji_yoshida"
+    },
+    {
+      "name": "泰山·十八盘",
+      "subtitle": "中天门 → 慢十八 → 紧十八 → 南天门 → 玉皇顶",
+      "story": "全程石阶，越往上越陡。你的腿会感到台阶一级级变密。",
+      "note": "按真实路段比例压缩；海拔为约数（玉皇顶约 1545 m）",
+      "alt": [
+        850,
+        1545
+      ],
+      "unit": "m",
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "中天门"
+        },
+        {
+          "kind": "up",
+          "steps": 5,
+          "label": "缓坡"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 8,
+          "label": "慢十八"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 8,
+          "label": "不紧不慢又十八"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 10,
+          "label": "紧十八"
+        },
+        {
+          "kind": "flat",
+          "steps": 2,
+          "label": "南天门"
+        },
+        {
+          "kind": "up",
+          "steps": 3,
+          "label": "天街"
+        }
+      ],
+      "summit": {
+        "name": "玉皇顶",
+        "text": "会当凌绝顶，一览众山小。"
+      },
+      "theme": {
+        "style": "dawn_mountain",
+        "sky": [
+          "#f6c177",
+          "#6d8fb3"
+        ],
+        "fog": "#d9dfe8",
+        "ground": "#6b7b5c",
+        "path": "#9a958c",
+        "accent": [
+          "#c0392b",
+          "#f1c40f",
+          "#2e7d32"
+        ],
+        "props": [
+          "pine",
+          "stone_gate",
+          "cloud_sea"
+        ]
+      },
+      "id": "taishan_18pan"
+    },
+    {
+      "name": "赛博东京·夜行",
+      "subtitle": "涩谷 → 天桥 → 坂道 → 爱宕神社石阶",
+      "story": "Ghost 走进一座雨夜的城市：过天桥、爬坂道、红灯前停一下，最后登上神社的 86 级石阶。",
+      "note": "东京街景拼贴，不是一条真实连续的路线；爱宕山海拔约 26 m（东京 23 区最高的天然山丘）",
+      "alt": [
+        15,
+        26
+      ],
+      "unit": "m",
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 4,
+          "label": "涩谷街头"
+        },
+        {
+          "kind": "wait",
+          "steps": 3,
+          "label": "十字路口·红灯"
+        },
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "斑马线"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 5,
+          "label": "天桥"
+        },
+        {
+          "kind": "stairs_down",
+          "steps": 5,
+          "label": "天桥下行"
+        },
+        {
+          "kind": "up",
+          "steps": 6,
+          "label": "坂道"
+        },
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "巷子"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 8,
+          "label": "神社石阶"
+        }
+      ],
+      "summit": {
+        "name": "爱宕神社",
+        "text": "86 级石阶，登顶。"
+      },
+      "theme": {
+        "style": "cyber_night",
+        "sky": [
+          "#05060d",
+          "#1a0b2e"
+        ],
+        "fog": "#120a24",
+        "ground": "#1b1f2a",
+        "path": "#2a2f3d",
+        "accent": [
+          "#ff2e88",
+          "#29e7ff",
+          "#ffd000"
+        ],
+        "props": [
+          "neon_sign",
+          "vending_machine",
+          "traffic_light",
+          "torii",
+          "rain"
+        ]
+      },
+      "id": "tokyo_night"
+    },
+    {
+      "name": "训练场·长坡",
+      "subtitle": "上坡 / 下坡",
+      "story": "单一刺激，用来调强度和做蒙眼实验。",
+      "note": "",
+      "alt": [
+        0,
+        5
+      ],
+      "unit": "m",
+      "training": true,
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "平地"
+        },
+        {
+          "kind": "up",
+          "steps": 15,
+          "label": "上坡"
+        },
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "平台"
+        },
+        {
+          "kind": "down",
+          "steps": 15,
+          "label": "下坡"
+        },
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "平地"
+        }
+      ],
+      "summit": {
+        "name": "终点",
+        "text": ""
+      },
+      "theme": {
+        "style": "grid",
+        "sky": [
+          "#10141a",
+          "#1c232d"
+        ],
+        "fog": "#10141a",
+        "ground": "#1c232d",
+        "path": "#3a4653",
+        "accent": [
+          "#3ddc84",
+          "#4fc3f7",
+          "#ffd54f"
+        ],
+        "props": []
+      },
+      "id": "train_slope"
+    },
+    {
+      "name": "训练场·台阶",
+      "subtitle": "上台阶 / 下台阶",
+      "story": "单一刺激，用来调强度和做蒙眼实验。",
+      "note": "",
+      "alt": [
+        0,
+        3
+      ],
+      "unit": "m",
+      "training": true,
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "平地"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 8,
+          "label": "上台阶"
+        },
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "平台"
+        },
+        {
+          "kind": "stairs_down",
+          "steps": 8,
+          "label": "下台阶"
+        },
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "平地"
+        }
+      ],
+      "summit": {
+        "name": "终点",
+        "text": ""
+      },
+      "theme": {
+        "style": "grid",
+        "sky": [
+          "#10141a",
+          "#1c232d"
+        ],
+        "fog": "#10141a",
+        "ground": "#1c232d",
+        "path": "#3a4653",
+        "accent": [
+          "#3ddc84",
+          "#4fc3f7",
+          "#ffd54f"
+        ],
+        "props": []
+      },
+      "id": "train_stairs"
+    },
+    {
+      "name": "深圳梧桐山·好汉坡",
+      "subtitle": "山脚 → 缓坡 → 好汉坡 → 观景台 → 大梧桐",
+      "story": "深圳最高峰。缓坡接一长段石阶——好汉坡。明天下班就能去爬。",
+      "note": "按路段比例压缩；海拔为约数（大梧桐约 944 m）",
+      "alt": [
+        150,
+        944
+      ],
+      "unit": "m",
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "山脚"
+        },
+        {
+          "kind": "up",
+          "steps": 6,
+          "label": "缓坡"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 12,
+          "label": "好汉坡"
+        },
+        {
+          "kind": "flat",
+          "steps": 2,
+          "label": "观景台"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 8,
+          "label": "石阶"
+        },
+        {
+          "kind": "up",
+          "steps": 4,
+          "label": "山脊"
+        }
+      ],
+      "summit": {
+        "name": "大梧桐",
+        "text": "深圳在你脚下。"
+      },
+      "theme": {
+        "style": "subtropical",
+        "sky": [
+          "#bfe3f2",
+          "#e8f4f8"
+        ],
+        "fog": "#dfe9e4",
+        "ground": "#3f6b3a",
+        "path": "#8c8574",
+        "accent": [
+          "#2ecc71",
+          "#16a085",
+          "#f39c12"
+        ],
+        "props": [
+          "banyan",
+          "city_skyline",
+          "mist"
+        ]
+      },
+      "id": "wutong_haohan"
+    }
+  ],
+  "license": "CC0-1.0",
+  "originalContributions": "CC0-1.0",
+  "description": "Game sound design, not recordings of the named locations. Training defaults to silence."
+}

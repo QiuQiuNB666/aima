@@ -1,0 +1,60 @@
+{
+  "name": "训练场·长坡",
+  "subtitle": "上坡 / 下坡",
+  "story": "单一刺激，用来调强度和做蒙眼实验。",
+  "note": "",
+  "alt": [
+    0,
+    5
+  ],
+  "unit": "m",
+  "training": true,
+  "route": [
+    {
+      "kind": "flat",
+      "steps": 3,
+      "label": "平地"
+    },
+    {
+      "kind": "up",
+      "steps": 15,
+      "label": "上坡"
+    },
+    {
+      "kind": "flat",
+      "steps": 3,
+      "label": "平台"
+    },
+    {
+      "kind": "down",
+      "steps": 15,
+      "label": "下坡"
+    },
+    {
+      "kind": "flat",
+      "steps": 3,
+      "label": "平地"
+    }
+  ],
+  "summit": {
+    "name": "终点",
+    "text": ""
+  },
+  "theme": {
+    "style": "grid",
+    "sky": [
+      "#10141a",
+      "#1c232d"
+    ],
+    "fog": "#10141a",
+    "ground": "#1c232d",
+    "path": "#3a4653",
+    "accent": [
+      "#3ddc84",
+      "#4fc3f7",
+      "#ffd54f"
+    ],
+    "props": []
+  },
+  "id": "train_slope"
+}
