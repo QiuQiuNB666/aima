@@ -101,26 +101,29 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
   ].map(L => ({ ...L, ...ridgeRing(ctx, { radius: L.radius, rock: L.rock, snow: L.snow, snowLine: L.line,
     profile: (a, k) => L.top * (0.22 + 0.5 * seedN(k, L.seed) + 0.28 * Math.abs(Math.sin(k * 0.21 + L.seed))) + L.peaks.reduce((s, p) => s + peak(a, ...p), 0) }) }));
 
-  // 远处的珠峰北壁：大本营看出去正前方最高的那座，金字塔 + 东侧飘一条旗云；p 过前进营地后隐进天色
+  // 远处的珠峰北壁（评审 r1 #7、考据 §1「山形」§9-1 §9-8）：大本营看出去正前方一座宽大的三角（宽 150 高 58，肩部平），黑灰岩为主、雪只挂沟槽和顶部；
+  //   左侧（东）低一截的肩是章子峰；东侧飘一条旗云；p 过前进营地后隐进天色
   const fwd = new THREE.Vector3(Math.cos(fwdA), 0, Math.sin(fwdA)), side = new THREE.Vector3(fwd.z, 0, -fwd.x);
-  const E = { dist: 250, h: 66, w: 70 };
+  const E = { dist: 250, h: 58, w: 150 };
   const ev = (() => {
     const pos = [], idx = [], n = 64;
     for (let k = 0; k <= n; k++) {
-      const u = k / n * 2 - 1, ridge = Math.max(0, 1 - Math.abs(u)) ** 1.25 * E.h * (0.92 + 0.08 * Math.sin(k * 1.7)) + (Math.abs(u) > 0.55 ? 6 * kit.noise2(k * 0.4, 3) : 0);
+      const u = k / n * 2 - 1, main = Math.max(0, 1 - Math.abs(u) / 0.8) ** 0.8, changtse = Math.max(0, 1 - Math.abs(u - 0.66) / 0.3) ** 1.2 * 0.56;   // 主峰宽三角（顶略圆）+ 左肩章子峰
+      const ridge = E.h * Math.max(main, changtse, 0.14 * (1 - Math.abs(u))) * (0.95 + 0.05 * Math.sin(k * 1.7)) + 3 * kit.noise2(k * 0.4, 3);
       const p = c.clone().addScaledVector(fwd, E.dist + Math.abs(u) * 14).addScaledVector(side, u * E.w);
       pos.push(p.x, -60, p.z, p.x, ridge + 4, p.z);
       if (k < n) { const b = k * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
-    const u = { op: { value: 1 }, rock: { value: new THREE.Color('#3b4660') }, snow: { value: new THREE.Color('#f2f6fb') }, hazeC: { value: new THREE.Color('#9fc2e8') }, haze: { value: 0.12 } };
+    const u = { op: { value: 1 }, rock: { value: new THREE.Color('#2f343c') }, snow: { value: new THREE.Color('#f2f6fb') }, hazeC: { value: new THREE.Color('#9fc2e8') }, haze: { value: 0.12 } };   // 黑灰岩
     const m = new THREE.Mesh(g, new THREE.ShaderMaterial({
       uniforms: u, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
       vertexShader: 'varying vec3 vW; void main(){ vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
       fragmentShader: `uniform float op, haze; uniform vec3 rock, snow, hazeC; varying vec3 vW; ${NOISE}
-        void main(){ float n = fbm(vW.xz * 0.06 + vW.y * 0.05), st = fbm(vec2(vW.x * 0.3 + vW.z * 0.3, vW.y * 0.08));
-          float hy = clamp((vW.y + 10.) / 80., 0., 1.);
-          vec3 c = mix(rock, snow, smoothstep(0.62, 0.8, hy * 0.45 + 0.55 * st + 0.2 * n));   // 北壁：黑岩上一道道雪槽
+        void main(){ float n = fbm(vW.xz * 0.06 + vW.y * 0.05), st = fbm(vec2(vW.x * 0.35 + vW.z * 0.35, vW.y * 0.06));
+          float hy = clamp((vW.y + 8.) / 66., 0., 1.);
+          float sn = smoothstep(0.58, 0.72, st + 0.1 * n) * (0.3 + 0.7 * hy) + smoothstep(0.84, 0.97, hy + 0.08 * n);   // 北壁：黑岩为主，雪只挂竖沟槽里 + 顶部一小截
+          vec3 c = mix(rock, snow, clamp(sn, 0., 1.));
           c = mix(c, hazeC, haze + 0.25 * (1. - hy));
           gl_FragColor = vec4(c, op);
           #include <colorspace_fragment>
@@ -138,9 +141,9 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
       g.fillStyle = gr; g.fillRect(x, 0, 1, h);
     }
   });
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry(90, 16), new THREE.MeshBasicMaterial({ map: bannerTex, transparent: true, depthWrite: false, fog: false }));
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(120, 16), new THREE.MeshBasicMaterial({ map: bannerTex, transparent: true, depthWrite: false, fog: false }));
   const tip = c.clone().addScaledVector(fwd, E.dist + 2);
-  banner.position.copy(tip).addScaledVector(side, 44).setY(E.h - 2); banner.lookAt(c.x, E.h - 2, c.z);
+  banner.position.copy(tip).addScaledVector(side, 60).setY(E.h - 2); banner.lookAt(c.x, E.h - 2, c.z);
   banner.name = 'bannerCloud'; banner.renderOrder = -5; scene.add(banner);
 
   // 太阳：高原的白太阳（小、亮），加色精灵
@@ -271,7 +274,7 @@ export function buildSky(scene, ctx, { fwdA, sunXZ }) {
       glare.visible = !LOW && glare.material.opacity > 0.01;                // 没朝太阳看就整个不画（大精灵的填充不白花）；?fx=low 不要
       layers.forEach((L, i) => { L.U.haze.value = Math.max(sq, Math.min(1, k.haze * (0.55 + 0.25 * i))); L.U.hazeC.value.copy(U.hz.value); L.U.lift.value = -k.sink * (0.5 + 0.24 * i); });
       ev.u.op.value = k.everest * clear; ev.u.hazeC.value.copy(k.hz); ev.m.visible = ev.u.op.value > 0.01;
-      banner.material.opacity = ev.u.op.value * 0.9; banner.visible = ev.m.visible;
+      banner.material.opacity = ev.u.op.value * 0.75; banner.visible = ev.m.visible;
       sun.material.opacity = k.sun * clear; WX.sun = k.sun * k.halo * clear;
       flag.u.t.value = t % 3600; flag.u.op.value = 0.92 * (1 - 0.6 * sq);
       cu.op.value = k.cloud * clear; cu.t.value = t % 3600; cu.haze.value.copy(k.hz).lerp(cu.lit.value, 0.4);
