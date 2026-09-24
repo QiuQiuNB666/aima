@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>峰哥亡命天涯 · A4 海报 v5 · 背面</title>
+<style>
+@page{size:A4;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#e8e5e1}
+:root{--ink:#1e3a8a;--ink2:#2b3a5c;--mute:#4a5878;--line:rgba(30,58,138,.28);--up:#2f9e5b;--st:#d9a400;--wt:#d7342b;--flat:#8a95a3}
+.page{width:210mm;height:297mm;position:relative;overflow:hidden;color:var(--ink);padding:11mm 10mm 8.5mm;
+  background:#e8e5e1 url(paper_v4.jpg) 0 0/210mm auto repeat-y;display:flex;flex-direction:column;gap:2.8mm;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.kick{font-size:8.2pt;font-weight:800;letter-spacing:.14em;color:var(--ink2);display:flex;justify-content:space-between}
+.kick span{font-weight:600;letter-spacing:.06em;color:var(--mute)}
+h1{font-size:23pt;font-weight:900;line-height:1.15;letter-spacing:.02em;margin-top:.5mm}
+.lead{font-size:9.2pt;line-height:1.55;color:var(--ink2);margin-top:1.4mm}
+.lead b{color:var(--ink)}
+h2{font-size:9.6pt;font-weight:900;letter-spacing:.1em;display:flex;align-items:center;gap:1.8mm;margin-bottom:1.6mm}
+h2::before{content:"";width:2.2mm;height:2.2mm;background:var(--ink);transform:rotate(45deg)}
+h2 small{font-weight:600;letter-spacing:.03em;color:var(--mute);font-size:7pt;margin-left:auto}
+p{font-size:7.6pt;line-height:1.5;color:var(--ink2)}
+b{color:var(--ink)}
+.rule{border-top:.35mm solid var(--ink);opacity:.85}
+
+/* 三步 */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
+.steps div{border:.3mm solid var(--line);padding:2.2mm 2.6mm 2mm;position:relative;background:rgba(255,255,255,.28)}
+.steps i{font-style:normal;font-size:16pt;font-weight:900;line-height:1;display:block;margin-bottom:1mm}
+.steps h3{font-size:9.6pt;font-weight:800;margin-bottom:.8mm}
+
+/* 两栏：五层 + 截图 */
+.two{display:grid;grid-template-columns:1fr 76mm;gap:4mm;align-items:start}
+.layers{display:flex;flex-direction:column;gap:1.3mm}
+.layers div{display:grid;grid-template-columns:19mm 1fr;gap:2mm;border-left:.6mm solid var(--ink);padding:.6mm 0 .6mm 2.2mm}
+.layers b{font-size:8pt}
+.layers.g div:nth-child(2){border-left-color:var(--wt)}
+.layers p{font-size:7.2pt;line-height:1.45}
+.shots{display:flex;flex-direction:column;gap:2.4mm}
+.shot{height:31mm;background-size:cover;background-position:center;border:.3mm solid var(--line);position:relative}
+.shot span{position:absolute;left:0;right:0;bottom:0;padding:1.2mm 2mm;font-size:6.8pt;color:#fff;font-weight:700;background:linear-gradient(0deg,rgba(15,25,60,.9),rgba(15,25,60,0))}
+
+/* 珠峰路线 */
+.bar{display:flex;height:6.5mm;gap:.3mm;margin-bottom:1.4mm}
+.bar div{display:flex;align-items:center;justify-content:center;font-size:6.2pt;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden}
+.bar .up{background:var(--up)}.bar .st{background:var(--st)}.bar .wt{background:var(--wt)}.bar .fl{background:var(--flat)}
+.legend{font-size:6.8pt;color:var(--mute);display:flex;gap:4mm;margin-bottom:1.2mm}
+.legend i{display:inline-block;width:2.4mm;height:2.4mm;vertical-align:-.3mm;margin-right:1mm}
+.route{display:grid;grid-template-columns:repeat(4,1fr);gap:2.5mm}
+.route p{font-size:7pt}
+.route b{display:block;font-size:7.6pt;margin-bottom:.3mm}
+
+/* 蜂群 */
+.swarm{display:grid;grid-template-columns:66mm 1fr;gap:4mm;align-items:start}
+.card{height:29mm;background:url(c2_aicard.jpg) center/cover;border:.3mm solid var(--line)}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:1.8mm 3mm}
+.roles p{font-size:7pt}
+.roles b{font-size:7.8pt}
+.roles .hard b{color:var(--wt)}
+
+/* 数字 */
+.nums{display:grid;grid-template-columns:repeat(5,1fr);gap:2.5mm}
+.nums div{border-top:.5mm solid var(--ink);padding-top:1.2mm}
+.nums i{font-style:normal;font-size:17pt;font-weight:900;line-height:1;letter-spacing:-.01em;display:block}
+.nums i small{font-size:8pt;font-weight:700;margin-left:.4mm}
+.nums span{font-size:6.6pt;color:var(--mute);line-height:1.35;display:block;margin-top:.8mm}
+
+/* 其它世界 */
+.worlds{display:grid;grid-template-columns:repeat(4,1fr);gap:2.4mm}
+.worlds div{height:19mm;background-size:cover;background-position:center;border:.3mm solid var(--line);position:relative}
+.worlds span{position:absolute;left:0;right:0;bottom:0;padding:.9mm 1.6mm;font-size:6.5pt;color:#fff;font-weight:700;background:linear-gradient(0deg,rgba(15,25,60,.9),rgba(15,25,60,0))}
+
+/* 页脚：与正面同款 */
+.foot{margin-top:auto;display:flex;align-items:flex-end;gap:5mm;border-top:.35mm solid var(--ink);padding-top:2.6mm}
+.pitch{flex:1.2}
+.pitch em{display:block;font-style:normal;font-size:7.4pt;font-weight:800;letter-spacing:.12em;color:var(--ink2);margin-bottom:.8mm}
+.pitch b{display:block;font-size:12pt;font-weight:900;line-height:1.2}
+.pitch span{display:block;font-size:6.6pt;color:var(--ink2);margin-top:1.2mm;line-height:1.5}
+.team{flex:.9;font-size:8.2pt;line-height:1.7;white-space:nowrap}
+.team i{font-style:normal;font-weight:800}
+.team a{color:var(--ink2);text-decoration:none;font-family:Menlo,"SF Mono",monospace;font-size:7.6pt}
+.qr{text-align:center}.qr img{width:22mm;height:22mm;display:block;border-radius:1.2mm}
+.qr span{display:block;font-size:6.4pt;font-weight:700;margin-top:.8mm;white-space:nowrap}
+</style></head><body>
+<div class="page">
+  <div class="kick"><div>峰哥亡命天涯 · 背面 · 它是怎么工作的</div><span>EvoTavern 深圳站 · 01 具身与穿戴硬件 · 2026.09.24</span></div>
+  <h1>物理反馈，不是视觉反馈。</h1>
+  <p class="lead">VR、体感、跑步机游戏都只骗眼睛：画面加手柄震动，腿是空的。我们把一台量产的消费级髋外骨骼（Hypershell）改成<b>腿部力反馈外设</b>：原地迈步，屏幕里的你在爬珠峰北坡，坡和台阶变成腿上真实的<b>阻力和助力</b>。游戏是载体，主角是自研的外骨骼控制软件 <b>ShellOS</b>——官方 App 禁用了这个型号，控制层从串口协议起全是自己写的。</p>
+
+  <div class="steps">
+    <div><i>①</i><h3>穿上，按住 R2</h3><p>髋外骨骼腰带一扣、两条腿一绑。手柄 R2 是死人开关，松手力矩立刻归零。</p></div>
+    <div><i>②</i><h3>原地迈步</h3><p>183 Hz 髋角数据算出步态相位；每一步推进游戏一步，步频就是你的速度。</p></div>
+    <div><i>③</i><h3>腿上有力</h3><p>上坡有人从后面推一把，上台阶腿发沉，下台阶落阶一记冲击，红灯轻拉让你站定。</p></div>
+  </div>
+
+  <div class="two">
+    <div>
+      <h2>ShellOS 五层<small>跑在一台笔记本上 · 没有外骨骼也能 --sim 全跑</small></h2>
+      <div class="layers g">
+        <div><b>0 设备</b><p>真机串口 / 模拟外骨骼 / 录制回放同一接口，上层无感。</p></div>
+        <div><b>1 安全层 Guard</b><p>唯一能写串口的地方：软限 4 Nm（固件硬限 7.5 永远不用满）、斜率限 50 Nm/s、死人开关、步态置信度 &lt; 0.5 出力为零、看门狗 100 ms 归零、1 s 直接 DISABLE、急停后必须手动重新上膛。</p></div>
+        <div><b>2 步态估计</b><p>髋角极角相位；用真机录制的 12 段数据扫了 1080 档门限，坐 / 站假周期 13 → 0。</p></div>
+        <div><b>3 地形控制律</b><p>世界是一份 JSON：平地 / 上坡 / 下坡 / 上台阶 / 下台阶 / 红灯。按路段在步态相位上打梯形髋力矩脉冲，一份 JSON 加一座山。</p></div>
+        <div><b>4 界面</b><p>Three.js 登山游戏、选山 / 造山页、操作员仪表盘。大屏左下「腿上的力」画的是实际发给电机的力矩指令，不是动画。</p></div>
+      </div>
+    </div>
+    <div class="shots">
+      <div class="shot" style="background-image:url(c3_ladder.jpg)"><span>第二台阶 · 中国梯：上台阶给阻力，腿发沉</span></div>
+      <div class="shot" style="background-image:url(c3_ridge.jpg)"><span>大风口 · 刀脊：1 m 宽路面，两侧 60° 陡坡</span></div>
+    </div>
+  </div>
+
+  <div>
+    <h2>展位主打 · 珠峰北坡<small>67 步 · 海拔 5200 → 8848.86 m · 惊险优先</small></h2>
+    <div class="bar">
+      <div class="fl" style="flex:3">大本营</div><div class="up" style="flex:19">东绒布冰川</div><div class="fl" style="flex:2"></div><div class="st" style="flex:5">北坳冰壁</div><div class="fl" style="flex:5">横梯</div><div class="wt" style="flex:1.6"></div><div class="up" style="flex:12">北山脊</div><div class="up" style="flex:7">刀脊</div><div class="st" style="flex:2"></div><div class="up" style="flex:6">横切</div><div class="wt" style="flex:1.6"></div><div class="st" style="flex:3">中国梯</div><div class="up" style="flex:1"></div>
+    </div>
+    <div class="legend"><span><i style="background:var(--flat)"></i>平路 · 不出力</span><span><i style="background:var(--up)"></i>上坡 · 推一把</span><span><i style="background:var(--st)"></i>台阶 · 给阻力</span><span><i style="background:var(--wt)"></i>红灯 · 站稳 2 s 放行</span></div>
+    <div class="route">
+      <p><b>东绒布冰川</b>牦牛驮队迎面让路，直升机只在大本营降落一次——峰哥的「亡命小飞机」梗。</p>
+      <p><b>北坳裂缝 · 横梯</b>两架绑接的铝梯横跨冰裂缝，镜头压到腰高。走太快或站太久会晃，2.5 s 失足黑场。</p>
+      <p><b>大风口 · 刀脊</b>左侧雪檐，风雪、天色、缺氧暗角随海拔变。声景有风、冰爪、路绳、喘气。</p>
+      <p><b>第二台阶 · 中国梯</b>排队上梯红灯，前面的人一个个往上挪，轮到你时让一步；登顶觇标红旗展开。</p>
+    </div>
+  </div>
+
+  <div class="swarm">
+    <div class="card"></div>
+    <div>
+      <h2>Agent 蜂群<small>大模型只出主意，安全员说了算</small></h2>
+      <div class="roles">
+        <p><b>教练</b>（大模型）把评委一句话「太陡了」翻成参数差值，只能选现有参数、单次改动裁到 15%。</p>
+        <p><b>地形导演</b>（大模型）「峰哥被追到泰山顶」→ 路线草稿，几秒后一座新山出现，马上能爬。</p>
+        <p><b>记忆员</b>（代码）经验卡记穿戴者、控制律、步频区间；换人走满 6 步自动检索套用，删卡即回退。</p>
+        <p class="hard"><b>安全员</b>（硬代码，故意不交给大模型）超软限就裁、30 s 同一参数最多改 3 次、急停一律否决，造山起步必须平地。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="nums">
+    <div><i>183<small>Hz</small></i><span>真机髋角数据流，控制循环最大间隔 12 ms</span></div>
+    <div><i>4<small>Nm</small></i><span>软限，约 0.05 Nm/kg，低于文献扰动实验最低档</span></div>
+    <div><i>0</i><span>12 段真机回放 0 DISARM、0 Traceback；11 种故障注入 11 过</span></div>
+    <div><i>23<small>/23</small></i><span>教练实连 MiniMax 全部通过，p50 1.6 s；造山 10/10</span></div>
+    <div><i>8</i><span>世界：珠峰、赛博东京、泰山、富士、华山、梧桐山 + 两个训练场</span></div>
+  </div>
+
+  <div class="worlds">
+    <div style="background-image:url(c3_tokyo.jpg)"><span>赛博东京 · 攻壳致敬版，5 个彩蛋</span></div>
+    <div style="background-image:url(c3_parkour.jpg)"><span>跑酷 · 高抬腿是跳，四脚机甲在后面追</span></div>
+    <div style="background-image:url(c3_huashan.jpg)"><span>华山 · 长空栈道</span></div>
+    <div style="background-image:url(c3_taishan.jpg)"><span>泰山 · 十八盘</span></div>
+  </div>
+
+  <div class="foot">
+    <div class="pitch"><em>照实写的局限 · 授权</em><b>真人的步目前只接住约 44%。</b><span>真机录制 1 人约 170 s；蒙眼二选一 ≥ 9/10 之前不说「能分辨坡度」。峰哥本人当面同意展示肖像、口吻与 AI 复刻声音，一个参数即可全关；代码 MIT 开源，不做医疗器械定位。</span></div>
+    <div class="team"><i>PRX</i> · 球球 / 艾玛<br><a>github.com/QiuQiuNB666/aima</a></div>
+    <div class="qr"><img src="wx_qr.jpg"><span>扫码进群试玩</span></div>
+  </div>
+</div>
+</body></html>
