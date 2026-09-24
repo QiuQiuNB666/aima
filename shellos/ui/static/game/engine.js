@@ -146,7 +146,7 @@ async function main() {
   hud.update(S, false, false);
   if (PREVIEW && Q.has('summit')) {          // &summit=1：登顶画面（环绕镜头 + 登顶卡片），给截图/精加工山顶用
     summitUntil = 1e12; me.jump(route.N + 1.2);
-    hud.summit(true, { ...T, laps: 1, last_lap: T.total * 0.62, best: null }, null);
+    hud.summit(true, { ...T, laps: 1, last_lap: T.total * 0.62, best: T.total * 0.62 }, T.total * 0.62 + 3);   // 预览：给个「之前最佳」，新纪录标才按规则亮（best=null 不算新纪录）
     hud.update(S, false, false, true);
   }
 
