@@ -253,6 +253,45 @@ def test_motion_and_stream_gaps_cannot_be_exported_as_stable_calibration():
     with pytest.raises(ValueError):PoseRecorder().result('TEST','center')
 
 
+def test_pose_capture_preserves_new_frames_with_shared_host_timestamps():
+    recorder=PoseRecorder()
+    host_times=[10+(i//3)*.016 for i in range(120)]
+    sequences=[1000+i*5 for i in range(120)]
+    for sequence,at in zip(sequences,host_times):
+        assert recorder.add(parse_line(line(sequence),at))
+    value=recorder.result('TEST','center')
+    assert value['frameCount']==120 and value['stable'] is True
+    assert [row['at'] for row in value['samples']]==host_times
+    assert [row['sequence'] for row in value['samples']]==sequences
+    assert value['duration_s']==pytest.approx(.624)
+    assert value['max_gap_s']==pytest.approx(.016)
+
+
+@pytest.mark.parametrize('at',[10,10.016])
+def test_pose_capture_duplicate_device_time_is_not_counted(at):
+    recorder=PoseRecorder()
+    assert recorder.add(parse_line(line(1000),10))
+    assert not recorder.add(parse_line(line(1000,l=99),at))
+    assert len(recorder.rows)==1
+    assert recorder.rows[0]['at']==10 and recorder.rows[0]['left_deg']==10
+    assert recorder.add(parse_line(line(1005),10.016))
+    assert len(recorder.rows)==2
+
+
+@pytest.mark.parametrize('sequence,at,error,resets',[
+    (999,10.016,'Device clock reset',1),
+    (1005,9.984,'Host clock moved backwards',0),
+])
+def test_pose_capture_still_rejects_backwards_clocks(sequence,at,error,resets):
+    recorder=PoseRecorder()
+    assert recorder.add(parse_line(line(1000),10))
+    with pytest.raises(ValueError,match=error):
+        recorder.add(parse_line(line(sequence),at))
+    assert len(recorder.rows)==1 and recorder.clock_resets==resets
+    assert recorder.add(parse_line(line(1010),10.016))
+    assert len(recorder.rows)==2
+
+
 def test_read_only_capture_never_calls_a_write_or_handshake():
     class Stream:
         i=0

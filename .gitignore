@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 data/recordings/
+/work/
 .DS_Store
 # 捷风模型（Sketchfab 用户 BojanV06，很可能是游戏提取的，原始 IP 属于 Riot Games）：不进 git、不上 GitHub，只由 deploy.sh 的 rsync 同步到展位机（rsync 不读 .gitignore）
 shellos/ui/static/models/jett/
