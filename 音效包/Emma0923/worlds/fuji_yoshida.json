@@ -1,80 +1,80 @@
 {
-  "name": "富士山·吉田线夜登",
-  "subtitle": "五合目 → Z 字坡 → 岩场 → 八合目 → 山顶日出",
-  "story": "头灯连成一条光线，长坡和折返，最后几级岩阶，在山顶等日出。",
-  "note": "按真实路段比例压缩；海拔：吉田口五合目约 2305 m，山顶 3776 m",
-  "alt": [
-    2305,
-    3776
-  ],
-  "unit": "m",
-  "route": [
-    {
-      "kind": "flat",
-      "steps": 3,
-      "label": "五合目"
-    },
-    {
-      "kind": "up",
-      "steps": 8,
-      "label": "六合目"
-    },
-    {
-      "kind": "up",
-      "steps": 8,
-      "label": "Z 字坡",
-      "turns": 4
-    },
-    {
-      "kind": "stairs_up",
-      "steps": 4,
-      "label": "岩场"
-    },
-    {
-      "kind": "up",
-      "steps": 6,
-      "label": "七合目"
-    },
-    {
-      "kind": "flat",
-      "steps": 2,
-      "label": "八合目·山小屋"
-    },
-    {
-      "kind": "up",
-      "steps": 6,
-      "label": "九合目"
-    },
-    {
-      "kind": "stairs_up",
-      "steps": 3,
-      "label": "鸟居"
-    }
-  ],
-  "summit": {
-    "name": "剑峰",
-    "text": "御来光——日出了。"
+ "name": "富士山·吉田线夜登",
+ "subtitle": "五合目 → Z 字坡 → 岩场 → 八合目 → 山顶日出",
+ "story": "头灯连成一条光线，长坡和折返，最后几级岩阶，在山顶等日出。",
+ "note": "按真实路段比例压缩；海拔：吉田口五合目约 2305 m，山顶 3776 m",
+ "alt": [
+  2305,
+  3776
+ ],
+ "unit": "m",
+ "route": [
+  {
+   "kind": "flat",
+   "steps": 3,
+   "label": "五合目"
   },
-  "theme": {
-    "style": "night_to_dawn",
-    "sky": [
-      "#0b1026",
-      "#ff8a3d"
-    ],
-    "fog": "#2a2238",
-    "ground": "#5a3b2e",
-    "path": "#7a5544",
-    "accent": [
-      "#ffe08a",
-      "#ff6b35",
-      "#ffffff"
-    ],
-    "props": [
-      "headlamps",
-      "mountain_hut",
-      "torii",
-      "stars"
-    ]
+  {
+   "kind": "up",
+   "steps": 8,
+   "label": "六合目"
   },
-  "id": "fuji_yoshida"
+  {
+   "kind": "up",
+   "steps": 8,
+   "label": "Z 字坡",
+   "turns": 4
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 4,
+   "label": "岩场"
+  },
+  {
+   "kind": "up",
+   "steps": 6,
+   "label": "七合目"
+  },
+  {
+   "kind": "flat",
+   "steps": 2,
+   "label": "八合目·山小屋"
+  },
+  {
+   "kind": "up",
+   "steps": 6,
+   "label": "九合目"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 3,
+   "label": "鸟居"
+  }
+ ],
+ "summit": {
+  "name": "剑峰",
+  "text": "御来光——日出了。"
+ },
+ "theme": {
+  "style": "night_to_dawn",
+  "sky": [
+   "#0b1026",
+   "#ff8a3d"
+  ],
+  "fog": "#2a2238",
+  "ground": "#5a3b2e",
+  "path": "#7a5544",
+  "accent": [
+   "#ffe08a",
+   "#ff6b35",
+   "#ffffff"
+  ],
+  "props": [
+   "headlamps",
+   "mountain_hut",
+   "torii",
+   "stars"
+  ]
+ },
+ "id": "fuji_yoshida"
 }

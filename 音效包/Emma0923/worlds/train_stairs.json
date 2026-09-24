@@ -1,60 +1,60 @@
 {
-  "name": "训练场·台阶",
-  "subtitle": "上台阶 / 下台阶",
-  "story": "单一刺激，用来调强度和做蒙眼实验。",
-  "note": "",
-  "alt": [
-    0,
-    3
-  ],
-  "unit": "m",
-  "training": true,
-  "route": [
-    {
-      "kind": "flat",
-      "steps": 3,
-      "label": "平地"
-    },
-    {
-      "kind": "stairs_up",
-      "steps": 8,
-      "label": "上台阶"
-    },
-    {
-      "kind": "flat",
-      "steps": 3,
-      "label": "平台"
-    },
-    {
-      "kind": "stairs_down",
-      "steps": 8,
-      "label": "下台阶"
-    },
-    {
-      "kind": "flat",
-      "steps": 3,
-      "label": "平地"
-    }
-  ],
-  "summit": {
-    "name": "终点",
-    "text": ""
+ "name": "训练场·台阶",
+ "subtitle": "上台阶 / 下台阶",
+ "story": "单一刺激，用来调强度和做蒙眼实验。",
+ "note": "",
+ "alt": [
+  0,
+  3
+ ],
+ "unit": "m",
+ "training": true,
+ "route": [
+  {
+   "kind": "flat",
+   "steps": 3,
+   "label": "平地"
   },
-  "theme": {
-    "style": "grid",
-    "sky": [
-      "#10141a",
-      "#1c232d"
-    ],
-    "fog": "#10141a",
-    "ground": "#1c232d",
-    "path": "#3a4653",
-    "accent": [
-      "#3ddc84",
-      "#4fc3f7",
-      "#ffd54f"
-    ],
-    "props": []
+  {
+   "kind": "stairs_up",
+   "steps": 8,
+   "label": "上台阶"
   },
-  "id": "train_stairs"
+  {
+   "kind": "flat",
+   "steps": 3,
+   "label": "平台"
+  },
+  {
+   "kind": "stairs_down",
+   "steps": 8,
+   "label": "下台阶"
+  },
+  {
+   "kind": "flat",
+   "steps": 3,
+   "label": "平地"
+  }
+ ],
+ "summit": {
+  "name": "终点",
+  "text": ""
+ },
+ "theme": {
+  "style": "grid",
+  "sky": [
+   "#10141a",
+   "#1c232d"
+  ],
+  "fog": "#10141a",
+  "ground": "#1c232d",
+  "path": "#3a4653",
+  "accent": [
+   "#3ddc84",
+   "#4fc3f7",
+   "#ffd54f"
+  ],
+  "props": []
+ },
+ "id": "train_stairs"
 }

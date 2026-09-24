@@ -1,4 +1,4 @@
-# 五场景环境音素材与授权
+# 游戏环境音素材与授权
 
 2026-09-23 制作。用于 AIMA 游戏的设计混音，不是五处地点的实地录音。
 下载地址、原文件 SHA-256、输出文件 SHA-256、采样格式见 manifest.json。
@@ -31,3 +31,12 @@ TinyWorlds 在页面说明脚步源自 pdsounds.org，并为 Minetest 编辑。
 
 均为 48 kHz / 16-bit / 双声道 WAV。环境音可循环；脚步不混入底音。
 仅依据数字峰值、循环接缝与浏览器播放检查质量，仍需佩戴者对响度、舒适度和地域氛围进行试听验收。
+
+## 2026-09-24 扩展：26 个原创音频
+
+本轮新增素材由 `tools/build_expansion.py` 的确定性滤波噪声、包络和振荡器生成，未调用 AI 音频模型，未从影视、音乐或游戏提取音频，也没有复刻人物声音。新增生成器代码及其音频贡献按 CC0-1.0 提供；作者标记为 AIMA / Emma0923 音效包，2026-09-24 扩展。
+
+- 7 个循环：everest_camp、everest_glacier、everest_ridge、huashan_cliff、parkour_rooftop、cyber_pad、helicopter_rotor。
+- 19 个单次音：step_snow、step_ice、step_metal、step_wood、rope_creak、carabiner_click、chain_clink、flag_flap、yak_bell、oxygen_hiss、breath、parkour_jump、parkour_land、parkour_slide、parkour_hit、mech_hum、cyber_camo、cyber_glitch、taiko。
+
+全部扩展的来源 ID 为 `original-Emma0924`，manifest 记录生成器与成品 SHA-256。原 11 个 WAV 内容未改；上面的旧素材来源继续适用于原文件。新声音是游戏设计近似，不声称为珠峰、华山、动物或机械设备的实地录音。`breath.wav` 是气流噪声设计音，没有可识别的人声。

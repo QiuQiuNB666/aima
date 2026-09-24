@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "sourceCommit": "621dfa3",
+  "version": 2,
+  "sourceCommit": "9832875",
   "sources": [
     {
       "id": "birds",
@@ -41,6 +41,15 @@
       "license": "CC0-1.0",
       "sha256": "987d072b7deaa65177e005ddd8185f2351be7c9a76cd7575dea560549c39b33b",
       "retrieved": "2026-09-23"
+    },
+    {
+      "id": "original-Emma0924",
+      "author": "AIMA / Emma0923 音效包 · 2026-09-24 扩展",
+      "license": "CC0-1.0",
+      "kind": "original-procedural",
+      "generator": "tools/build_expansion.py",
+      "externalSamples": false,
+      "generatorSha256": "fd0ac3b542c5da342d1e5c7c00099f4d2f45a29bc948d1f576201324776f65d8"
     }
   ],
   "assets": [
@@ -212,9 +221,510 @@
         "original"
       ],
       "description": "原创合成路段切换提示音"
+    },
+    {
+      "file": "assets/everest_camp.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -14.27,
+      "rmsDbFS": -28.4,
+      "seamJump": 0.00274658203125,
+      "sha256": "7b984647da99348ae4fddd7402f70433e31174c6c62e57b1388ef67bd1b4a424",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "珠峰营地：低风与炉火气流；帐篷拍击独立触发，无人声"
+    },
+    {
+      "file": "assets/everest_glacier.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -11.44,
+      "rmsDbFS": -26.94,
+      "seamJump": 0.002105712890625,
+      "sha256": "213fb64122fc31ab714419d020b754b61a81f9e1cb8479133686428be9df1ec3",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "东绒布冰川、北坳冰壁：开阔冷风与细雪；非当地实录"
+    },
+    {
+      "file": "assets/everest_ridge.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -10.14,
+      "rmsDbFS": -26.02,
+      "seamJump": 0.00439453125,
+      "sha256": "2bd70ea97e3224d07d99c86477279f9594ed067dceeac455f7ecd0616abcfde2",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "北山脊、刀脊、北壁横切：低风吼与间歇尖啸，无突发惊吓"
+    },
+    {
+      "file": "assets/huashan_cliff.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -12.75,
+      "rmsDbFS": -27.74,
+      "seamJump": 0.003448486328125,
+      "sha256": "8c1f51f782d04f1452bf439f7c91013c3d855485dd74f4d0e840120121370845",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "华山悬崖与松风；木板、铁链、扣锁独立触发"
+    },
+    {
+      "file": "assets/parkour_rooftop.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -12.73,
+      "rmsDbFS": -27.33,
+      "seamJump": 0.002044677734375,
+      "sha256": "93555717fc4ae82416926974feedf5bfa1927e8f71fd4d2a7dfc12dbda93813f",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "屋顶风与远处车流感；不烘焙步频、跳跃或追逐声"
+    },
+    {
+      "file": "assets/cyber_pad.wav",
+      "seconds": 24.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -22.34,
+      "rmsDbFS": -31.37,
+      "seamJump": 0.00054931640625,
+      "sha256": "bb3ff63b9b1df12acea6a25b8b24c5bc602f4a59534c1e21fc5c7a3c6d6721a0",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "原创低频科幻氛围垫；可与东京雨声低音量混合，不使用商业配乐"
+    },
+    {
+      "file": "assets/helicopter_rotor.wav",
+      "seconds": 8.0,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": true,
+      "peakDbFS": -11.0,
+      "rmsDbFS": -26.94,
+      "seamJump": 0.003570556640625,
+      "sha256": "2b5d5367e949b4acadb74eb9cde301c725eebed5179582a857abc2849cc926bd",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "合成旋翼循环；挂到直升机距离与转速，不作为全地图底音"
+    },
+    {
+      "file": "assets/step_snow.wav",
+      "seconds": 0.6,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -6.02,
+      "rmsDbFS": -28.82,
+      "seamJump": null,
+      "sha256": "f9ecd19c6ce3b2d73b891a7ac6b1c5e437de8d6b4d0cb4c59c1752f4106cb16c",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "雪地压实与雪粒细碎声；单次触发"
+    },
+    {
+      "file": "assets/step_ice.wav",
+      "seconds": 0.6,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -6.02,
+      "rmsDbFS": -29.5,
+      "seamJump": null,
+      "sha256": "47e424fc68f46ea368333f5333644df8448dbf10b519fc7e151246cdd30a2dde",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "冰爪咬冰：短脆响与冰粒；单次触发"
+    },
+    {
+      "file": "assets/step_wood.wav",
+      "seconds": 0.6,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -6.02,
+      "rmsDbFS": -26.02,
+      "seamJump": null,
+      "sha256": "7b2128cc3c312242f2ba7b6bb170cd45c322de2e2792dccd3334863ce9e271f5",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "木板脚步：闷响与短木纹摩擦；单次触发"
+    },
+    {
+      "file": "assets/step_metal.wav",
+      "seconds": 0.85,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -6.02,
+      "rmsDbFS": -23.92,
+      "seamJump": null,
+      "sha256": "05488637279dfddf0ae4bc2ec1f646e479c7707153ce4c505c2881983853c43b",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "空心金属梯脚步；北坳横梯、中国梯、华山铁梯"
+    },
+    {
+      "file": "assets/rope_creak.wav",
+      "seconds": 0.9,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -11.51,
+      "rmsDbFS": -26.02,
+      "seamJump": null,
+      "sha256": "3a80d4260fdd70c5301250103cd066ee3743b3e7fc6c5e8c6010017d8ec158c5",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "受力绳索摩擦与吱呀；按动作触发"
+    },
+    {
+      "file": "assets/carabiner_click.wav",
+      "seconds": 0.32,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -7.09,
+      "rmsDbFS": -23.74,
+      "seamJump": null,
+      "sha256": "0b5af4745e4743736078afcb356fa8fbab4cbf9e7218d0f27c29ee4b04fa49f7",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "游戏中的扣锁开合双击；不表示真实安全锁已扣好"
+    },
+    {
+      "file": "assets/chain_clink.wav",
+      "seconds": 0.9,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -6.02,
+      "rmsDbFS": -24.59,
+      "seamJump": null,
+      "sha256": "025b4f6bbe1a404c03a01645fcd5c323b481ba8bd4e4547b79999ccdda287584",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "铁链与锁环轻碰"
+    },
+    {
+      "file": "assets/flag_flap.wav",
+      "seconds": 1.1,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -7.8,
+      "rmsDbFS": -24.73,
+      "seamJump": null,
+      "sha256": "de837b3ea0069263d61d5dc29e970de959b775825b8a3ed495132067215c152b",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "帐篷布、经幡、登顶旗帜拍动；独立短音"
+    },
+    {
+      "file": "assets/yak_bell.wav",
+      "seconds": 1.8,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -8.02,
+      "rmsDbFS": -26.02,
+      "seamJump": null,
+      "sha256": "381b314def6430d69788005647b5fb1953e3428b59091b087db68283a759c13a",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "牦牛铜铃设计音；按距离触发"
+    },
+    {
+      "file": "assets/oxygen_hiss.wav",
+      "seconds": 1.6,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -10.73,
+      "rmsDbFS": -26.94,
+      "seamJump": null,
+      "sha256": "377aa3b05ec9766ad889522cb20743590bbec9477f068e7f262fbe092f89bb39",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "游戏吸氧互动气阀嘶声；单次触发"
+    },
+    {
+      "file": "assets/breath.wav",
+      "seconds": 1.5,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -13.6,
+      "rmsDbFS": -29.12,
+      "seamJump": null,
+      "sha256": "0ae2aae346ca6759fe83408478b358859a6b977cf65a3fd409ed294192781083",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "滤波噪声模拟吸呼；不是人声录音，默认不自动播放"
+    },
+    {
+      "file": "assets/parkour_jump.wav",
+      "seconds": 0.65,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -9.65,
+      "rmsDbFS": -25.19,
+      "seamJump": null,
+      "sha256": "5e9f069150fe360779f953baf62615401cece0ec024eb26911fcf2276d24d644",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "跳跃掠风；run.events 的 jump"
+    },
+    {
+      "file": "assets/parkour_land.wav",
+      "seconds": 0.7,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -6.02,
+      "rmsDbFS": -24.88,
+      "seamJump": null,
+      "sha256": "7aa82d23162c0377e2530d87c73e68df3e324ecccbe6323cefd41c31053662d5",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "落地鞋底与屋顶闷响；run.events 的 land"
+    },
+    {
+      "file": "assets/parkour_slide.wav",
+      "seconds": 0.95,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -10.58,
+      "rmsDbFS": -24.73,
+      "seamJump": null,
+      "sha256": "88673d8255b596670643356000f6768880fc9a0a5462cbd8e6b4cbca3feb19b1",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "滑铲摩擦；进入 slide 状态时播放一次"
+    },
+    {
+      "file": "assets/parkour_hit.wav",
+      "seconds": 0.6,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -6.02,
+      "rmsDbFS": -25.28,
+      "seamJump": null,
+      "sha256": "8e3e1940dadf3ea970455e3c8c99629f4a82f72d061dccc01a1fd216873d4f79",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "碰撞反馈短音；不同碰撞共用，避免多声叠加"
+    },
+    {
+      "file": "assets/mech_hum.wav",
+      "seconds": 1.5,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -13.8,
+      "rmsDbFS": -24.44,
+      "seamJump": null,
+      "sha256": "b190758d79ba619096e781d117e8ebc65ace9bc52d7a26db31a5182a15dcf5b2",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "机甲冲刺 / 接近短促低鸣；单次，不持续循环"
+    },
+    {
+      "file": "assets/cyber_camo.wav",
+      "seconds": 0.85,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -9.92,
+      "rmsDbFS": -26.02,
+      "seamJump": null,
+      "sha256": "98e5852d94b0644f2a5ee3fcbb0e2b0e913980a8c2d80fe0b5d0bce9972985f3",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "光学迷彩出现的合成扫频"
+    },
+    {
+      "file": "assets/cyber_glitch.wav",
+      "seconds": 0.55,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -8.28,
+      "rmsDbFS": -27.13,
+      "seamJump": null,
+      "sha256": "960f28a861b14d64eb5ad15e5449c31cd458f83e9fa0be8bdd7b80e94a2af9d7",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "电子通讯故障颗粒短音"
+    },
+    {
+      "file": "assets/taiko.wav",
+      "seconds": 1.8,
+      "sampleRate": 48000,
+      "channels": 2,
+      "loop": false,
+      "peakDbFS": -7.89,
+      "rmsDbFS": -23.74,
+      "seamJump": null,
+      "sha256": "594966bdbfd000d56c44c81826f63fd89029cbd4416192cc98ca008906a3f3ae",
+      "sources": [
+        "original-Emma0924"
+      ],
+      "description": "原创合成鼓点；东京登顶，不使用任何原曲采样"
     }
   ],
   "worlds": [
+    {
+      "name": "珠峰·北坡",
+      "subtitle": "大本营 → 东绒布冰川 → 北坳横梯 → 刀脊大风口 → 北壁横切 → 第二台阶 → 顶峰",
+      "story": "从大本营的经幡下出发，沿冰川走到前进营地，挂着固定绳爬上北坳冰壁，踩着绑在一起的铝梯过冰裂缝，顶着大风走过两边都是悬崖的刀脊，贴着北壁横切，在第二台阶下排队等上梯，最后几步踩上 8848.86。",
+      "note": "按真实爬升比例压成 67 步。大本营 5200、前进营地约 6500、北坳 7028、顶峰 8848.86 m（2020 年中尼共同公布的雪面高程）；海拔读数按爬升比例插值：北坳一带低约 200 m，第一台阶 / 横切一带低 300–500 m（为了加刀脊和横切，中段拉长了），大风口约 7500、顶峰对得上。1960 年中国登山队首次从北坡登顶；中国梯 1975 年架设，原梯 2008 年收进拉萨珠峰登山博物馆。北坳上架铝梯过裂缝是真有的（有些年份没有）；刀脊和贴壁栈道为了惊险感收窄、加陡了。",
+      "alt": [
+        5200,
+        8848.86
+      ],
+      "unit": "m",
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "珠峰大本营"
+        },
+        {
+          "kind": "up",
+          "steps": 19,
+          "label": "东绒布冰川",
+          "turns": 2
+        },
+        {
+          "kind": "flat",
+          "steps": 2,
+          "label": "前进营地"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 5,
+          "label": "北坳冰壁"
+        },
+        {
+          "kind": "flat",
+          "steps": 5,
+          "label": "北坳裂缝·横梯"
+        },
+        {
+          "kind": "wait",
+          "steps": 1,
+          "label": "北坳营地·吸氧"
+        },
+        {
+          "kind": "up",
+          "steps": 12,
+          "label": "北山脊"
+        },
+        {
+          "kind": "up",
+          "steps": 7,
+          "label": "大风口·刀脊"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 2,
+          "label": "第一台阶"
+        },
+        {
+          "kind": "up",
+          "steps": 6,
+          "label": "北壁横切·贴壁栈道"
+        },
+        {
+          "kind": "wait",
+          "steps": 1,
+          "label": "第二台阶·排队上梯"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 3,
+          "label": "第二台阶·中国梯"
+        },
+        {
+          "kind": "up",
+          "steps": 1,
+          "label": "顶峰雪坡"
+        }
+      ],
+      "summit": {
+        "name": "珠穆朗玛峰",
+        "text": "8848.86，到头了。这是个好事儿啊，再往上没路，只能下山。"
+      },
+      "theme": {
+        "style": "snow_summit",
+        "sky": [
+          "#1447a2",
+          "#a8c8ea"
+        ],
+        "fog": "#c6d6ea",
+        "ground": "#e8eef5",
+        "path": "#dce4ee",
+        "stairs": "#f1f6fb",
+        "accent": [
+          "#d7342b",
+          "#2f6fd6",
+          "#f2c230"
+        ],
+        "props": [
+          "prayer_flags",
+          "tents",
+          "ice_pinnacles",
+          "fixed_rope",
+          "oxygen",
+          "ladder",
+          "queue",
+          "survey_beacon",
+          "cloud_sea"
+        ]
+      },
+      "id": "everest_north"
+    },
     {
       "name": "富士山·吉田线夜登",
       "subtitle": "五合目 → Z 字坡 → 岩场 → 八合目 → 山顶日出",
@@ -294,6 +804,120 @@
         ]
       },
       "id": "fuji_yoshida"
+    },
+    {
+      "name": "华山·长空栈道",
+      "subtitle": "玉泉院 → 千尺幢 → 苍龙岭 → 金锁关 → 长空栈道 → 鹞子翻身 → 落雁峰",
+      "story": "自古华山一条路。拉着铁链爬千尺幢，走过两边都是绝壁的苍龙岭，在金锁关挂一把同心锁，扣上安全锁贴着悬崖走长空栈道，翻过鹞子翻身的铁梯，最后站上落雁峰。",
+      "note": "按真实爬升比例压成 61 步。玉泉院约 411 m、北峰 1614.9 m、南峰（落雁峰）2154.9 m（2007 年重测，华山最高峰）；回心石、金锁关、栈道这些点没有权威海拔，读数只是示意。长空栈道其实是南峰东侧的一条支路（走到贺老洞要原路返回），鹞子翻身在东峰下棋亭那条支路上，这里为了一条路走到顶把两处串在登顶前；长空栈道相传元代贺志真开凿，两处现在都必须系安全带、全程扣在铁索上。",
+      "alt": [
+        411,
+        2154.9
+      ],
+      "unit": "m",
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "玉泉院"
+        },
+        {
+          "kind": "up",
+          "steps": 13,
+          "label": "青柯坪山路",
+          "turns": 2
+        },
+        {
+          "kind": "flat",
+          "steps": 1,
+          "label": "回心石"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 8,
+          "label": "千尺幢"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 3,
+          "label": "百尺峡"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 2,
+          "label": "老君犁沟"
+        },
+        {
+          "kind": "flat",
+          "steps": 2,
+          "label": "北峰"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 8,
+          "label": "苍龙岭"
+        },
+        {
+          "kind": "flat",
+          "steps": 3,
+          "label": "金锁关"
+        },
+        {
+          "kind": "up",
+          "steps": 4,
+          "label": "中峰"
+        },
+        {
+          "kind": "wait",
+          "steps": 1,
+          "label": "南天门·扣安全锁"
+        },
+        {
+          "kind": "flat",
+          "steps": 6,
+          "label": "长空栈道"
+        },
+        {
+          "kind": "stairs_up",
+          "steps": 5,
+          "label": "鹞子翻身"
+        },
+        {
+          "kind": "up",
+          "steps": 2,
+          "label": "落雁峰"
+        }
+      ],
+      "summit": {
+        "name": "落雁峰 2154.9 m",
+        "text": "自古华山一条路。这是个好事儿啊，没得选，就不纠结了。"
+      },
+      "theme": {
+        "style": "cliff_path",
+        "sky": [
+          "#2f6fc0",
+          "#c9dcee"
+        ],
+        "fog": "#cbd9e8",
+        "ground": "#6b6f52",
+        "path": "#b1aa9f",
+        "stairs": "#c5bdb1",
+        "accent": [
+          "#c8231b",
+          "#e0a93a",
+          "#2f64e8"
+        ],
+        "props": [
+          "granite_cliff",
+          "chains",
+          "love_locks",
+          "plank_walk",
+          "iron_ladder",
+          "pines",
+          "cloud_sea"
+        ]
+      },
+      "id": "huashan_plank"
     },
     {
       "name": "泰山·十八盘",
@@ -639,5 +1263,37 @@
   ],
   "license": "CC0-1.0",
   "originalContributions": "CC0-1.0",
-  "description": "Game sound design, not recordings of the named locations. Training defaults to silence."
+  "description": "8 sound profiles / 8 world routes + parkour interface. Game sound design; not location recordings. Parkour preview routes are not distance telemetry.",
+  "interfaces": [
+    {
+      "id": "parkour",
+      "name": "屋顶跑酷",
+      "previewOnly": true,
+      "theme": {
+        "style": "parkour_rooftop"
+      },
+      "route": [
+        {
+          "kind": "flat",
+          "steps": 1,
+          "label": "屋顶起跑"
+        },
+        {
+          "kind": "flat",
+          "steps": 1,
+          "label": "上楼顶"
+        },
+        {
+          "kind": "flat",
+          "steps": 1,
+          "label": "夜奔"
+        },
+        {
+          "kind": "flat",
+          "steps": 1,
+          "label": "亡命追逐"
+        }
+      ]
+    }
+  ]
 }

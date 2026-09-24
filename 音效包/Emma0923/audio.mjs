@@ -1,4 +1,4 @@
-import { profiles } from './state.mjs';
+import { profiles, mixFor } from './state.mjs';
 
 export class Soundscape {
   constructor(assetURL = name => new URL('assets/'+name, import.meta.url).href) {
@@ -32,7 +32,9 @@ export class Soundscape {
     if (request !== this.version) return;
     this.enabled = true; this.channel?.postMessage(this.id); this.updateGains();
     this.onChange('声音已启用 · 输出到系统当前音频设备');
-    await this.switchScene(this.style);
+    const region = this.region, style = this.style;
+    await this.switchScene(style);
+    if (this.enabled && style === this.style && region) this.setRegion(region);
   }
   async buffer(name) {
     if (!this.cache.has(name)) {
@@ -59,14 +61,25 @@ export class Soundscape {
   setNarrationActive(active) { this.duck = !!active; this.updateGains(); }
   setTrainingAudio(active) { this.trainingAudio = !!active; this.updateGains(); }
   setRegion(T) {
-    const p = Math.max(0, Math.min(1, (T?.pos || 0)/(T?.total || 1)));
-    this.regionGain = this.style === 'night_to_dawn' ? 0.65+0.35*p :
-      this.style === 'cyber_night' && /神社/.test(T?.label || '') ? 0.40 : 1;
+    this.region = T;
+    const mix = mixFor(T, this.style);
+    this.regionGain = mix.gain;
     this.updateGains();
+    if (this.enabled && this.currentFile !== mix.file) {
+      void this.replaceLoop(mix.file).catch(e => this.onError(e));
+    }
   }
   async switchScene(style) {
     this.style = Object.hasOwn(profiles, style) ? style : 'grid';
+    this.region = null; this.regionGain = 1;
+    for (const s of this.oneshots) { try { s.stop(); } catch (_) {} }
+    await this.replaceLoop(profiles[this.style].file);
+    if (this.enabled) await Promise.all(['stone', 'gravel', 'leaves', 'mud', 'snow', 'ice', 'wood', 'metal']
+      .map(m => this.buffer('step_'+m+'.wav')));
+  }
+  async replaceLoop(file) {
     const version = ++this.version;
+    this.currentFile = file;
     this.stopSteps(); this.updateGains();
     // Retire the previous source immediately; slow downloads must not leave the old scene audible.
     for (const item of this.loops) {
@@ -74,7 +87,9 @@ export class Soundscape {
       try { item.source.stop(this.ctx.currentTime+0.55); } catch (_) {}
     }
     if (!this.enabled) return;
-    const buffer = await this.buffer(profiles[this.style].file);
+    let buffer;
+    try { buffer = await this.buffer(file); }
+    catch (e) { if (version === this.version) this.currentFile = null; throw e; }
     if (version !== this.version || !this.enabled) return;
     const source = this.ctx.createBufferSource(), gain = this.ctx.createGain();
     source.buffer = buffer; source.loop = true; gain.gain.value = 0;
@@ -82,20 +97,19 @@ export class Soundscape {
     const item = { source, gain }; this.loops.add(item);
     source.onended = () => { this.loops.delete(item); source.disconnect(); gain.disconnect(); };
     source.start(); this.gain(gain, 1, 0.25);
-    // Preload footsteps; the first physical step must not wait for a file download.
-    await Promise.all(['stone', 'gravel', 'leaves', 'mud'].map(m => this.buffer('step_'+m+'.wav')));
   }
-  async shot(file, pan=0, isStep=false) {
+  async shot(file, pan=0, isStep=false, level=1) {
     if (!this.enabled || this.style === 'grid' && !this.trainingAudio) return;
     const version = this.version, generation = this.stepGeneration || 0;
     const buffer = await this.buffer(file);
     if (!this.enabled || version !== this.version || isStep && generation !== (this.stepGeneration || 0)) return;
-    const source = this.ctx.createBufferSource(), panner = this.ctx.createStereoPanner();
+    const source = this.ctx.createBufferSource(), panner = this.ctx.createStereoPanner(), gain = this.ctx.createGain();
     source.buffer = buffer; panner.pan.value = pan;
-    source.connect(panner); panner.connect(this.effects);
+    gain.gain.value = Math.max(0, Math.min(1, level));
+    source.connect(panner); panner.connect(gain); gain.connect(this.effects);
     this.oneshots.add(source);
     if (isStep) this.steps.add(source);
-    source.onended = () => { this.oneshots.delete(source); this.steps.delete(source); source.disconnect(); panner.disconnect(); };
+    source.onended = () => { this.oneshots.delete(source); this.steps.delete(source); source.disconnect(); panner.disconnect(); gain.disconnect(); };
     source.start();
   }
   step(material='stone') {
@@ -129,7 +143,7 @@ export class Soundscape {
   diagnostics() {
     if (this.meter) this.meter.getFloatTimeDomainData(this.meterSamples);
     const rms = this.meterSamples ? Math.sqrt(this.meterSamples.reduce((n,x)=>n+x*x,0)/this.meterSamples.length) : 0;
-    return { enabled: this.enabled, style: this.style, audioContext: this.ctx?.state || 'not-created',
+    return { enabled: this.enabled, style: this.style, file: this.currentFile, audioContext: this.ctx?.state || 'not-created',
       sampleRate: this.ctx?.sampleRate, baseLatencyEstimate: this.ctx?.baseLatency,
       outputLatencyEstimate: this.ctx?.outputLatency, activeLoops: this.loops.size,
       digitalRmsDbFS: Math.round(20*Math.log10(Math.max(rms,1e-6))),

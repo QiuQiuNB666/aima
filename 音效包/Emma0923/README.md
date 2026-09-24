@@ -1,76 +1,76 @@
-# Emma0923 · 五场景音效包
+# Emma0923 · 游戏环境音效包 v0.2
 
-**提交标注：Emma0923｜2026-09-23｜v0.1**
+**2026-09-24｜依据 main 9832875｜分支 emma0923/audio-pack**
 
-供同事按需选取、试听和合并。全部交付物都在本目录内，分支 `emma0923/audio-pack`；本次没有修改已有游戏引擎、外骨骼控制或语音代码。音频设计对应仓库 5 套主题、6 条路线，共 **11 个双声道 WAV**。
+新增 **26 个音频**，原 11 个 WAV 保持不变，共 **37 个 WAV / 53.44 MB**。覆盖 **8 套声景、8 条登山与训练路线、屋顶跑酷界面**。交付仅在本目录，继续用 Emma0923 标记。
 
-## 只要声音：直接取 assets
+**本包提供素材、映射和试听台，尚未自动挂载主游戏。** 现有游戏合成音继续由原代码管理；接入时替换同类声音，避免叠播。
 
-| 场景 / 用途 | 对应主题 | 文件 | 内容 |
-| --- | --- | --- | --- |
-| 泰山·十八盘 | `dawn_mountain` | [taishan.wav](assets/taishan.wav) | 24 秒，风与稀疏鸟鸣，可循环 |
-| 富士山·吉田线夜登 | `night_to_dawn` | [fuji.wav](assets/fuji.wav) | 24 秒，高山阵风，可循环 |
-| 赛博东京·夜行 | `cyber_night` | [tokyo.wav](assets/tokyo.wav) | 24 秒，雨声与合成远处车流感，可循环 |
-| 梧桐山·好汉坡 | `subtropical` | [wutong.wav](assets/wutong.wav) | 24 秒，较密鸟鸣与林间风，可循环 |
-| 长坡 / 台阶训练场 | `grid` | [training.wav](assets/training.wav) | 8 秒，可选轻室内底音；默认静音 |
-| 石阶脚步 | 平地 / 台阶 | [step_stone.wav](assets/step_stone.wav) | 单次触发 |
-| 碎石脚步 | 富士山 | [step_gravel.wav](assets/step_gravel.wav) | 单次触发 |
-| 落叶脚步 | 梧桐山 | [step_leaves.wav](assets/step_leaves.wav) | 单次触发 |
-| 泥地脚步 | 备用素材 | [step_mud.wav](assets/step_mud.wav) | 单次触发，当前试听台未默认使用 |
-| 通关提示 | 完成一圈 | [arrive.wav](assets/arrive.wav) | 原创合成提示音 |
-| 路段提示 | 由集成方选择 | [checkpoint.wav](assets/checkpoint.wav) | 原创合成提示音 |
+## 场景与文件
 
-格式：48 kHz / 16-bit / 立体声 WAV。脚步没有混进环境底音，方便停步时立即停止。地域名称表示游戏设计方向，**不是这些地点的实地录音**。
+| 场景 / 用途 | assets/ 中的文件 | 内容 |
+| --- | --- | --- |
+| 珠峰营地 | everest_camp.wav | 24 秒，低风与炉火气流 |
+| 珠峰冰川、冰壁、横梯 | everest_glacier.wav | 24 秒，开阔冷风与细雪感 |
+| 北山脊、刀脊、北壁横切 | everest_ridge.wav | 24 秒，风吼与间歇尖啸 |
+| 华山悬崖与栈道 | huashan_cliff.wav | 24 秒，悬崖风与松风感 |
+| 屋顶跑酷 | parkour_rooftop.wav | 24 秒，屋顶风与远处车流 |
+| 东京可选氛围层 | cyber_pad.wav | 24 秒，原创科幻低音垫 |
+| 珠峰直升机 | helicopter_rotor.wav | 8 秒，按距离 / 转速调节的旋翼循环 |
+| 新脚步 | step_snow / step_ice / step_metal / step_wood.wav | 雪、冰爪、金属梯、木板；单次 |
+| 地图互动 | rope_creak / carabiner_click / chain_clink / flag_flap / yak_bell.wav | 绳索、扣锁、铁链、布料、牦牛铃 |
+| 吸氧 / 可选呼吸 | oxygen_hiss / breath.wav | 气流设计音；呼吸默认不自动启用 |
+| 跑酷动作 | parkour_jump / parkour_land / parkour_slide / parkour_hit / mech_hum.wav | 跳跃、落地、滑铲、碰撞、机甲低鸣 |
+| 东京动作 | cyber_camo / cyber_glitch / taiko.wav | 迷彩、故障、登顶鼓点 |
+| 原五套声景 | taishan / fuji / tokyo / wutong / training.wav | 原文件保持不变；训练场默认静音 |
+| 原脚步 / 提示 | step_stone / step_gravel / step_leaves / step_mud / arrive / checkpoint.wav | 原文件保持不变 |
 
-CC0 素材与原创合成音的作者、来源、改动见 [CREDITS.md](CREDITS.md)；文件 SHA-256 和数字电平见 [manifest.json](manifest.json)。选取 WAV 时请同时保留这两份追溯文件。
+全部为 **48 kHz / 16-bit / 立体声 WAV**。7 个新循环不混入脚步、口播或固定步频；19 个新单次音随画面事件触发。新增声音为原创程序合成，按 CC0-1.0 提供，不是 AI 音频模型生成，也不是当地实地录音。旧 CC0 素材继续保留来源。
 
-## 想先听：运行试听台
+- [assets/](assets/)：直接选取音频。
+- [SCENE-MAP.json](SCENE-MAP.json)：66 个路段、21 项事件、2 个额外叠层的匹配与增益。
+- [manifest.json](manifest.json)：文件时长、循环标志、SHA-256、数字电平及来源。
+- [CREDITS.md](CREDITS.md)：授权与改动说明。
+- [接入说明](docs/接入与远程测试.md)：最新游戏代码中的替换位置与眼镜测试。
+- [数字检查](docs/audio-qa-20260924.json)：37 文件的峰值、循环接缝和单声道合成检查。
 
-在仓库根目录执行（Python 3.9+，只用标准库）：
+选取 WAV 时请同时保留来源、manifest 与映射。worlds/ 是设计快照，不要覆盖游戏地图。
+
+## 试听
+
+在仓库根目录运行，Python 3.9+，仅标准库：
 
 ```sh
 python "音效包/Emma0923/tools/serve_soundscape.py" --port 8890
 ```
 
-在运行服务器的电脑打开 `http://127.0.0.1:8890/`，点击「启用声音」。有声道检查、声画脉冲、模拟脚步、解说压低环境音和测试记录导出。不需要 Google Key、网络音频服务或麦克风权限。
+打开 http://127.0.0.1:8890/ ，点击「启用声音」并选择场景 / 路段。第三块可逐个试听、下载全部素材；单项播放会停止场景混音。页面进入后台会停声。
 
-要跟随同一电脑上的游戏实际进度，添加只读来源地址（8877 请换成实际游戏端口）：
+同机跟随登山游戏：
 
 ```sh
-python "音效包/Emma0923/tools/serve_soundscape.py" --port 8890 --source http://127.0.0.1:8877
+python "音效包/Emma0923/tools/serve_soundscape.py" --port 8890 --source http://127.0.0.1:8765
 ```
 
-随后在页面展开「跟随正在运行的游戏」并连接。只读取状态，不向外骨骼发送指令。首次连接不补播旧脚步；红灯和停止行走时不播放脚步；状态过期会停止声音。切到后台默认停止，重新启用需要用户点击。
+试听台只读 /state，按珠峰 / 华山路段切换底音和脚步。初次连接、跳步、乱序、断线和换地图不补播旧脚步。**跑酷事件在前端 run 内，不能通过服务端 /state 自动跟随**；本包提供跑酷手动试听及事件映射。
 
-## 想接进游戏：取播放器代码
+选择眼镜作为系统媒体输出即可尝试播放，E06s 的实际听感和蓝牙延迟仍需佩戴者确认。
 
-- `audio.mjs`：循环音、脚步、渐变、解说压低环境音、音量和声道测试。
-- `state.mjs`：按 `theme.style` 匹配声音；处理首次状态、换世界、乱序、跳步和断线。
-- `lab.mjs` / `index.html` / `style.css`：可运行的集成参考与试听界面。
-- `tools/`：本包独立服务器和音频重建脚本；`worlds/` 为设计所用场景快照。
-- [接入与远程测试](docs/接入与远程测试.md)：与主服务器、峰哥解说和眼镜配合的方法。
+## 合并与重建
 
-如需复制到原游戏目录，可将本目录根部的 `*.mjs`、`index.html`、`style.css`、`manifest.json`、`CREDITS.md` 和 `assets/` 一起放入 `shellos/ui/static/soundscape/`。主服务器路由、语音开始/结束事件由相应维护人接入。当前包并未自动挂载到主游戏。
+本 PR 相对 main 仅增加本目录，未修改游戏引擎、语音服务或硬件控制。直接取 assets/ 或整个目录均可；已有 v0.1 的同事更新此目录即可。主游戏接入需按接入说明替换同类合成声，并接真实解说开始 / 结束事件压低环境音。
 
-## 验证和当前边界
-
-在本音效包目录执行：
+新增素材仅依赖 numpy，可完全离线重建：
 
 ```sh
-node --test tests/soundscape-state.test.mjs
+cd "音效包/Emma0923"
+python tools/build_expansion.py
+node tools/build_scene_map.mjs
+python tools/check_assets.py
+node --test tests/*.test.mjs
 python -m unittest discover -s tests -p test_soundscape.py -v
 ```
 
-5 个状态测试、3 个素材/代理检查通过。先前本地浏览器已验证五套声音解码、数字输出、训练场静音、红灯脚步抑制和连接失败停播；见 [数字检查](docs/环境音数字检查.json)。
+旧 11 文件从原素材重建时，需要 numpy、ffmpeg；按 sources.json 中带 file 的条目下载原文件并校验，雨声 / 脚步 ZIP 解压为 rain/、steps/，运行 `python tools/build_soundscape.py --sources <目录>`，再执行扩展生成与映射命令。original-procedural 来源是生成器，不是下载项。
 
-**E06s 远程实机验收待完成**：需要在连接眼镜的电脑选择眼镜为系统音频输出，由佩戴者确认左右声道和延迟。此包不包含眼镜厂商 SDK、摄像头读取、头部追踪或所有品牌的兼容保证。
-
-## 重新生成音频
-
-构建阶段需要 numpy 和 ffmpeg；日常播放不需要。按 `sources.json` 中的 URL 下载原文件并按 `file` 字段命名，将 `sources.json` 复制到原素材目录；雨声和脚步 ZIP 分别解压进该目录的 `rain/`、`steps/`。然后从本包目录运行：
-
-```sh
-python tools/build_soundscape.py --sources /path/to/audio-sources
-```
-
-脚本先核对原文件 SHA-256，再生成音频和 manifest。发布前请重新执行上述检查。
+/tools/browser-check.html 可无声检查全部 WAV 的浏览器解码。数字检查不代替人耳音质或眼镜实机验收。历史 v0.1 检查保留在 docs/环境音数字检查.json。

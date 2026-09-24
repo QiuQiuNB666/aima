@@ -5,7 +5,7 @@
 <body>
 <main>
 <header><span class="eyebrow">AIMA / SOUNDSCAPE LAB · 01</span><span class="tag">E06s & 通用音频输出</span></header>
-<section class="intro"><div><h1>让风景，<br>走进耳朵。</h1><p>五套游戏声景 · 脚步随进度触发 · 支持无屏眼镜<br>无需 Google Key，无需眼镜专用 App。</p></div><div class="orb" aria-hidden="true"><span>山 的 声 音</span></div></section>
+<section class="intro"><div><h1>让风景，<br>走进耳朵。</h1><p>八套游戏声景 · 珠峰 / 华山 / 屋顶跑酷已加入<br>Emma0923 音效包 · 2026.09.24 更新</p></div><div class="orb" aria-hidden="true"><span>山 的 声 音</span></div></section>
 <div class="notice">先在电脑系统中将声音输出选为眼镜。远程桌面的音频转发可能把声音送到另一台电脑；最终需要佩戴者确认。</div>
 <div class="bar"><button id="enable" class="primary">启用声音</button><button id="stop">停止全部声音</button><label>音量 <input id="volume" aria-label="音量" type="range" min="0" max="80" value="25"><output id="volumeText">25%</output></label></div>
 <p id="status" role="status">等待点击启用 · 初始音量 25% · 页面进入后台会停止</p>
@@ -15,6 +15,7 @@
 <section class="panel"><span class="eyebrow">01 / 场景试听</span><h2 id="sceneTitle">泰山 · 十八盘</h2><p id="sceneDetail"></p>
 <label class="field">路线 <select id="route"></select></label>
 <label class="field">当前路段 <select id="segment"></select></label>
+<p id="matched" class="subtle"></p>
 <div class="bar small"><button id="walk">模拟行走</button><button id="single">走一步</button><button id="arrive">通关音效</button></div>
 <label class="check"><input id="training" type="checkbox">训练场也播放底音和脚步（默认静音）</label>
 <label class="check"><input id="duck" type="checkbox">模拟解说中：压低环境音</label>
@@ -31,5 +32,10 @@
 <button id="report">导出测试记录</button>
 </section>
 </div>
+<section class="panel" style="margin-top:20px"><span class="eyebrow">03 / 素材文件</span><h2>逐个试听与选取</h2>
+<p>单项试听会停止场景混音。新增音效为原创程序合成，旧素材保留 CC0 来源记录。</p>
+<label class="field">音频文件 <select id="asset"></select></label><p id="assetDescription"></p>
+<audio id="assetPlayer" controls preload="none" aria-label="单项素材播放器"></audio>
+<p><a id="assetDownload" download>下载当前 WAV</a> · <a href="SCENE-MAP.json">查看场景映射</a></p></section>
 <footer><span>CC0 素材 + 原创合成 · 离线播放</span><a href="CREDITS.md" id="creditsLink">素材与授权</a></footer>
 </main><script type="module" src="lab.mjs"></script></body></html>

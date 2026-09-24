@@ -89,6 +89,8 @@ def main():
     records = []
     sources = json.loads((src/'sources.json').read_text(encoding='utf-8'))
     for entry in sources:
+        if 'file' not in entry:  # Original procedural expansion has no downloaded input.
+            continue
         assert hashlib.sha256((src/entry['file']).read_bytes()).hexdigest() == entry['sha256']
     birds, wind, rain = read(src/'birds.ogg'), read(src/'wind.wav'), read(src/'rain/1.ogg')
     breeze = level(loop(wind), 0.050)
