@@ -1,0 +1,6 @@
+*.wav -text
+*.py text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.md text eol=lf

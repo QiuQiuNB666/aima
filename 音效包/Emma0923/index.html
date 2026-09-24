@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>山的声音 · AIMA 眼镜试听台</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main>
+<header><span class="eyebrow">AIMA / SOUNDSCAPE LAB · 01</span><span class="tag">E06s & 通用音频输出</span></header>
+<section class="intro"><div><h1>让风景，<br>走进耳朵。</h1><p>八套游戏声景 · 珠峰 / 华山 / 屋顶跑酷已加入<br>Emma0923 音效包 · 2026.09.24 更新</p></div><div class="orb" aria-hidden="true"><span>山 的 声 音</span></div></section>
+<div class="notice">先在电脑系统中将声音输出选为眼镜。远程桌面的音频转发可能把声音送到另一台电脑；最终需要佩戴者确认。</div>
+<div class="bar"><button id="enable" class="primary">启用声音</button><button id="stop">停止全部声音</button><label>音量 <input id="volume" aria-label="音量" type="range" min="0" max="80" value="25"><output id="volumeText">25%</output></label></div>
+<p id="status" role="status">等待点击启用 · 初始音量 25% · 页面进入后台会停止</p>
+<p id="diagnostics" class="subtle">数字输出：待启用（不代表眼镜实测）</p>
+<div class="cards" id="scenes" aria-label="选择场景"></div>
+<div class="columns">
+<section class="panel"><span class="eyebrow">01 / 场景试听</span><h2 id="sceneTitle">泰山 · 十八盘</h2><p id="sceneDetail"></p>
+<label class="field">路线 <select id="route"></select></label>
+<label class="field">当前路段 <select id="segment"></select></label>
+<p id="matched" class="subtle"></p>
+<div class="bar small"><button id="walk">模拟行走</button><button id="single">走一步</button><button id="arrive">通关音效</button></div>
+<label class="check"><input id="training" type="checkbox">训练场也播放底音和脚步（默认静音）</label>
+<label class="check"><input id="duck" type="checkbox">模拟解说中：压低环境音</label>
+<p class="subtle">场景声是游戏混音，不是当地实录。训练场保留静音，避免干扰盲测。头部追踪和自动识别眼镜型号尚未接入。</p>
+<details><summary>跟随正在运行的游戏（只读）</summary><p>在游戏电脑用 Python 启动随包服务器并指定 <code>--source</code>；随后打开该服务器页面。每次只读 /state，不发送控制指令。</p><button id="live">连接游戏状态</button><p id="liveStatus">未连接</p></details>
+</section>
+<section class="panel"><span class="eyebrow">02 / 佩戴者检查</span><h2>声音到了眼镜吗？</h2><p>由远程电脑播放，佩戴者听完填写。网页只能验证播放管线，不能代替你的耳朵。</p>
+<div class="bar small"><button id="left">左声道</button><button id="center">居中</button><button id="right">右声道</button></div>
+<label class="field">声道结果 <select id="channels"><option value="untested">尚未确认</option value="pass">左右正确，居中正常</option><option value="swapped">左右相反</option><option value="mono">听起来都是居中 / 单声道</option><option value="silent">无声 / 声音来自电脑</option></select></label>
+<div class="pulseRow"><button id="pulse">声画同步脉冲</button><div id="flash" aria-label="同步闪光"></div></div>
+<label class="field">听到声音与看到闪光 <select id="delay"><option value="untested">尚未确认</option><option value="acceptable">体感基本同步</option><option value="late">声音明显滞后</option><option value="early">声音明显提前</option></select></label>
+<p class="subtle">脉冲用于主观比较，不是自动延迟测量；请看游戏电脑屏幕，远程视频自身也有延迟。</p>
+<label class="field">备注 <textarea id="notes" placeholder="例如：E06s，Windows，左右正常；东京雨声偏大。"></textarea></label>
+<button id="report">导出测试记录</button>
+</section>
+</div>
+<section class="panel" style="margin-top:20px"><span class="eyebrow">03 / 素材文件</span><h2>逐个试听与选取</h2>
+<p>单项试听会停止场景混音。新增音效为原创程序合成，旧素材保留 CC0 来源记录。</p>
+<label class="field">音频文件 <select id="asset"></select></label><p id="assetDescription"></p>
+<audio id="assetPlayer" controls preload="none" aria-label="单项素材播放器"></audio>
+<p><a id="assetDownload" download>下载当前 WAV</a> · <a href="SCENE-MAP.json">查看场景映射</a></p></section>
+<footer><span>CC0 素材 + 原创合成 · 离线播放</span><a href="CREDITS.md" id="creditsLink">素材与授权</a></footer>
+</main><script type="module" src="lab.mjs"></script></body></html>

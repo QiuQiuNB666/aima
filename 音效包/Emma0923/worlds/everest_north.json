@@ -1,0 +1,111 @@
+{
+ "name": "珠峰·北坡",
+ "subtitle": "大本营 → 东绒布冰川 → 北坳横梯 → 刀脊大风口 → 北壁横切 → 第二台阶 → 顶峰",
+ "story": "从大本营的经幡下出发，沿冰川走到前进营地，挂着固定绳爬上北坳冰壁，踩着绑在一起的铝梯过冰裂缝，顶着大风走过两边都是悬崖的刀脊，贴着北壁横切，在第二台阶下排队等上梯，最后几步踩上 8848.86。",
+ "note": "按真实爬升比例压成 67 步。大本营 5200、前进营地约 6500、北坳 7028、顶峰 8848.86 m（2020 年中尼共同公布的雪面高程）；海拔读数按爬升比例插值：北坳一带低约 200 m，第一台阶 / 横切一带低 300–500 m（为了加刀脊和横切，中段拉长了），大风口约 7500、顶峰对得上。1960 年中国登山队首次从北坡登顶；中国梯 1975 年架设，原梯 2008 年收进拉萨珠峰登山博物馆。北坳上架铝梯过裂缝是真有的（有些年份没有）；刀脊和贴壁栈道为了惊险感收窄、加陡了。",
+ "alt": [
+  5200,
+  8848.86
+ ],
+ "unit": "m",
+ "route": [
+  {
+   "kind": "flat",
+   "steps": 3,
+   "label": "珠峰大本营"
+  },
+  {
+   "kind": "up",
+   "steps": 19,
+   "label": "东绒布冰川",
+   "turns": 2
+  },
+  {
+   "kind": "flat",
+   "steps": 2,
+   "label": "前进营地"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 5,
+   "label": "北坳冰壁"
+  },
+  {
+   "kind": "flat",
+   "steps": 5,
+   "label": "北坳裂缝·横梯"
+  },
+  {
+   "kind": "wait",
+   "steps": 1,
+   "label": "北坳营地·吸氧"
+  },
+  {
+   "kind": "up",
+   "steps": 12,
+   "label": "北山脊"
+  },
+  {
+   "kind": "up",
+   "steps": 7,
+   "label": "大风口·刀脊"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 2,
+   "label": "第一台阶"
+  },
+  {
+   "kind": "up",
+   "steps": 6,
+   "label": "北壁横切·贴壁栈道"
+  },
+  {
+   "kind": "wait",
+   "steps": 1,
+   "label": "第二台阶·排队上梯"
+  },
+  {
+   "kind": "stairs_up",
+   "steps": 3,
+   "label": "第二台阶·中国梯"
+  },
+  {
+   "kind": "up",
+   "steps": 1,
+   "label": "顶峰雪坡"
+  }
+ ],
+ "summit": {
+  "name": "珠穆朗玛峰",
+  "text": "8848.86，到头了。这是个好事儿啊，再往上没路，只能下山。"
+ },
+ "theme": {
+  "style": "snow_summit",
+  "sky": [
+   "#1447a2",
+   "#a8c8ea"
+  ],
+  "fog": "#c6d6ea",
+  "ground": "#e8eef5",
+  "path": "#dce4ee",
+  "stairs": "#f1f6fb",
+  "accent": [
+   "#d7342b",
+   "#2f6fd6",
+   "#f2c230"
+  ],
+  "props": [
+   "prayer_flags",
+   "tents",
+   "ice_pinnacles",
+   "fixed_rope",
+   "oxygen",
+   "ladder",
+   "queue",
+   "survey_beacon",
+   "cloud_sea"
+  ]
+ },
+ "id": "everest_north"
+}

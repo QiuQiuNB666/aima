@@ -1,0 +1,239 @@
+{
+  "decodedCount": 37,
+  "decoded": [
+    {
+      "file": "assets/taishan.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/fuji.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/tokyo.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/wutong.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/training.wav",
+      "duration": 8,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_stone.wav",
+      "duration": 0.2934791666666667,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_gravel.wav",
+      "duration": 0.7039166666666666,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_leaves.wav",
+      "duration": 0.39127083333333335,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_mud.wav",
+      "duration": 0.2599375,
+      "channels": 2
+    },
+    {
+      "file": "assets/arrive.wav",
+      "duration": 1.5,
+      "channels": 2
+    },
+    {
+      "file": "assets/checkpoint.wav",
+      "duration": 0.8,
+      "channels": 2
+    },
+    {
+      "file": "assets/everest_camp.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/everest_glacier.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/everest_ridge.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/huashan_cliff.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/parkour_rooftop.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/cyber_pad.wav",
+      "duration": 24,
+      "channels": 2
+    },
+    {
+      "file": "assets/helicopter_rotor.wav",
+      "duration": 8,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_snow.wav",
+      "duration": 0.6,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_ice.wav",
+      "duration": 0.6,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_wood.wav",
+      "duration": 0.6,
+      "channels": 2
+    },
+    {
+      "file": "assets/step_metal.wav",
+      "duration": 0.85,
+      "channels": 2
+    },
+    {
+      "file": "assets/rope_creak.wav",
+      "duration": 0.9,
+      "channels": 2
+    },
+    {
+      "file": "assets/carabiner_click.wav",
+      "duration": 0.32,
+      "channels": 2
+    },
+    {
+      "file": "assets/chain_clink.wav",
+      "duration": 0.9,
+      "channels": 2
+    },
+    {
+      "file": "assets/flag_flap.wav",
+      "duration": 1.1,
+      "channels": 2
+    },
+    {
+      "file": "assets/yak_bell.wav",
+      "duration": 1.8,
+      "channels": 2
+    },
+    {
+      "file": "assets/oxygen_hiss.wav",
+      "duration": 1.6,
+      "channels": 2
+    },
+    {
+      "file": "assets/breath.wav",
+      "duration": 1.5,
+      "channels": 2
+    },
+    {
+      "file": "assets/parkour_jump.wav",
+      "duration": 0.65,
+      "channels": 2
+    },
+    {
+      "file": "assets/parkour_land.wav",
+      "duration": 0.7,
+      "channels": 2
+    },
+    {
+      "file": "assets/parkour_slide.wav",
+      "duration": 0.95,
+      "channels": 2
+    },
+    {
+      "file": "assets/parkour_hit.wav",
+      "duration": 0.6,
+      "channels": 2
+    },
+    {
+      "file": "assets/mech_hum.wav",
+      "duration": 1.5,
+      "channels": 2
+    },
+    {
+      "file": "assets/cyber_camo.wav",
+      "duration": 0.85,
+      "channels": 2
+    },
+    {
+      "file": "assets/cyber_glitch.wav",
+      "duration": 0.55,
+      "channels": 2
+    },
+    {
+      "file": "assets/taiko.wav",
+      "duration": 1.8,
+      "channels": 2
+    }
+  ],
+  "scenes": [
+    {
+      "style": "dawn_mountain",
+      "rms": 0.02978618261807036,
+      "pass": true
+    },
+    {
+      "style": "night_to_dawn",
+      "rms": 0.013806165091879194,
+      "pass": true
+    },
+    {
+      "style": "cyber_night",
+      "rms": 0.0163163433743414,
+      "pass": true
+    },
+    {
+      "style": "subtropical",
+      "rms": 0.019045064332264588,
+      "pass": true
+    },
+    {
+      "style": "grid",
+      "rms": 0,
+      "pass": true
+    },
+    {
+      "style": "snow_summit",
+      "rms": 0.016283170605782726,
+      "pass": true
+    },
+    {
+      "style": "cliff_path",
+      "rms": 0.0125286612170879,
+      "pass": true
+    },
+    {
+      "style": "parkour_rooftop",
+      "rms": 0.015062934134719515,
+      "pass": true
+    }
+  ],
+  "duck": {
+    "ambience": 0.22003526985645294,
+    "effects": 0.45002689957618713
+  },
+  "stoppedRms": 0,
+  "pageErrors": [],
+  "allPassed": true
+}

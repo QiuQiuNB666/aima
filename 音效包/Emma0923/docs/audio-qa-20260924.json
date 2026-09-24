@@ -1,0 +1,342 @@
+{
+  "sourceCommit": "9832875",
+  "assetCount": 37,
+  "totalBytes": 53438800,
+  "allPassed": true,
+  "limitations": "Digital file QA only; no subjective listening or physical glasses verification.",
+  "assets": [
+    {
+      "file": "assets/taishan.wav",
+      "peakDbFS": -8.69,
+      "rmsDbFS": -25.98,
+      "monoRmsRatio": 0.974,
+      "seamJump": 0.002288818359375,
+      "adjacentDifferenceP999": 0.05294808959961017,
+      "errors": []
+    },
+    {
+      "file": "assets/fuji.wav",
+      "peakDbFS": -9.27,
+      "rmsDbFS": -25.4,
+      "monoRmsRatio": 0.965,
+      "seamJump": 0.00042724609375,
+      "adjacentDifferenceP999": 0.023773193359375,
+      "errors": []
+    },
+    {
+      "file": "assets/tokyo.wav",
+      "peakDbFS": -6.59,
+      "rmsDbFS": -24.0,
+      "monoRmsRatio": 0.775,
+      "seamJump": 0.030670166015625,
+      "adjacentDifferenceP999": 0.112823486328125,
+      "errors": []
+    },
+    {
+      "file": "assets/wutong.wav",
+      "peakDbFS": -6.52,
+      "rmsDbFS": -23.43,
+      "monoRmsRatio": 0.964,
+      "seamJump": 0.0042724609375,
+      "adjacentDifferenceP999": 0.10104379272461017,
+      "errors": []
+    },
+    {
+      "file": "assets/training.wav",
+      "peakDbFS": -30.14,
+      "rmsDbFS": -41.95,
+      "monoRmsRatio": 0.699,
+      "seamJump": 0.0001220703125,
+      "adjacentDifferenceP999": 0.000274658203125,
+      "errors": []
+    },
+    {
+      "file": "assets/step_stone.wav",
+      "peakDbFS": -3.1,
+      "rmsDbFS": -28.46,
+      "monoRmsRatio": 0.999,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.10970004272461498,
+      "errors": []
+    },
+    {
+      "file": "assets/step_gravel.wav",
+      "peakDbFS": -3.1,
+      "rmsDbFS": -30.24,
+      "monoRmsRatio": 0.873,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.1213927917480424,
+      "errors": []
+    },
+    {
+      "file": "assets/step_leaves.wav",
+      "peakDbFS": -3.1,
+      "rmsDbFS": -26.72,
+      "monoRmsRatio": 0.996,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.2971720275878902,
+      "errors": []
+    },
+    {
+      "file": "assets/step_mud.wav",
+      "peakDbFS": -3.1,
+      "rmsDbFS": -27.89,
+      "monoRmsRatio": 0.958,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.1997790832519506,
+      "errors": []
+    },
+    {
+      "file": "assets/arrive.wav",
+      "peakDbFS": -13.29,
+      "rmsDbFS": -28.32,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.017425537109375,
+      "errors": []
+    },
+    {
+      "file": "assets/checkpoint.wav",
+      "peakDbFS": -15.05,
+      "rmsDbFS": -27.35,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.0159912109375,
+      "errors": []
+    },
+    {
+      "file": "assets/everest_camp.wav",
+      "peakDbFS": -14.27,
+      "rmsDbFS": -28.4,
+      "monoRmsRatio": 0.969,
+      "seamJump": 0.00274658203125,
+      "adjacentDifferenceP999": 0.0130615234375,
+      "errors": []
+    },
+    {
+      "file": "assets/everest_glacier.wav",
+      "peakDbFS": -11.44,
+      "rmsDbFS": -26.94,
+      "monoRmsRatio": 0.969,
+      "seamJump": 0.002105712890625,
+      "adjacentDifferenceP999": 0.018096923828125,
+      "errors": []
+    },
+    {
+      "file": "assets/everest_ridge.wav",
+      "peakDbFS": -10.14,
+      "rmsDbFS": -26.02,
+      "monoRmsRatio": 0.969,
+      "seamJump": 0.00439453125,
+      "adjacentDifferenceP999": 0.021331787109375,
+      "errors": []
+    },
+    {
+      "file": "assets/huashan_cliff.wav",
+      "peakDbFS": -12.75,
+      "rmsDbFS": -27.74,
+      "monoRmsRatio": 0.968,
+      "seamJump": 0.003448486328125,
+      "adjacentDifferenceP999": 0.013214111328125,
+      "errors": []
+    },
+    {
+      "file": "assets/parkour_rooftop.wav",
+      "peakDbFS": -12.73,
+      "rmsDbFS": -27.33,
+      "monoRmsRatio": 0.969,
+      "seamJump": 0.002044677734375,
+      "adjacentDifferenceP999": 0.01617431640625,
+      "errors": []
+    },
+    {
+      "file": "assets/cyber_pad.wav",
+      "peakDbFS": -22.34,
+      "rmsDbFS": -31.37,
+      "monoRmsRatio": 1.0,
+      "seamJump": 0.00054931640625,
+      "adjacentDifferenceP999": 0.00067138671875,
+      "errors": []
+    },
+    {
+      "file": "assets/helicopter_rotor.wav",
+      "peakDbFS": -11.0,
+      "rmsDbFS": -26.94,
+      "monoRmsRatio": 0.969,
+      "seamJump": 0.003570556640625,
+      "adjacentDifferenceP999": 0.006683349609375,
+      "errors": []
+    },
+    {
+      "file": "assets/step_snow.wav",
+      "peakDbFS": -6.02,
+      "rmsDbFS": -28.82,
+      "monoRmsRatio": 0.97,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.08922747802734365,
+      "errors": []
+    },
+    {
+      "file": "assets/step_ice.wav",
+      "peakDbFS": -6.02,
+      "rmsDbFS": -29.5,
+      "monoRmsRatio": 0.972,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.11819140624999847,
+      "errors": []
+    },
+    {
+      "file": "assets/step_wood.wav",
+      "peakDbFS": -6.02,
+      "rmsDbFS": -26.02,
+      "monoRmsRatio": 0.973,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.03842800903320298,
+      "errors": []
+    },
+    {
+      "file": "assets/step_metal.wav",
+      "peakDbFS": -6.02,
+      "rmsDbFS": -23.92,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.04315823364257865,
+      "errors": []
+    },
+    {
+      "file": "assets/rope_creak.wav",
+      "peakDbFS": -11.51,
+      "rmsDbFS": -26.02,
+      "monoRmsRatio": 0.972,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.016815185546875,
+      "errors": []
+    },
+    {
+      "file": "assets/carabiner_click.wav",
+      "peakDbFS": -7.09,
+      "rmsDbFS": -23.74,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.1217041015625,
+      "errors": []
+    },
+    {
+      "file": "assets/chain_clink.wav",
+      "peakDbFS": -6.02,
+      "rmsDbFS": -24.59,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.09454345703125,
+      "errors": []
+    },
+    {
+      "file": "assets/flag_flap.wav",
+      "peakDbFS": -7.8,
+      "rmsDbFS": -24.73,
+      "monoRmsRatio": 0.967,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.0370424194335941,
+      "errors": []
+    },
+    {
+      "file": "assets/yak_bell.wav",
+      "peakDbFS": -8.02,
+      "rmsDbFS": -26.02,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.03997802734375,
+      "errors": []
+    },
+    {
+      "file": "assets/oxygen_hiss.wav",
+      "peakDbFS": -10.73,
+      "rmsDbFS": -26.94,
+      "monoRmsRatio": 0.969,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.102813720703125,
+      "errors": []
+    },
+    {
+      "file": "assets/breath.wav",
+      "peakDbFS": -13.6,
+      "rmsDbFS": -29.12,
+      "monoRmsRatio": 0.968,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.0220947265625,
+      "errors": []
+    },
+    {
+      "file": "assets/parkour_jump.wav",
+      "peakDbFS": -9.65,
+      "rmsDbFS": -25.19,
+      "monoRmsRatio": 0.968,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.047607421875,
+      "errors": []
+    },
+    {
+      "file": "assets/parkour_land.wav",
+      "peakDbFS": -6.02,
+      "rmsDbFS": -24.88,
+      "monoRmsRatio": 0.997,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.03374642944335937,
+      "errors": []
+    },
+    {
+      "file": "assets/parkour_slide.wav",
+      "peakDbFS": -10.58,
+      "rmsDbFS": -24.73,
+      "monoRmsRatio": 0.968,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.06606454467773437,
+      "errors": []
+    },
+    {
+      "file": "assets/parkour_hit.wav",
+      "peakDbFS": -6.02,
+      "rmsDbFS": -25.28,
+      "monoRmsRatio": 0.997,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.0235595703125,
+      "errors": []
+    },
+    {
+      "file": "assets/mech_hum.wav",
+      "peakDbFS": -13.8,
+      "rmsDbFS": -24.44,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.002166748046875,
+      "errors": []
+    },
+    {
+      "file": "assets/cyber_camo.wav",
+      "peakDbFS": -9.92,
+      "rmsDbFS": -26.02,
+      "monoRmsRatio": 0.97,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.08541961669922049,
+      "errors": []
+    },
+    {
+      "file": "assets/cyber_glitch.wav",
+      "peakDbFS": -8.28,
+      "rmsDbFS": -27.13,
+      "monoRmsRatio": 0.971,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.11557098388671916,
+      "errors": []
+    },
+    {
+      "file": "assets/taiko.wav",
+      "peakDbFS": -7.89,
+      "rmsDbFS": -23.74,
+      "monoRmsRatio": 1.0,
+      "seamJump": null,
+      "adjacentDifferenceP999": 0.010504241943359638,
+      "errors": []
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "loopChecks": [
+    {
+      "file": "assets/taishan.wav",
+      "boundaryJumpVs99_9Percentile": 0.0432
+    },
+    {
+      "file": "assets/fuji.wav",
+      "boundaryJumpVs99_9Percentile": 0.018
+    },
+    {
+      "file": "assets/tokyo.wav",
+      "boundaryJumpVs99_9Percentile": 0.2718
+    },
+    {
+      "file": "assets/wutong.wav",
+      "boundaryJumpVs99_9Percentile": 0.0423
+    },
+    {
+      "file": "assets/training.wav",
+      "boundaryJumpVs99_9Percentile": 0.4444
+    }
+  ],
+  "tests": {
+    "nodeStateTests": 5,
+    "pythonTests": 3
+  },
+  "browser": "Chromium in-app, all five loops decoded; digital meter active; training silence verified",
+  "hardwareTest": "NOT RUN: remote headset access and wearer feedback pending"
+}

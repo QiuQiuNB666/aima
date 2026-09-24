@@ -1,0 +1,51 @@
+[
+  {
+    "id": "birds",
+    "author": "Spring Spring",
+    "page": "https://opengameart.org/content/birds-and-wind-ambient-birds-wind-and-synth",
+    "url": "https://opengameart.org/sites/default/files/Birds%20and%20Wind%20-%20Ambient_1.ogg",
+    "file": "birds.ogg",
+    "license": "CC0-1.0",
+    "sha256": "28f99f536a0772d80052f03bcb22c9ed8fd7c6e4db7f2e8356efcf26a8e24f01",
+    "retrieved": "2026-09-23"
+  },
+  {
+    "id": "wind",
+    "author": "Luke.RUSTLTD",
+    "page": "https://opengameart.org/content/wind1",
+    "url": "https://opengameart.org/sites/default/files/wind1.wav",
+    "file": "wind.wav",
+    "license": "CC0-1.0",
+    "sha256": "a2856f794fbf77e05f8241dc4adeade7f62fa21c3c9dc49f7725b6c6218060c3",
+    "retrieved": "2026-09-23"
+  },
+  {
+    "id": "rain",
+    "author": "Ylmir",
+    "page": "https://opengameart.org/content/rain-loopable",
+    "url": "https://opengameart.org/sites/default/files/Rain%20OGG.zip",
+    "file": "rain.zip",
+    "license": "CC0-1.0",
+    "sha256": "e68f3e1c77493cf43bec84cebff5043bff6be9ce16d59b24caa988cd460aa75b",
+    "retrieved": "2026-09-23"
+  },
+  {
+    "id": "steps",
+    "author": "TinyWorlds",
+    "page": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "url": "https://opengameart.org/sites/default/files/%5Bkdd%5DDifferentSteps_0.zip",
+    "file": "steps.zip",
+    "license": "CC0-1.0",
+    "sha256": "987d072b7deaa65177e005ddd8185f2351be7c9a76cd7575dea560549c39b33b",
+    "retrieved": "2026-09-23"
+  },
+  {
+    "id": "original-Emma0924",
+    "author": "AIMA / Emma0923 音效包 · 2026-09-24 扩展",
+    "license": "CC0-1.0",
+    "kind": "original-procedural",
+    "generator": "tools/build_expansion.py",
+    "externalSamples": false,
+    "generatorSha256": "fd0ac3b542c5da342d1e5c7c00099f4d2f45a29bc948d1f576201324776f65d8"
+  }
+]
