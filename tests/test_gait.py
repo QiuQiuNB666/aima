@@ -74,9 +74,10 @@ def test_gamepad_nudge_and_cycle():
     app = App(L(), Guard(L()), "phase")
     app.on_button(BTN["up"]);    assert app.ctl.p("peak_ext") == 2.0      # 1.5 + 0.5
     app.on_button(BTN["left"]);  assert app.ctl.p("t_ext") == 6.0         # 11 - 5
-    app.on_button(BTN["r1"]);    assert app.ctl.name == "terrain"         # phase → terrain
-    app.on_button(BTN["l1"]);    assert app.ctl.name == "phase_profile"
-    app.on_button(BTN["l1"]);    assert app.ctl.name == "dofc"
+    before = app.ctl.name
+    app.on_button(BTN["r1"]);    assert app.ctl.name == before             # 9/24 展位：L1/R1 锁定，不再切控制律
+    app.on_button(BTN["l1"]);    assert app.ctl.name == before
+    app.set_ctl("dofc");         assert app.ctl.name == "dofc"             # 换控制律走仪表盘 / 接口
     app.on_button(BTN["right"]); assert abs(app.ctl.p("delay_s") - 0.16) < 1e-9   # 0.15 + 0.01
     app.on_button(BTN["l1"]);    assert app.ctl.name == "constant"
     app.on_button(BTN["up"]);    assert app.ctl.p("tl") == 0.5            # 0 + 0.5
