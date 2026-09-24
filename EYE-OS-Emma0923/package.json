@@ -1,7 +1,7 @@
 {
   "name": "eye-os-emma0923",
   "displayName": "EYE OS - Emma0923",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "EYE OS - Emma0923：音频眼镜、通用外接屏与 ShellOS 外骨骼只读实时状态控制台",

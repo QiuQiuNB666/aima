@@ -27,7 +27,7 @@ class GuardedHandSession:
         expected = DeviceIdentity(profile.device_id, profile.port, profile.firmware, 'hands')
         if identity != expected or identity.port.lower() in ('sim', 'replay') or identity.device_id.startswith('sim-'):
             raise ValueError('Profile must match this hand device and firmware')
-        if link.port != identity.port or link.enabled is not True:
+        if link.port != identity.port or link.enabled is not True or getattr(link, 'role', None) != 'hands':
             raise ValueError('Local operator must provide the verified hand link; no auto enable')
         self.link, self.profile, self.identity = link, profile, identity
         self.reboots = getattr(link, 'reboots', 0)
@@ -36,13 +36,14 @@ class GuardedHandSession:
         # HandController supplies per-axis caps and time-based slew. The extra
         # per-tick Guard limiter is set wide enough not to distort that command.
         cap = max(profile.left.cap_nm, profile.right.cap_nm)
-        self.guard = guard_factory(link, soft_cap=cap, slew=2*cap, min_conf=1,
+        self.guard = guard_factory(link, role='hands', soft_cap=cap, slew=2*cap, min_conf=1,
                                    wd_zero=profile.loop_timeout_s, wd_disable=.2,
                                    stream_timeout=profile.sample_timeout_s)
         self.closed = False
 
     def _link_valid(self):
-        return (not self.closed and self.link.port == self.identity.port and self.link.enabled is True
+        return (not self.closed and getattr(self.link, 'closed', False) is not True
+                and self.link.port == self.identity.port and self.link.role == 'hands' and self.link.enabled is True
                 and getattr(self.link, 'reboots', 0) == self.reboots)
 
     def begin(self, sample, interlocks, now):

@@ -12,7 +12,9 @@
   <main>
     <div class="heading"><div><p class="eyebrow">TWO HANDS. NEW POSSIBILITIES.</p><h1>双手，接管世界<span>。</span></h1><p class="intro">抬起解绑的支撑杆，化身左右操作杆。让双手和双腿，共同进入游戏。</p></div><span class="sim-badge">画面试玩 · 不驱动电机</span></div>
     <section class="input-card card" aria-labelledby="input-title">
-      <div class="input-top"><div><h2 id="input-title">外骨骼双杆操控</h2><p class="hint">双设备方案：腿部外骨骼负责行走，手部外骨骼的两根支撑杆负责操作。本页验证手部交互。</p></div><label for="input-source">输入来源<select id="input-source"><option value="keyboard">开发试玩 · 键盘 / 滑杆</option><option value="telemetry">手部外骨骼角度 · 只读</option></select></label></div>
+      <div class="input-top"><div><h2 id="input-title">外骨骼双杆操控</h2><p class="hint">一套也能玩，第二套按需加入。每套设备只承担一个用途。</p></div><label for="layout-mode">试玩配置<select id="layout-mode"><option value="single-hands">一套 · 双手操作杆</option><option value="single-legs">一套 · 腿部行走</option><option value="dual">两套 · 腿部 + 双手</option></select></label><label for="input-source">输入来源<select id="input-source"><option value="keyboard">开发试玩 · 键盘 / 滑杆</option><option value="telemetry">手部外骨骼角度 · 只读</option></select></label></div>
+      <p id="layout-summary" class="status" role="status">一套外骨骼的双杆用于手部，腿部输入关闭。</p>
+      <p class="hint">切换会清除本页输入和校准。连接真机读取时，配置须与本机服务一致；此选项不会切换电机用途或启动另一套设备。</p>
       <div id="telemetry-controls" hidden>
         <div class="button-row"><button class="button secondary" id="telemetry-start">开始读取角度</button><button class="button plain" id="telemetry-stop" disabled>停止读取</button><span id="telemetry-source" class="source-badge">未连接</span></div>
         <p id="telemetry-status" class="status" role="status">读取单独配置的手部数据服务；配置方法见本页底部接入说明。</p>
@@ -36,7 +38,7 @@
         <div class="section-top"><label for="damping">视觉阻尼</label><output id="damping-value" for="damping">50%</output></div>
         <input id="damping" type="range" min="0" max="100" value="50">
         <p class="hint">观察推拉时的虚拟阻力。数值没有真实力矩单位。</p>
-        <div class="button-row"><button class="button secondary" id="pause">暂停模拟</button><button class="button plain" id="reset">回到腿部模式</button></div>
+        <div class="button-row"><button class="button secondary" id="pause">暂停模拟</button><button class="button plain" id="reset">重置本次试玩</button></div>
       </section>
       <section class="play card" aria-labelledby="play-title">
         <div class="section-top"><h2 id="play-title">左右双杆，两种玩法</h2><span class="small-label">02 / PLAY</span></div>
@@ -51,7 +53,7 @@
         <p class="hint footer-note">反馈值为无量纲动画信号。松开握持、断流、页面卡顿或切换窗口会暂停画面；恢复后需回到中位并主动重新就位。</p>
       </section>
     </div>
-    <details class="boundary card"><summary>这版能体验什么，真机还需要什么</summary><p>已实现虚拟解绑、三点角度映射、画面抬起就位、双枪与挖掘机交互。可从独立手部服务只读采样，明确区分真实设备、模拟器与回放；观测记录不作为电机限位。两台设备同时操控行走与双杆的完整游戏联调尚待完成。</p><p>用户已向现场工程师确认支持手持玩法。真实抬杆、保持、阻尼和脉冲需要专用本机控制器、实测参数与握持检测；现有腿部控制器不能直接用于手部。这两个转轴也不等于双手三维定位。</p><p>开发接入：为已验证的手部只读桥接设置 <code>SHELLOS_HANDS_PORT</code>，与腿部 <code>SHELLOS_PORT</code> 分开。不配置时不会读取腿部角度冒充手部设备。详细步骤见仓库 <code>HANDS-MODE-Emma0923.md</code>。</p><p><a href="index.html#device">查看本机设备状态</a> · 本页只 GET 状态，不发送电机命令。</p></details>
+    <details class="boundary card"><summary>这版能体验什么，真机还需要什么</summary><p>已实现虚拟解绑、三点角度映射、画面抬起就位、双枪与挖掘机交互。单套腿部、单套双手和双套协同分别选择；角度观测不作为电机限位。两台设备同时操控行走与双杆的完整游戏联调尚待完成。</p><p>用户已向现场工程师确认支持手持玩法。真实抬杆、保持、阻尼和脉冲需要专用本机控制器、实测参数与握持检测；现有腿部控制器不能直接用于手部。这两个转轴也不等于双手三维定位。</p><p>开发接入：用 <code>EXOSKELETON_MODE</code> 指定 <code>single-legs</code>、<code>single-hands</code> 或 <code>dual</code>。手部源使用 <code>SHELLOS_HANDS_PORT</code>；单套双手时关闭腿部读取，双套时与 <code>SHELLOS_PORT</code> 分开并核对实体设备。详细步骤见仓库 <code>DEVICE-MODES-Emma0924.md</code>。</p><p><a href="index.html#device">查看本机设备状态</a> · 本页只 GET 状态，不发送电机命令。</p></details>
   </main>
 </body>
 </html>

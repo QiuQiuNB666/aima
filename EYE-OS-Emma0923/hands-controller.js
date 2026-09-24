@@ -11,12 +11,24 @@ let raf = null, previous = performance.now();
 const lastShots = {left:0, right:0}, flash = {left:0, right:0};
 const keys = new Set();
 const angleInput = createHandAngleInput();
-let inputSource = 'keyboard', telemetryNote = '读取单独配置的手部数据服务；配置方法见本页底部接入说明。';
+let inputSource = 'keyboard', layout = 'single-hands', telemetryNote = '读取已绑定手部角色的数据服务。';
+$('layout-mode').value = layout;
+const layoutNames = {'single-legs':'一套 · 腿部行走','single-hands':'一套 · 双手操作杆',dual:'两套 · 腿部 + 双手'};
+const sourceErrors = {
+  HANDS_SOURCE_NOT_CONFIGURED:'请配置 SHELLOS_HANDS_PORT，并用 EXOSKELETON_MODE 指定单套双手或双套。',
+  HANDS_ROLE_DISABLED:'本机服务配置为单套腿部，手部读取已关闭。',
+  HANDS_ROLE_MISMATCH:'服务未声明 hands 角色，不能将腿部数据当作手部输入。',
+  DUAL_BINDING_UNVERIFIED:'双套的腿部绑定尚未验证，请检查对应服务及角色。',
+  DEVICE_ROLE_CONFLICT:'两路服务指向同一个设备端口，请重新绑定两套设备。',
+};
 const sourceNames = { hardware:'真实设备', simulation:'模拟器数据', replay:'回放数据' };
 const reader = createHandReader({
   onSample(report) {
-    if(report?.error === 'HANDS_SOURCE_NOT_CONFIGURED') {
-      reader.stop(); angleInput.reset(); suspend(); telemetryNote='请配置独立的 SHELLOS_HANDS_PORT，手部不能复用腿部服务端口'; return;
+    if (sourceErrors[report?.error]) {
+      stopReading(sourceErrors[report.error]); return;
+    }
+    if (report?.layout !== layout || report?.role !== 'hands') {
+      stopReading(`本页选择「${layoutNames[layout]}」，服务配置为「${layoutNames[report?.layout] || '未标注'}」。请核对后重新读取。`); return;
     }
     const result = angleInput.ingest(report, Date.now(), performance.now());
     if (!result.ok) { reader.stop(); suspend(); telemetryNote = result.reason + '；请重新开始读取'; }
@@ -29,12 +41,18 @@ const reader = createHandReader({
 function stopReading(message) {
   reader.stop(); angleInput.reset(); suspend(); telemetryNote = message;
 }
+$('layout-mode').onchange = () => {
+  stopReading('配置已切换，旧输入和校准已清除');
+  layout = Object.hasOwn(layoutNames, $('layout-mode').value) ? $('layout-mode').value : 'single-legs';
+  flash.left = flash.right = 0;
+  action({type:'reset'});
+};
 $('input-source').onchange = () => {
   stopReading('输入来源已切换，请重新准备'); inputSource = $('input-source').value;
   action({ type:'reset' }); render();
 };
 $('telemetry-start').onclick = () => {
-  if (inputSource !== 'telemetry' || document.hidden) return;
+  if (layout === 'single-legs' || inputSource !== 'telemetry' || document.hidden) return;
   stopReading('正在读取本机 ShellOS…'); reader.start(); render();
 };
 $('telemetry-stop').onclick = () => { stopReading('读取已停止，重新开始后需要校准'); render(); };
@@ -51,7 +69,7 @@ $('export-calibration').onclick = () => {
   link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 function renderInput() {
-  const enabled = inputSource === 'telemetry', status = angleInput.status(performance.now());
+  const enabled = inputSource === 'telemetry' && layout !== 'single-legs', status = angleInput.status(performance.now());
   $('telemetry-controls').hidden = !enabled;
   $('telemetry-start').disabled = reader.running;
   $('telemetry-stop').disabled = !reader.running;
@@ -69,7 +87,10 @@ function renderInput() {
   return status;
 }
 
-function action(value) { sim.dispatch(value); render(); }
+function action(value) {
+  if (layout !== 'single-legs' || ['reset','suspend','scene'].includes(value.type)) sim.dispatch(value);
+  render();
+}
 function zeroInputs() { keys.clear(); $('left').value = $('right').value = '0'; }
 function suspend() { zeroInputs(); action({type:'suspend'}); }
 function inputs() { if(inputSource === 'keyboard') action({type:'input',left:Number($('left').value)/100,right:Number($('right').value)/100}); }
@@ -93,6 +114,12 @@ for (const scene of ['range','excavator']) $('scene-'+scene).onclick = () => {
 function render() {
   const s = sim.snapshot(), ready = s.stage === 'ready' && s.holding;
   const sourceStatus = renderInput(), measured = inputSource === 'telemetry';
+  const handsEnabled = layout !== 'single-legs';
+  $('layout-summary').textContent = layout === 'dual' ? '两套独立绑定：腿部负责行走，手部负责左右操作杆。本页只验证手部；两套游戏联动待联调。'
+    : handsEnabled ? '一套外骨骼的双杆用于手部，腿部输入关闭。' : '一套外骨骼用于腿部行走，本页手部输入关闭。腿部体验请返回「设备与能力」。';
+  $('input-source').disabled = !handsEnabled;
+  $('release').disabled = !handsEnabled;
+  $('damping').disabled = !handsEnabled;
   $('release').checked = s.released; $('grip').checked = s.holding;
   $('grip').disabled = !s.calibrated;
   $('calibrate').textContent = measured ? '应用角度校准' : '校准模拟中位';
@@ -105,7 +132,7 @@ function render() {
   $('fire').disabled = !ready || s.scene !== 'range';
   $('fire').hidden = s.scene !== 'range';
   $('fire-right').disabled = $('fire').disabled; $('fire-right').hidden = $('fire').hidden;
-  $('stage-badge').textContent = names[s.stage] || '模拟已停止';
+  $('stage-badge').textContent = !handsEnabled ? '单套腿部 · 手部关闭' : s.stage === 'legs' ? '手部试玩 · 待准备' : names[s.stage] || '模拟已停止';
   $('raise-progress').style.width = `${s.raiseProgress*100}%`;
   $('step-release').classList.toggle('done',s.released);
   $('step-calibrate').classList.toggle('done',s.calibrated);
@@ -117,7 +144,7 @@ function render() {
     : s.stage === 'raising' ? '支撑正在画面中缓慢抬起。取消握持可随时停止。'
     : ready ? measured ? '已就位。前推或后拉两根支撑杆，分别操控左右输入。' : '已就位。拖动左右输入，或使用键盘操作。'
     : '点击抬起到握持位置，继续模拟。';
-  if ($('status').textContent !== status) $('status').textContent = status;
+  $('status').textContent = handsEnabled ? status : '当前选择单套腿部。切换为双手配置后，可重新准备试玩。';
   $('damping-value').textContent = `${Math.round(s.damping*100)}%`;
   $('damping').value = String(s.damping*100);
   $('left-value').textContent = `${Math.round(s.left*100)}%`;

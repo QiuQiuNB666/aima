@@ -1,5 +1,15 @@
 # EYE OS · Emma0923 合并说明
 
+## v0.7 当前增量：单套 / 双套与控制隔离
+
+当前 `EYE-OS-Emma0923/` 为 45 个文件。新增 [DEVICE-MODES-Emma0924.md](DEVICE-MODES-Emma0924.md) 描述单套腿部、单套双手和双套配置；页面切换会清空旧输入与校准，后端只读取所选角色。双套 HTTP 服务端口和上报实体串口必须不同，手部服务必须声明 `link.role: hands`。
+
+本轮涉及公共硬件代码：新增 `shellos/device/ownership.py` 和 `tests/test_device_ownership.py`；修改 SerialLink 的端口独占/角色/重连、Guard 的互斥/关闭生命周期、`shellos/ui/server.py` 的角色字段，以及手部 bridge/capture。请与 v0.6 手部模块一起合并，不要只取网页。原腿部主入口保持 legs 角色，手部不能借用腿部自动 ENABLE 路径。
+
+Node 100 项通过；Python 核心 66 项 + 原腿部故障与 App 回归 26 项通过，另有 2 子测试通过、2 无关 stress 测试排除。全程仅假串口/回放，没有真机输出。合并包是覆盖文件集合，仍需基于现有 aima 仓库审阅，优先使用 PR diff。
+
+下文 v0.3–v0.6 为历史增量记录，旧版「未改 Guard / SerialLink」不适用于 v0.7。
+
 本交付标记为 **Emma0923**，用于区分眼镜伴随控制台与伙伴的外骨骼／游戏工程。它是独立网页应用，不是眼镜固件，也不是 EYEVUE 官方操作系统。
 
 交付目标是现有仓库 **`QiuQiuNB666/aima`** 的 **`EYE-OS-Emma0923/`** 子目录，不另建仓库。通过独立审阅分支和 PR 提交，供伙伴逐项评估；模块仍可在该子目录执行 `node server.mjs` 独立运行。是否进入主分支以 PR 的合并状态为准。

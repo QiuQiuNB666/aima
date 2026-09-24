@@ -199,7 +199,7 @@ class Dashboard:
             "sim": {"on": hasattr(a.link, "set_walk"), "walk": getattr(a.link, "walking", False),
                     "cadence": getattr(a.link, "cadence", 0)},
             "wearer": a.wearer,
-            "link": {"port": getattr(a.link, "port", "?"), "n": a.link.n_frames, "bad": a.link.n_bad,
+            "link": {"port": getattr(a.link, "port", "?"), "role": getattr(a.link, "role", "legs"), "n": a.link.n_frames, "bad": a.link.n_bad,
                      "age_ms": round(min(a.link.stream_age(), 9.999) * 1000),
                      "replies": {k: v for k, v in getattr(a.link, "replies_seen", {}).items() if "\x00" not in k},
                      "last_err": getattr(a.link, "last_err", ""), "enabled": getattr(a.link, "enabled", True),

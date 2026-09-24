@@ -1,6 +1,8 @@
 # EYE OS - Emma0923 · 眼镜控制台
 
-**提交标识：`Emma0923` · 目标仓库：`QiuQiuNB666/aima` · 目标目录：`EYE-OS-Emma0923/` · 版本：`0.6.0`**
+**提交标识：`Emma0923` · 目标仓库：`QiuQiuNB666/aima` · 目标目录：`EYE-OS-Emma0923/` · 版本：`0.7.0`**
+
+v0.7 新增单套腿部 / 单套双手 / 双套协同可选配置，串口独占、控制器互斥、固定角色与重连身份检查。此轮修改了公共 SerialLink、Guard 和状态字段，合并时需要一起带入；仍未驱动真机。详见 [设备配置与防争用](DEVICE-MODES-Emma0924.md)。
 
 供技术伙伴独立评估的待合并模块。请先阅读 [合并指南](MERGE-GUIDE-Emma0923.md) 和 [验证记录](VALIDATION.md)。2026-09-24 已核对 `aima` 的 ShellOS / Three.js 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`；本模块独立运行，已实现固定本机 `/state` 的只读状态桥接，游戏事件与声音联动仍待接入。
 

@@ -100,3 +100,40 @@ test('changing measured-game scene pauses instead of turning a held excavator in
   f.el('scene-range').onclick();assert.equal(f.sim.snapshot().stage,'paused');assert.equal(f.sim.snapshot().shots,0);
   assert.equal(f.sim.snapshot().left,0);assert.equal(f.sim.snapshot().right,0);
 });
+
+test('single/dual selection resets controls and legs-only rejects hand actions',async()=>{
+  const f=fixture();await f.prepare();f.el('left').value='100';f.el('left').oninput();
+  assert.equal(f.sim.snapshot().shotsLeft,1);
+  f.el('layout-mode').value='single-legs';f.el('layout-mode').onchange();
+  assert.equal(f.sim.snapshot().left,0);assert.equal(f.sim.snapshot().calibrated,false);
+  assert.equal(f.el('release').disabled,true);assert.equal(f.el('input-source').disabled,true);
+  f.el('release').checked=true;f.el('release').onchange();f.el('calibrate').onclick();
+  f.el('grip').checked=true;f.el('grip').onchange();f.el('raise').onclick();
+  f.window.emit('keydown',{key:'f'});f.telemetry();
+  assert.equal(f.calls.length,0);assert.equal(f.sim.snapshot().stage,'legs');
+  f.el('layout-mode').value='dual';f.el('layout-mode').onchange();
+  assert.equal(f.el('release').disabled,false);assert.equal(f.sim.snapshot().holding,false);
+  assert.match(f.el('layout-summary').textContent,/两套独立绑定/);
+});
+
+test('switching layout aborts telemetry; stale result cannot restore prior configuration',async()=>{
+  const f=fixture();f.telemetry();const old=f.calls[0];
+  f.el('layout-mode').value='dual';f.el('layout-mode').onchange();
+  assert.equal(old.options.signal.aborted,true);
+  await f.reply({layout:'single-hands',role:'hands',available:true});
+  assert.equal(f.el('telemetry-source').textContent,'未连接');assert.equal(f.timers.size,0);
+  assert.equal(f.sim.snapshot().calibrated,false);
+});
+
+test('telemetry requires the selected layout and an explicit hands role',async()=>{
+  for (const report of [{layout:'dual',role:'hands'}, {layout:'single-hands',role:'legs'}, {}]) {
+    const f=fixture();f.telemetry();await f.reply({...report,available:true});
+    assert.match(f.el('telemetry-status').textContent,/请核对/);
+    assert.equal(f.el('calibrate').disabled,true);assert.equal(f.timers.size,0);
+  }
+  for (const error of ['HANDS_ROLE_DISABLED','HANDS_ROLE_MISMATCH','DEVICE_ROLE_CONFLICT','DUAL_BINDING_UNVERIFIED']) {
+    const f=fixture();f.telemetry();await f.reply({error});
+    assert.equal(f.sim.snapshot().calibrated,false);assert.equal(f.timers.size,0);
+    assert.notEqual(f.el('telemetry-status').textContent,'正在读取本机 ShellOS…');
+  }
+});

@@ -1,5 +1,5 @@
 /* Bump this version whenever shipping an updated app shell. */
-const VERSION = 'emma0923-v5';
+const VERSION = 'emma0923-v7';
 const SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = `eyevue-console:${encodeURIComponent(SCOPE.href)}:`;
 const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;

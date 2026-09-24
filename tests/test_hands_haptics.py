@@ -151,7 +151,7 @@ def test_snapshots_are_detached_and_controller_never_claims_hardware_output():
 
 
 class FakeLink:
-    port='TESTPORT'; enabled=True; reboots=0
+    port='TESTPORT'; enabled=True; reboots=0; role='hands'
     def __init__(self): self.sent=[]
     def stream_age(self): return 0
     def send_torque(self,l,r): self.sent.append(('T',l,r))

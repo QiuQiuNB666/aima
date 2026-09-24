@@ -30,12 +30,13 @@ const send = (res, value = report()) => { res.setHeader('Content-Type', 'applica
 async function appFixture(t, overrides = {}) {
   const { handsSource = false, ...serverOverrides } = overrides;
   const requests = [];
-  const upstream = await listen(t, (req, res) => { requests.push({ method: req.method, url: req.url, host: req.headers.host }); send(res); });
+  const upstream = await listen(t, (req, res) => { requests.push({ method: req.method, url: req.url, host: req.headers.host }); send(res, handsSource ? report({link:{port:'COM7',role:'hands',age_ms:15,enabled:true}}) : report()); });
   let probes = 0;
   let audioCalls = 0;
   const app = createConsoleServer({
     platform: 'win32', now: () => NOW, shellosPort: handsSource ? (upstream.port === 65535 ? 65534 : upstream.port+1) : upstream.port,
     handsPort: handsSource ? upstream.port : '',
+    exoskeletonMode: handsSource ? 'single-hands' : 'single-legs',
     queryExoskeletonUsb: async () => { probes++; return native(); },
     queryDevice: async () => { throw new Error('Unexpected audio probe'); },
     queryDisplays: async () => { throw new Error('Unexpected display probe'); },
@@ -75,8 +76,44 @@ test('hands telemetry bypasses USB discovery and old status caches using only fi
 
 test('hand source is opt-in and cannot silently use the leg service',async t=>{
   const app=await appFixture(t);const value=await app.request('/api/hands-telemetry');
-  assert.equal(value.json.error,'HANDS_SOURCE_NOT_CONFIGURED');assert.equal(app.requests.length,0);
-  assert.throws(()=>createConsoleServer({shellosPort:18765,handsPort:18765}),/must differ/);
+  assert.equal(value.json.error,'HANDS_ROLE_DISABLED');assert.equal(app.requests.length,0);
+  assert.throws(()=>createConsoleServer({shellosPort:18765,handsPort:18765,exoskeletonMode:'dual'}),/must differ/);
+});
+
+test('single hand mode can reuse the sole service port and never probes legs',async t=>{
+  const app=await appFixture(t,{handsSource:true});
+  assert.equal((await app.request('/api/exoskeleton')).json.error,'LEGS_ROLE_DISABLED');
+  assert.equal(app.probes,0);assert.equal(app.requests.length,0);
+  assert.equal((await app.request('/api/exoskeleton-layout')).json.layout,'single-hands');
+  assert.equal(app.requests.length,0);
+  const server=createConsoleServer({shellosPort:18765,handsPort:18765,exoskeletonMode:'single-hands'});
+  server.close();
+  assert.throws(()=>createConsoleServer({exoskeletonMode:'automatic'}),/EXOSKELETON_MODE/);
+});
+
+test('single legs ignores dormant hand port; single hands never falls back to legs',async t=>{
+  const legs=await appFixture(t,{handsSource:true,exoskeletonMode:'single-legs'});
+  assert.equal((await legs.request('/api/hands-telemetry')).json.error,'HANDS_ROLE_DISABLED');
+  assert.equal(legs.requests.length,0);
+  const hands=await appFixture(t,{exoskeletonMode:'single-hands'});
+  assert.equal((await hands.request('/api/hands-telemetry')).json.error,'HANDS_SOURCE_NOT_CONFIGURED');
+  assert.equal(hands.requests.length,0);
+});
+
+test('two HTTP ports cannot disguise one physical device or the wrong role',async t=>{
+  let handRole='hands',legRole='legs',handPort='COM7',legPort='com7',legAge=15;
+  const hand=await listen(t,(_req,res)=>send(res,report({link:{role:handRole,port:handPort,age_ms:15}})));
+  const leg=await listen(t,(_req,res)=>send(res,report({link:{role:legRole,port:legPort,age_ms:legAge}})));
+  const app=await appFixture(t,{handsPort:hand.port,shellosPort:leg.port,exoskeletonMode:'dual'});
+  const read=async()=>(await app.request('/api/hands-telemetry')).json;
+  assert.equal((await read()).error,'DEVICE_ROLE_CONFLICT');
+  legPort='COM8';assert.equal((await read()).available,true);
+  handRole='legs';assert.equal((await read()).error,'HANDS_ROLE_MISMATCH');
+  handRole=undefined;assert.equal((await read()).error,'HANDS_ROLE_MISMATCH');
+  handRole='hands';legRole='hands';assert.equal((await read()).error,'DUAL_BINDING_UNVERIFIED');
+  legRole='legs';legAge=999;assert.equal((await read()).error,'DUAL_BINDING_UNVERIFIED');
+  legAge=15;assert.equal((await read()).layout,'dual');
+  assert.equal(app.audioCalls,0);
 });
 
 test('reports hardware, simulation and replay as distinct sources without leaking raw state', () => {
