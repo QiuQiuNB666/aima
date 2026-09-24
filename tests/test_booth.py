@@ -1,5 +1,5 @@
 """展位脚本：语法；booth_up --sim 起一套后 booth_check 全绿（大脑 / TTS 用本地假 /health，语音缓存和 Chrome 跳过）；
-看门狗把被 kill -9 的 ShellOS 拉起来并恢复世界 + 穿戴者。只用自己挑的空闲端口，结束 --down 只杀自己的。
+看门狗把被 kill -9 的 ShellOS 拉起来并恢复世界 + 穿戴者；手动 run-mac.sh 换参数后看门狗不抢、再崩按新参数拉起。只用自己挑的空闲端口，结束 --down 只杀自己的。
 需要 .venv（run-mac.sh 用它起 ShellOS），没有就跳过整合测试。"""
 from __future__ import annotations
 import json
@@ -103,10 +103,20 @@ def test_sim_all_green_and_watchdog_restores_world():
 
         chk = sh("scripts/booth_check.sh", "--http", str(port), env=env)
         assert chk.returncode == 0 and "全绿" in chk.stdout, chk.stdout
+
+        # 手动换参数（= 早上 --sim、下午 run-mac.sh 换真机）：看门狗不能抢着按旧参数重起，崩了也要按新参数拉起
+        assert "ShellOS up" in sh("./run-mac.sh", "--sim", "--force-deadman", "--ctl", "terrain", "--cap", "3",
+                                  "--http", str(port), "--no-record", "--no-input", env=env).stdout
+        time.sleep(2)
+        pid = shellos_pid(port)
+        os.kill(pid, signal.SIGKILL)
+        assert wait(lambda: shellos_pid(port) not in (None, pid) and get(port, "/state")["safety"]["cap"] == 3.0, 60)
+        wd = open(f"/tmp/booth-{port}.watchdog.log").read()
+        assert wd.count("→ 重起") == 2, wd
     finally:
         sh("scripts/booth_up.sh", "--down", "--http", str(port))
         brain.shutdown(), tts.shutdown()
-        for p in (last, f"/tmp/booth-{port}.args", f"/tmp/booth-{port}.watchdog.log", f"/tmp/shellos-{port}.log"):
+        for p in (last, f"/tmp/booth-{port}.args", f"/tmp/booth-{port}.starting", f"/tmp/booth-{port}.watchdog.log", f"/tmp/shellos-{port}.log"):
             if os.path.exists(p):
                 os.remove(p)
     assert wait(lambda: shellos_pid(port) is None, 10)

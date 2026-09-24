@@ -6,6 +6,8 @@ export LC_ALL=en_US.UTF-8   # nohup / launchd 起时没 LANG：bash 3.2 会把 $
 prev=; for a in "$@"; do [ "$prev" = "--http" ] && PORT=$a; prev=$a; done
 case " $* " in *" --http "*) ;; *) set -- "$@" --http "$PORT" ;; esac
 PAT="shellos.main.*--http $PORT"
+touch "/tmp/booth-$PORT.starting"; trap 'rm -f "/tmp/booth-$PORT.starting"' EXIT   # 起着的时候看门狗别抢着重起（见 booth_up.sh 看门狗）
+echo "$*" > "/tmp/booth-$PORT.args"   # 最后一次怎么起的就记下来：看门狗 / booth_recover.sh shellos 重起沿用它（否则手动换真机后崩一次会被拉回早上的 --sim）
 LOG=/tmp/shellos.log; [ "$PORT" = 8765 ] || LOG=/tmp/shellos-$PORT.log
 pkill -f "$PAT" 2>/dev/null
 for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "$PAT" >/dev/null || break; sleep 0.3; done
