@@ -1,6 +1,6 @@
 // J 线 · 峰哥的助理（9/23 夜起，替换追兵「捷风」；旧版用 ?npc=jifeng，在 npc_jifeng.js，没删）。
 // 缺省（9/24 球球定方向）：二次元开源 VRM 角色——Q 线的装载器 assistant_q/npc_q.js（makeQ：VRM + Mixamo 动作重定向，MToon 材质 / 描边原样），
-//   ?asst=<模型 id> 换人（models/assistant_q/ 里 8 个，占位 Vita），头发 / 裙摆用 VRM 自带的 spring bone。
+//   ?npcvrm=<模型 id 或文件名>（旧参数 ?asst= 同义）换人（models/assistant_q/ 里 8 个，缺省 AvatarSample_B），头发 / 裙摆用 VRM 自带的 spring bone。
 // ?npc=custom：自建版（CesiumMan 骨架 → P 线的放样身体 + assistant/body.js 的曲线 + outfits.js 穿搭 + head.js 手绘脸 + Verlet 马尾），不作缺省。
 // 指路 / 互动 / 待机的姿势两版共用（pointer / actor / idler，按人物自己的坐标轴叠在动画上）。接口和 npc_jifeng.js 的 makeJifeng 一样。
 import * as THREE from 'three';
@@ -13,8 +13,8 @@ import { makeQ } from './assistant_q/npc_q.js';
 import { AVATAR_H } from './avatar.js';
 
 const Q = new URLSearchParams(location.search);
-// ↓↓ 名字占位，球球 / anni 定了改这里；也可以临时 ?npcname=xxx
-export const 名字 = Q.get('npcname') || '助理';
+// ↓↓ 名字占位「小 B」（模型 AvatarSample_B），球球 / anni 定了改这里；也可以临时 ?npcname=xxx
+export const 名字 = Q.get('npcname') || '小 B';
 export const SCALE = 0.96;                 // 比峰哥矮一点
 export const FAR = 12;                     // 米：再远就不算马尾 / 衣角甩动、不做待机小动作
 
@@ -28,7 +28,7 @@ function tune(m, more) {
   };
 }
 
-export const VRM_ID = Q.get('asst') || 'Vita';   // 球球从候选总览图（docs/提交/截图/asst_q_candidates.png）里选定后改这里
+export const VRM_ID = (Q.get('npcvrm') || Q.get('asst') || 'AvatarSample_B').replace(/\.vrm$/, '');   // 9/24 定 1 号 AvatarSample_B（VRoid 官方样例，紫双马尾街头风）
 
 export async function makeAssistant(scene, camera) {
   if (Q.get('npc') !== 'custom') try { return await makeVRM(scene, camera); } catch (e) { console.warn('助理 VRM 加载失败，用自建版', e); }
@@ -45,7 +45,8 @@ async function makeVRM(scene, camera) {
   const bb = new THREE.Box3().setFromObject(g, true), k = AVATAR_H * SCALE / Math.max(0.5, bb.max.y - bb.min.y);
   g.scale.setScalar(k); g.position.y = -bb.min.y * k;           // 身高 = 峰哥 × 0.96、脚底落地
   const H = q.vrm.humanoid, N = n => H.getNormalizedBoneNode(n), R = n => H.getRawBoneNode(n);
-  const B = { armL: N('leftUpperArm'), armR: N('rightUpperArm'), head: N('head'), chest: N('upperChest') || N('chest'), wristL: R('leftHand'), elbowL: R('leftLowerArm') };
+  const B = { armL: N('leftUpperArm'), armR: N('rightUpperArm'), head: N('head'), chest: N('upperChest') || N('chest'), wristL: R('leftHand'), elbowL: R('leftLowerArm'),
+    flipXZ: q.vrm.meta?.metaVersion === '0' };   // VRM 0.x 的 normalized 骨旋转 x / z 分量是反的（Q 线重定向同样翻了）：绕前后 / 左右轴的角度要反号（9/24 实测递氧气的手跑到身后）
   scene.add(outer);
   const tmp = new THREE.Vector3(), headRaw = R('head');
   return {
@@ -157,7 +158,7 @@ function pointer(group, B, deg) {
   return w => {
     if (!(w > 0.01)) return;
     arm.parent.updateWorldMatrix(true, false); arm.updateWorldMatrix(false, false);
-    ax.set(0, 0, 1).applyQuaternion(group.getWorldQuaternion(qb));             // 人物的左右轴（世界）
+    ax.set(0, 0, B.flipXZ ? -1 : 1).applyQuaternion(group.getWorldQuaternion(qb));   // 人物的左右轴（世界）
     ax.applyQuaternion(arm.getWorldQuaternion(qb).invert()).normalize();       // → 上臂自己的坐标
     arm.quaternion.multiply(q.setFromAxisAngle(ax, deg * D * w));
   };
@@ -179,7 +180,8 @@ function actor(group, B) {
   const rot = (b, x, y, z, deg) => {
     if (!b || !deg) return;
     b.parent.updateWorldMatrix(true, false); b.updateWorldMatrix(false, false);
-    ax.set(x, y, z).applyQuaternion(group.getWorldQuaternion(qb)).applyQuaternion(b.getWorldQuaternion(qb).invert()).normalize();
+    const f = B.flipXZ ? -1 : 1;                                               // VRM0：绕前后 / 左右轴反号，绕竖轴不变
+    ax.set(x * f, y, z * f).applyQuaternion(group.getWorldQuaternion(qb)).applyQuaternion(b.getWorldQuaternion(qb).invert()).normalize();
     b.quaternion.multiply(q.setFromAxisAngle(ax, deg * D));
   };
   return a => {
@@ -214,7 +216,8 @@ function idler(group, B) {
   const rot = (b, x, y, z, deg) => {
     if (!b || !deg) return;
     b.parent.updateWorldMatrix(true, false); b.updateWorldMatrix(false, false);
-    ax.set(x, y, z).applyQuaternion(group.getWorldQuaternion(qb)).applyQuaternion(b.getWorldQuaternion(qb).invert()).normalize();
+    const f = B.flipXZ ? -1 : 1;                                               // VRM0：绕前后 / 左右轴反号，绕竖轴不变
+    ax.set(x * f, y, z * f).applyQuaternion(group.getWorldQuaternion(qb)).applyQuaternion(b.getWorldQuaternion(qb).invert()).normalize();
     b.quaternion.multiply(q.setFromAxisAngle(ax, deg * D));
   };
   const force = new URLSearchParams(location.search).get('npcidle');   // 预览 &npcidle=hair|watch|look：一直摆这个（截图用）
