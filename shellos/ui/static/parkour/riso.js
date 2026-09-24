@@ -1,10 +1,10 @@
 // 跑酷的「三墨一纸」孔版印刷后期（?look=riso，默认关）。范式：纸 #f0e9da 就是白，三墨 暖 #e8552a / 冷 #3b6f9e / 深 #26252e 叠印（multiply），
 //   网点是唯一的灰，套印错位固定，没有渐变 / 模糊 / 投影 / 绿 / #fff / #000，线会沸（一拍二，seed = 7000 + 帧号），纸颗粒 seed 99 静止。
 // 接法：main.js 里一行 makeRiso({...})。这里把 renderer.render 换成自己的：主循环照旧 renderer.render(scene, camera)，实际走下面三步——
-//   ① 原样画一遍 → 色调（亮度）；② 换成「分墨」材质再画一遍 → 每个像素属于谁（天 / 楼 / 标线 / 峰哥 / 捷风 / 猫 / 月亮）+ 朝上还是朝侧 + 深度；
+//   ① 原样画一遍 → 色调（亮度）；② 换成「分墨」材质再画一遍 → 每个像素属于谁（天 / 楼 / 标线 / 峰哥 / 机甲 / 猫 / 月亮）+ 朝上还是朝侧 + 深度；
 //   ③ 一道全屏着色器：每支墨按自己的套印偏移去取样、按规则出实色 / 网点 / 排线，深墨轮廓线按类别 / 深度 / 朝向的断层描出来，全部 multiply 到纸上，再压一层纸颗粒。
 // 规则：天 = 暖墨实色（色场），月亮 = 留纸；楼顶 = 冷墨网点 + 水平排线，楼墙 = 冷网 + 暗处叠深网，60 m 外换冷浅版推远，亮窗 = 暖网；
-//   标线按原色相归暖 / 冷 / 深实色（起跳沿、落地沿这些玩法提示不丢）；峰哥 = 深墨，捷风 = 暖墨，猫 = 深网（猫的灰）。
+//   标线按原色相归暖 / 冷 / 深实色（起跳沿、落地沿这些玩法提示不丢）；峰哥 = 深墨，机甲 = 暖墨，猫 = 深网（猫的灰）。
 //   ?fx=low：网点改查 CanvasTexture 小贴图（和范式页 dotTile 同一个画法），不逐像素算距离。
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
@@ -12,7 +12,7 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 const PAPER = '#f0e9da', INK = { warm: '#e8552a', cool: '#3b6f9e', dark: '#26252e' };
 const OFF = { warm: [2.5, -1.5], cool: [-2, 2], dark: [0, 0] };            // 套印错位（1080 画幅像素，y 向下）
 const SCREEN = { dark: [8, 1.8], warm: [7, 2.4], cool: [7, 2.2], pale: [9, 1.4] };   // 网点 gap / r
-const C = { SKY: 0, SOLID: 2, WARM: 3, COOL: 4, DARK: 5, FENG: 6, JETT: 7, CAT: 8, MOON: 9, EYE: 10 };   // 分墨类别（写进 R 通道 /16）
+const C = { SKY: 0, SOLID: 2, WARM: 3, COOL: 4, DARK: 5, FENG: 6, MECH: 7, CAT: 8, MOON: 9, EYE: 10 };   // 分墨类别（写进 R 通道 /16）
 
 const hex3 = h => { const c = new THREE.Color(h); return `vec3(${c.r.toFixed(4)}, ${c.g.toFixed(4)}, ${c.b.toFixed(4)})`; };   // 线性值（着色器里算完再编码回 sRGB）
 
@@ -87,7 +87,7 @@ vec3 cover(vec2 px){                      // x = 暖, y = 冷, z = 深
   if (k == ${C.COOL}) return vec3(0.0, 1.0, 0.0);
   if (k == ${C.DARK} || k == ${C.EYE}) return vec3(0.0, 0.0, 1.0);
   if (k == ${C.FENG}) return vec3(0.0, 0.0, t < 0.35 ? 1.0 : DOT_DARK(px));                      // 峰哥：深墨，暗面实色、亮面深网
-  if (k == ${C.JETT}) return vec3(t < 0.4 ? 1.0 : DOT_WARM(px), 0.0, t < 0.12 ? DOT_DARK(px) : 0.0);   // 捷风：暖墨
+  if (k == ${C.MECH}) return vec3(t < 0.4 ? 1.0 : DOT_WARM(px), 0.0, t < 0.12 ? DOT_DARK(px) : 0.0);   // 机甲：暖墨
   if (k == ${C.CAT}) return vec3(0.0, 0.0, DOT_DARK(px));                        // 猫的灰 = 深网 8/1.8
   // 楼 / 障碍（SOLID）
   if (z > 60.0) return vec3(t > 0.55 ? DOT_PALE(px) : 0.0, DOT_PALE(px), 0.0);   // 远景：冷浅版推远，亮窗一点暖
@@ -171,7 +171,7 @@ export function makeRiso({ renderer, scene, camera, av, jf, low = false, level, 
   const mats = new Map(), saved = [], bg = { v: null };
   const code = o => {
     if (o.userData.riso !== undefined) return o.userData.riso;
-    for (let p = o; p; p = p.parent) { if (p === av.group) return C.FENG; if (jf && p === jf.group) return C.JETT; }
+    for (let p = o; p; p = p.parent) { if (p === av.group) return C.FENG; if (jf && p === jf.group) return C.MECH; }
     const m = Array.isArray(o.material) ? o.material[0] : o.material;
     if (m.isMeshBasicMaterial) return m.fog === false ? C.MOON : accentCode(m.color);
     return C.SOLID;

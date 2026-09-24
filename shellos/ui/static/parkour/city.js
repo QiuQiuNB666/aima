@@ -13,13 +13,15 @@ const lin = hex => { const c = new THREE.Color(hex); return `vec3(${c.r.toFixed(
 
 // 楼：一个材质一次绘制。竖墙 = 窗户（按 (横向坐标, y) 分格，hash 决定亮不亮 / 暖还是冷）；roof = 顶面画成屋顶（混凝土方砖 + 三条道的发光分隔线 + 两边警示带）。
 // local = 用几何自己的坐标（天际线整体平移时窗户不跳）
+const FLOW = { uFlow: { value: 0 }, uK: { value: 0 } };   // 屋顶流光条：uFlow = 已流过的米数（比地面快），uK = 速度感 0..1（慢跑时 0 = 看不见）
 function winMat(base, local, roof) {
   const m = new THREE.MeshLambertMaterial({ color: base });
   m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, FLOW);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vP; varying vec3 vN; varying vec3 vL;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>\nvL = position;\nvN = ${local ? 'normal' : 'normalize(mat3(modelMatrix) * normal)'};\nvP = ${local ? 'position' : '(modelMatrix * vec4(position, 1.0)).xyz'};`);   // 第 6 轮：楼会转 90°，窗户按世界法线分面
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vP; varying vec3 vN; varying vec3 vL;
+      varying vec3 vP; varying vec3 vN; varying vec3 vL; uniform float uFlow; uniform float uK;
       float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         if (abs(vN.y) < 0.5) {
@@ -39,6 +41,9 @@ function winMat(base, local, roof) {
           totalEmissiveRadiance += lane * step(0.45, fract(vL.x / 3.0)) * ${lin(MOON)} * 0.6 * step(abs(vL.z), ${(ROOF_W / 2).toFixed(1)});
           float edge = step(${(LANE * 1.5 + 0.1).toFixed(2)}, z) * step(z, ${(LANE * 1.5 + 0.45).toFixed(2)});
           diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.62, 0.64, 0.68), vec3(0.08), step(0.5, fract((vL.x + z) / 1.2))), edge);
+          float row = floor(vL.z * 2.5), ph = h21(vec2(row, 3.0));                                   // 流光条：每 0.4 m 一行，各行错开相位，往后流得比地面快 → 越快越像在飞
+          float streak = step(0.86, fract((vL.x - uFlow) / (2.0 + 6.0 * uK) + ph)) * step(abs(vL.z), ${(ROOF_W / 2).toFixed(1)}) * (0.6 + 0.4 * step(0.5, h21(vec2(row, 7.0))));
+          totalEmissiveRadiance += uK * uK * streak * ${lin(MOON)} * 0.35;
         }` : ''}`);
   };
   m.customProgramCacheKey = () => 'win' + (local ? 'L' : 'W') + (roof ? 'R' : '');
@@ -162,6 +167,7 @@ export function makeCity(scene, { low = false } = {}) {
       skyline.position.set(pw.x, 0, pw.z);
       moon.position.set(pw.x + 300, 90, pw.z - 120);
     },
+    flow(dt, speed, k) { FLOW.uFlow.value = (FLOW.uFlow.value + speed * dt * 0.9) % 4000; FLOW.uK.value = k; },   // 流光条相对地面再多流 0.9× 速度
     meshOf: k => live.get(k),
     clear() { for (const m of live.values()) if (m) kill(m); live.clear(); },
   };
