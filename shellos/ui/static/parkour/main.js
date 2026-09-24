@@ -28,7 +28,7 @@ let simCad0 = null;
 const simRestore = () => { if (simCad0 != null && !DEMO) navigator.sendBeacon('/sim', JSON.stringify({ cadence: simCad0 })); simCad0 = null; };
 addEventListener('pagehide', simRestore);
 addEventListener('beforeunload', simRestore);
-const KNEE = Q.get('lane') === 'knee';   // 免手换道：抬一条腿保持 0.3 s = 往那边换一道 / 路口往那边转；快速抬腿仍是跳（缺省 = 手柄 / 键盘换道）
+const KNEE = Q.get('lane') !== 'pad';    // 9/24 展位缺省免手：抬一条腿保持 0.3 s = 往那边换一道 / 路口往那边转；快速抬腿仍是跳。跑起来按不了键盘，?lane=pad 才回手柄 / 键盘换道
 const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : DEMO ? 1 : 0, MUTE = Q.get('voice') === '0' || DEMO;
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
 const LEG_READY_S = 5;          // 走满 5 s（anim.js 学完零点）才认高抬腿 / 下蹲：零点没学出来时穿戴偏屈 15–20°，正常走路会被当成高抬腿
@@ -211,7 +211,8 @@ async function main() {
   av.group.rotation.order = jf.group.rotation.order = 'YXZ';          // 先转朝向（路口 90°），再侧倾 / 前后倾——转弯以后侧倾还是绕身体自己的轴
   const legFor = s => s >= run.leg.s0 ? run.leg : level.legAt(s);   // 镜头在身后：还没过路口的那段用老腿
   let last = performance.now(), frames = 0, fpsT = last, camY = run.y, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, lastZ = 0, clock = DEMO ? 0 : last / 1000;
-  const HINT = { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！', turnL: '← 左转（A / L1）', turnR: '右转 →（D / R1）' };
+  const HINT = KNEE ? { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '抬一条腿保持 · 换道！', turnL: '抬左腿保持 · 左转', turnR: '抬右腿保持 · 右转' }
+               : { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！', turnL: '← 左转（A / L1）', turnR: '右转 →（D / R1）' };
   function frame(dtFix) {
     if (!MANUAL) requestAnimationFrame(() => frame());
     const nowMs = performance.now(), dtR = dtFix || Math.min(0.1, (nowMs - last) / 1000); last = nowMs;
