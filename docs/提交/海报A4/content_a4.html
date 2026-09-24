@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>峰哥亡命天涯 · A4 产品介绍内容页</title>
+<style>
+/* A4 210×297 + 3 mm 出血 = 216×303；安全区 = 出血 3 + 10 = 13 mm */
+@page{size:216mm 303mm;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#0b1220}
+:root{--bg:#0b1220;--card:#101a2c;--line:#26354a;--fg:#eef3f8;--mute:#b9c6d6;--dim:#7f93ad;--acc:#b48cff;
+  --up:#3ddc84;--st:#ffd54f;--dn:#4fc3f7;--wait:#ff4d4f;--flat:#8a95a3}
+.page{width:216mm;height:303mm;position:relative;overflow:hidden;background:var(--bg);color:var(--fg);padding:13mm;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;page-break-after:always;display:flex;flex-direction:column}
+.page:last-child{page-break-after:auto}
+.kicker{font-size:8pt;letter-spacing:.3em;color:var(--acc);font-weight:600;display:flex;justify-content:space-between}
+.kicker span{letter-spacing:.1em;color:var(--dim)}
+h1{font-size:30pt;line-height:1.1;font-weight:900;letter-spacing:.03em;margin-top:2mm}
+h1 em{font-style:normal;color:var(--acc)}
+h2{font-size:10.5pt;font-weight:800;letter-spacing:.08em;margin-bottom:2mm;display:flex;align-items:center;gap:2mm}
+h2::before{content:"";width:2.4mm;height:2.4mm;background:var(--acc);border-radius:.6mm}
+p{font-size:8.5pt;line-height:1.55;color:var(--mute)}
+b{color:var(--fg)}
+.lead{font-size:11.5pt;line-height:1.5;color:var(--fg);margin-top:3mm;font-weight:600}
+.lead i{font-style:normal;color:var(--acc)}
+.card{border:0.3mm solid var(--line);border-radius:3mm;padding:3mm 3.2mm;background:var(--card)}
+.up{color:var(--up)}.st{color:var(--st)}.dn{color:var(--dn)}.wt{color:var(--wait)}
+.shot{border-radius:3mm;background-size:cover;background-position:center;border:0.25mm solid var(--line);position:relative;overflow:hidden}
+.shot .cap{position:absolute;left:0;right:0;bottom:0;padding:1.4mm 2.5mm;font-size:7pt;color:#dbe4ee;background:linear-gradient(0deg,rgba(8,10,16,.92),rgba(8,10,16,0))}
+.grid{display:grid;gap:3.5mm}
+.num{font-size:26pt;font-weight:900;color:var(--acc);line-height:1;letter-spacing:-.01em}
+.num small{font-size:10pt;font-weight:700;color:var(--fg);margin-left:.5mm}
+.numl{font-size:7.5pt;color:var(--mute);margin-top:1.4mm;line-height:1.4}
+.foot{margin-top:auto;padding-top:2.5mm;border-top:0.25mm solid var(--line);font-size:6.8pt;color:var(--dim);display:flex;justify-content:space-between;align-items:center}
+.tag{display:inline-block;font-size:6.5pt;font-weight:700;padding:.3mm 1.4mm;border-radius:1mm;background:#1b2740;color:var(--acc);vertical-align:middle;margin-left:1mm}
+
+/* p1 */
+.hero{height:88mm;margin-top:4mm}
+.steps{grid-template-columns:repeat(3,1fr);margin-top:4mm}
+.steps .card{position:relative;padding-top:4mm}
+.steps .n{position:absolute;top:-3mm;left:3mm;background:var(--acc);color:#0b1220;font-weight:900;font-size:9pt;border-radius:1.2mm;padding:.4mm 1.8mm}
+.steps h3{font-size:11.5pt;font-weight:800;margin-bottom:1.2mm}
+.steps p{font-size:8pt}
+.fg{display:flex;gap:5mm;align-items:center;margin-top:4mm}
+.fg .ava{width:26mm;height:26mm;border-radius:50%;background:url(c1_fengge.jpg) center 30%/cover;border:0.6mm solid var(--acc);flex:none;box-shadow:0 0 6mm rgba(180,140,255,.35)}
+.fg .q{font-size:15pt;font-weight:800;line-height:1.35}
+.fg .q::before{content:"「";color:var(--acc)}.fg .q::after{content:"」";color:var(--acc)}
+.fg .who{font-size:7.5pt;color:var(--dim);margin-top:1.5mm;line-height:1.5}
+
+/* p2 */
+.two{grid-template-columns:1fr 1fr;margin-top:3mm}
+.arch{display:flex;flex-direction:column;gap:0}
+.arch .box{border:0.3mm solid var(--line);border-radius:2.2mm;background:var(--card);padding:1.8mm 2.6mm;display:flex;justify-content:space-between;align-items:center}
+.arch .box b{font-size:9.5pt}.arch .box span{font-size:6.8pt;color:var(--dim);text-align:right;line-height:1.35}
+.arch .box.guard{border-color:var(--acc);background:#1a1533}
+.arch .box.hw{border-style:dashed}
+.arch .arrow{height:4.2mm;display:flex;align-items:center;justify-content:center;gap:2mm;font-size:6.5pt;color:var(--dim)}
+.arch .arrow i{font-style:normal;color:var(--acc);font-weight:900;font-size:9pt;line-height:1}
+.arch .side{margin:1.2mm 0 1.2mm 0;border:0.3mm solid #3b2a5e;border-radius:2.2mm;background:#150f28;padding:1.6mm 2.6mm;font-size:6.9pt;color:var(--mute);line-height:1.45}
+.arch .side b{color:var(--acc);font-size:8.5pt}
+.cmp{width:100%;border-collapse:collapse;font-size:7.6pt;line-height:1.4}
+.cmp th,.cmp td{border:0.25mm solid var(--line);padding:1.5mm 2mm;vertical-align:top;text-align:left}
+.cmp th{font-size:7pt;color:var(--dim);font-weight:600;background:#0e1626;width:19mm}
+.cmp thead th{color:var(--fg);font-size:8.2pt;font-weight:800;width:auto}
+.cmp thead th.us{color:var(--acc)}
+.cmp td.us{background:#161232;color:var(--fg)}
+.roles{grid-template-columns:repeat(4,1fr);margin-top:3.5mm}
+.roles .card{padding:2.4mm 2.6mm}
+.roles h3{font-size:10pt;font-weight:800;margin-bottom:.8mm}
+.roles h3 s{text-decoration:none;font-size:6.5pt;color:var(--dim);font-weight:600;margin-left:1mm}
+.roles p{font-size:7.2pt;line-height:1.45}
+.roles .hard{border-color:var(--acc)}
+.roles .hard h3{color:var(--acc)}
+.flow{margin-top:3.5mm;display:grid;grid-template-columns:1fr 72mm;gap:3.5mm;align-items:stretch}
+.chain{display:flex;align-items:center;gap:1.2mm;flex-wrap:wrap;font-size:7.4pt;margin:1.5mm 0 2mm}
+.chain .n{background:#172338;border:0.25mm solid #2b3d57;border-radius:1.4mm;padding:.8mm 1.8mm;color:var(--fg);font-weight:600;white-space:nowrap}
+.chain .n.q{background:#1a1533;border-color:var(--acc);color:var(--acc)}
+.chain .n.ok{border-color:var(--up);color:var(--up)}
+.chain .a{color:#5b708b}
+.nums{grid-template-columns:repeat(4,1fr);margin-top:3.5mm}
+.nums .card{padding:2.6mm 3mm}
+
+/* p3 */
+.route{margin-top:3mm}
+.bar{display:flex;height:9mm;border-radius:1.6mm;overflow:hidden;gap:.35mm}
+.bar div{position:relative;display:flex;align-items:center;justify-content:center;font-size:6.2pt;font-weight:700;color:#0b1220}
+.bar div span{position:absolute;bottom:-4.2mm;left:0;font-size:5.8pt;color:var(--dim);white-space:nowrap;font-weight:600}
+.bar .f{background:var(--flat)}.bar .u{background:var(--up)}.bar .s{background:var(--st)}.bar .w{background:var(--wait)}
+.legend{display:flex;gap:4mm;font-size:6.8pt;color:var(--mute);margin-top:5.5mm}
+.legend i{display:inline-block;width:2.6mm;height:2.6mm;border-radius:.6mm;vertical-align:-.3mm;margin-right:1mm}
+.thrill{grid-template-columns:repeat(3,1fr);margin-top:3mm}
+.thrill .shot{height:30mm}
+.thrill h4{font-size:9.5pt;font-weight:800;margin:1.6mm 0 .6mm}
+.thrill h4 s{text-decoration:none;color:var(--acc);margin-right:1mm}
+.thrill p{font-size:7pt;line-height:1.45}
+.maps{grid-template-columns:repeat(6,1fr);gap:2mm;margin-top:2.5mm}
+.maps .shot{height:19mm}
+.maps .cap{font-size:6.4pt;padding:1mm 1.6mm;white-space:nowrap}
+.maps .cap b{display:block;font-size:6.8pt}
+.bottom{display:grid;grid-template-columns:34mm 1fr;gap:4mm;margin-top:3.5mm}
+.vita{display:grid;grid-template-columns:34mm 1fr;gap:3mm;align-items:stretch}
+.vita .shot{height:100%;min-height:38mm}
+.bottom .shot{background-color:#f4f6f8}
+.team{grid-template-columns:repeat(4,1fr);gap:2.5mm}
+.team .card{padding:2.2mm 2.5mm}
+.team h3{font-size:10pt;font-weight:800;margin-bottom:.6mm}
+.team p{font-size:6.9pt;line-height:1.4}
+.cred{display:flex;gap:4mm;align-items:flex-end;margin-top:3.5mm}
+.cred p{font-size:6.8pt;line-height:1.55;color:var(--dim);flex:1}
+.cred .gh{font-size:8.5pt;color:var(--fg);font-weight:700;margin-bottom:1mm;display:block}
+.qrw{text-align:center;flex:none}.qri{width:24mm;height:24mm;border-radius:1.6mm;display:block}.qrt{font-size:6.4pt;color:#a9b3bf;margin-top:1mm;white-space:nowrap}
+</style></head><body>
+
+<!-- ================= 第 1 页：它是什么 ================= -->
+<div class="page">
+  <div class="kicker">EVOTAVERN 深圳 · 具身与穿戴硬件赛道 · 峰哥亡命天涯 <span>产品介绍 · 1 / 3</span></div>
+  <h1>VR 骗眼睛，<em>我们骗腿</em></h1>
+  <div class="lead">现在的 VR / 体感游戏只有视觉反馈，几乎没有人做物理反馈。我们做的是<i>登山走路的物理反馈</i>——屏幕上的坡和台阶，会真的变成你腿上的阻力和助力。</div>
+
+  <div class="shot hero" style="background-image:url(c1_hero.jpg);background-position:center 40%">
+    <div class="cap">珠峰北坡 · 东绒布冰川：峰哥化身和助理（图中是候选模型之一，缺省已换成小 B）；左下「腿上的力」画的是 Guard 实际发给电机的力矩指令，不是动画</div>
+  </div>
+
+  <div class="grid steps">
+    <div class="card"><div class="n">①</div><h3>穿上，原地迈步</h3><p>一台量产的消费级髋外骨骼，不靠平台、不靠地板。<b>按住 R2 才有力，松手立刻没力。</b></p></div>
+    <div class="card"><div class="n">②</div><h3>屏幕里爬珠峰</h3><p>步态估计器从髋角算出相位，<b>每接住一个完整步态周期，化身前进一步</b>；步频就是爬速。</p></div>
+    <div class="card"><div class="n">③</div><h3>坡和台阶变成腿上的力</h3><p>按路段在步态相位上打力矩脉冲：<b class="up">上坡推一把</b>、<b class="st">上台阶腿发沉</b>、<b class="st">下台阶落地一沉</b>、<b class="wt">红灯拉住你</b>。</p></div>
+  </div>
+
+  <div class="fg">
+    <div class="ava"></div>
+    <div>
+      <div class="q">这是个好事儿啊，腿酸说明你真爬了。</div>
+      <div class="who">峰哥 · 登顶解说（内置语录原句）。登顶、红灯、造出新山时，大模型按峰哥口吻现写一句，断网用内置语录；进图先听峰哥当导游讲这座山。<br>峰哥本人同意本次展示使用他的肖像、口吻和 AI 复刻声音。</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>ShellOS · Hypershell X MaxS（黑客松固件）· 软限 4 Nm · 松手即停 · 非医疗器械</span><span>github.com/QiuQiuNB666/aima</span></div>
+</div>
+
+<!-- ================= 第 2 页：怎么做到的 ================= -->
+<div class="page">
+  <div class="kicker">怎么做到的 <span>产品介绍 · 2 / 3</span></div>
+  <h1>给腿的<em>物理反馈</em>：一条安全链路，一群只出主意的 AI</h1>
+
+  <div class="grid two">
+    <div>
+      <h2>ShellOS 架构 · 只有 Guard 写串口</h2>
+      <div class="arch">
+        <div class="box hw"><b>Hypershell X MaxS 髋外骨骼</b><span>髋角 / 角速度 / 腰部 IMU<br>183 Hz 数据帧 ↑</span></div>
+        <div class="arrow"><i>↑</i>力矩指令 100 Hz<i>↓</i>数据帧</div>
+        <div class="box guard"><b>1 · Guard 安全层 ★</b><span>软限 4 Nm · 斜率 50 Nm/s · 死人开关<br>看门狗 100 ms 归零 · 置信度 &lt;0.5 不出力</span></div>
+        <div class="arrow"><i>↑</i>期望力矩<i>↓</i>髋角</div>
+        <div class="box"><b>2 · 步态估计</b><span>相位 φ = atan2(−k·ω, θ−θ̄)<br>周期接受 · 步频 · 置信度</span></div>
+        <div class="arrow"><i>↓</i>相位 · 步频</div>
+        <div class="box"><b>3 · 地形控制器 terrain</b><span>按路段在相位上打梯形脉冲<br>只输出「期望力矩」，从不碰串口</span></div>
+        <div class="side"><b>4 · 蜂群（大模型 + 代码）</b>　教练 / 地形导演提议 → 记忆员对照 → <b>安全员（硬代码）</b>裁剪或否决 → 才改控制器参数。大脑整个拔掉，腿上的力照常。</div>
+        <div class="arrow"><i>↓</i>登山游戏 / 仪表盘只读 /state，只发动作</div>
+        <div class="box"><b>5 · 游戏 · 选山 / 造山 · 操作台</b><span>Three.js 本地 · 离线可用<br>「腿上的力」= safety.sent</span></div>
+      </div>
+    </div>
+    <div>
+      <h2>和普通 VR / 体感的区别</h2>
+      <table class="cmp">
+        <thead><tr><th></th><th>普通 VR / 体感</th><th class="us">峰哥亡命天涯</th></tr></thead>
+        <tr><th>反馈通道</th><td>视觉 + 手柄震动</td><td class="us"><b>髋外骨骼给腿的真实力矩</b>，按步态相位定时</td></tr>
+        <tr><th>腿上感到</th><td>没有——腿是空的</td><td class="us">上坡有人推、上台阶发沉、下台阶落地一沉、红灯被拉住</td></tr>
+        <tr><th>力的上限</th><td>—</td><td class="us"><b>软限 4 Nm</b>（≈0.05 Nm/kg）；固件硬限 7.5 Nm 永远不用满</td></tr>
+        <tr><th>谁管安全</th><td>—</td><td class="us"><b>安全员是硬代码</b>，不交给大模型；Guard 是唯一写串口的地方；松手即零</td></tr>
+        <tr><th>关卡</th><td>预制</td><td class="us">说一句话现场造一座山，安全员裁剪后马上能爬</td></tr>
+        <tr><th>记忆</th><td>—</td><td class="us">一句话存成经验卡，下一个同步频的人自动继承；删卡即回退</td></tr>
+      </table>
+      <p style="margin-top:2mm;font-size:7pt">技术是主角，游戏是载体。先例 Holotron（2020）用主动力矩做过楼梯和斜面，但挂在固定平台上；我们新在：穿着能走 × 只用髋按相位打脉冲 × 量产消费级设备。</p>
+    </div>
+  </div>
+
+  <div class="grid roles">
+    <div class="card"><h3>教练<s>大模型</s></h3><p>评委一句话 → 参数差值。参数名只能从当前控制律里选，每次改动裁到范围的 15% 以内。</p></div>
+    <div class="card"><h3>地形导演<s>大模型</s></h3><p>一句话 → 路线草稿：路段、步数、地名，从 5 种现成画面风格里选一种。</p></div>
+    <div class="card"><h3>记忆员<s>代码</s></h3><p>对照同步频段已有的经验卡：同向几张、反向几张；反向照样写卡，检索时取平均。</p></div>
+    <div class="card hard"><h3>安全员<s>硬代码</s></h3><p>力矩参数超软限就裁；30 s 内同一参数最多改 3 次；急停一律否决。造山：起步必须平地、台阶不过半、红灯 ≤2、总长 20–80 步。</p></div>
+  </div>
+
+  <div class="flow">
+    <div class="card">
+      <h2>评委一句话改手感</h2>
+      <div class="chain"><span class="n q">「太陡了」</span><span class="a">→</span><span class="n">教练：strength −0.5</span><span class="a">→</span><span class="n">记忆员对照</span><span class="a">→</span><span class="n">安全员放行 / 裁剪</span><span class="a">→</span><span class="n ok">下一步生效</span><span class="a">→</span><span class="n">存成经验卡</span></div>
+      <p><b>经验卡</b> = {穿戴者, 控制律, 步频 ±10, 参数差值, 原话, 来源}。换人走满 6 步、步频稳定后自动检索，命中就套用；<b>删掉一张卡，参数立即反向回退</b>——这是「不是写死的剧本」最直接的证明。<br><b>影子</b>：每圈登顶，这一圈每一步的时刻成为下一位的影子，和你并排爬。</p>
+    </div>
+    <div class="shot" style="background-image:url(c2_aicard.jpg);background-position:center top"><div class="cap">大屏右下 AI 决策卡实拍：安全员把想到的 3.30 Nm 裁到软限（裁剪橙底 · 否决红底 · 生效绿字）</div></div>
+  </div>
+
+  <div class="grid nums">
+    <div class="card"><div class="num">4<small>Nm</small></div><div class="numl">力矩软限（展位）<br>固件硬限 7.5 Nm 永远不用满</div></div>
+    <div class="card"><div class="num">13<small>→ 0</small></div><div class="numl">步态门限：穿戴坐 / 站假周期<br>12 段真机录制扫 1080 档</div></div>
+    <div class="card"><div class="num">20<small>/ 20</small></div><div class="numl">导游压测：20 位新穿戴者<br>各讲一次、迈步立刻打断</div></div>
+    <div class="card"><div class="num">8<small>个世界</small></div><div class="numl">珠峰主打 + 五座山 / 街 + 两个训练场<br>另有屋顶跑酷；一句话再造一座</div></div>
+  </div>
+
+  <div class="foot"><span>数字来源：软限 = 展位启动参数；步态 = 9/22 真机录制离线回放；导游压测 = 9/24 脚本压测；大脑当下模型名写在 /health 和蜂群时间线里</span><span>2 / 3</span></div>
+</div>
+
+<!-- ================= 第 3 页：玩什么 + 谁做的 ================= -->
+<div class="page">
+  <div class="kicker">玩什么 · 谁做的 <span>产品介绍 · 3 / 3</span></div>
+  <h1>珠峰北坡 <em>67 步</em>，5200 → 8848.86 m</h1>
+
+  <div class="route">
+    <div class="bar">
+      <div class="f" style="flex:3"><span>大本营</span></div>
+      <div class="u" style="flex:19">东绒布冰川<span>上坡 19</span></div>
+      <div class="f" style="flex:2"><span>前进营地</span></div>
+      <div class="s" style="flex:5">冰壁<span>北坳</span></div>
+      <div class="f" style="flex:5">横梯<span>冰裂缝</span></div>
+      <div class="w" style="flex:1"><span>吸氧</span></div>
+      <div class="u" style="flex:12">北山脊<span>上坡 12</span></div>
+      <div class="u" style="flex:7">刀脊<span>大风口</span></div>
+      <div class="s" style="flex:2"><span>一台阶</span></div>
+      <div class="u" style="flex:6">横切<span>北壁</span></div>
+      <div class="w" style="flex:1"></div>
+      <div class="s" style="flex:3">梯<span>中国梯</span></div>
+      <div class="u" style="flex:1"><span>顶</span></div>
+    </div>
+    <div class="legend"><span><i style="background:var(--up)"></i>上坡 · 推一把</span><span><i style="background:var(--st)"></i>台阶 · 腿发沉</span><span><i style="background:var(--wait)"></i>红灯 · 站定放行</span><span><i style="background:var(--flat)"></i>平地 · 不出力</span><span style="margin-left:auto">条长 = 步数 · 颜色 = 腿上的力</span></div>
+  </div>
+
+  <div class="grid thrill">
+    <div>
+      <div class="shot" style="background-image:url(c3_crevasse.jpg)"><div class="cap">北坳冰裂缝</div></div>
+      <h4><s>①</s>横梯</h4><p>两架绑接的铝梯横跨冰裂缝，镜头压到腰高看脚下。<b>走太快（步频 &gt;110）或站太久会晃，连续 2.5 s 就失足</b>——黑场计一次，腿上的力不变。</p>
+    </div>
+    <div>
+      <div class="shot" style="background-image:url(c3_ridge.jpg)"><div class="cap">北山脊 · 大风口</div></div>
+      <h4><s>②</s>刀脊</h4><p>1 m 宽的路面，两侧 60° 陡坡、左侧雪檐，脚下雾带和滚石。峰哥：「两边是悬崖？恰恰相反，中间才是路。」</p>
+    </div>
+    <div>
+      <div class="shot" style="background-image:url(c3_ladder.jpg)"><div class="cap">第二台阶 · 中国梯</div></div>
+      <h4><s>③</s>横切</h4><p>北壁贴壁栈道：1.4 m 岩檐，右边灰岩壁、左边深渊。过了它在第二台阶排队，站稳放行，再爬中国梯登顶。</p>
+    </div>
+  </div>
+
+  <div class="grid maps">
+    <div class="shot" style="background-image:url(c3_huashan.jpg)"><div class="cap"><b>华山</b>长空栈道 · 60 步</div></div>
+    <div class="shot" style="background-image:url(c3_tokyo.jpg)"><div class="cap"><b>赛博东京</b>雨夜 · 神社石阶</div></div>
+    <div class="shot" style="background-image:url(c3_taishan.jpg)"><div class="cap"><b>泰山</b>十八盘 · 南天门</div></div>
+    <div class="shot" style="background-image:url(c3_fuji.jpg)"><div class="cap"><b>富士</b>吉田线 · 御来光</div></div>
+    <div class="shot" style="background-image:url(c3_wutong.jpg)"><div class="cap"><b>梧桐山</b>好汉坡 · 深圳</div></div>
+    <div class="shot" style="background-image:url(c3_parkour.jpg)"><div class="cap"><b>屋顶跑酷</b>步频 = 跑速</div></div>
+  </div>
+
+  <div class="bottom">
+    <div class="shot" style="background-image:url(c3_xiaob.jpg);background-size:contain;background-repeat:no-repeat;background-position:center"><div class="cap">助理「小 B」· AvatarSample_B</div></div>
+    <div>
+      <h2>助理小 B · 团队</h2>
+      <p style="margin-bottom:2.5mm"><b>小 B</b>走在你前面指路、到台阶退到路中线后方、在梯脚等你；只读状态、不碰任何控制。跑酷里换成一台四脚机甲在后面追：高抬腿 = 跳，下蹲 = 滑铲，抬一条腿保持 0.3 s = 换道。</p>
+      <div class="grid team">
+        <div class="card"><h3>球球</h3><p>控制栈、步态、登山游戏、Agent 蜂群、真机调试、展位主讲与操作</p></div>
+        <div class="card"><h3>anni</h3><p>开场主持、带评委穿戴、感知实验（蒙眼二选一）负责人</p></div>
+        <div class="card"><h3>艾玛</h3><p>声音——音效设计与展位上的声音讲解</p></div>
+        <div class="card"><h3>Penn</h3><p>珠峰地图与现场真人测试</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cred">
+    <p><span class="gh">github.com/QiuQiuNB666/aima　扫码进群 →</span>素材授权：峰哥本人同意本次展示使用他的肖像、口吻和 AI 复刻声音（照片 talk-to-fengge-live · MIT；口吻 feng-ge-skill · MIT；参考音频 talk-to-fengge · Apache-2.0）· 助理小 B = VRoid 官方样例 AvatarSample_B（VRoid 样例条款：可免费再分发、免署名）+ three-vrm（MIT）· 东京电子狛犬 = MechQuadruped by 3Donimus（CC BY 3.0，有改动）· 化身底模 CesiumMan（CC BY 4.0）· 场景全部程序生成，不出现任何真实品牌。非商业黑客松作品，不做医疗器械定位。</p>
+    <div class="qrw"><img class="qri" src="wx_qr.jpg"><div class="qrt">扫码进群 · 峰哥亡命天涯</div></div>
+  </div>
+  <div class="foot"><span>EvoTavern 深圳站 · 具身与穿戴硬件赛道 · ShellOS + 峰哥亡命天涯</span><span>3 / 3</span></div>
+</div>
+</body></html>
