@@ -2,7 +2,7 @@
 // 操作方式（/state 的 input.mode，hud.js 每拍写进 window.__inputMode；?input=keyboard|pad 进页面时 POST /input 切过去）：
 //   exo      外骨骼：什么都不改，走路靠腿（模拟模式才用空格 /sim）
 //   keyboard 按住 ↑ / W / 空格 = 120 步/分匀速（每 0.5 s POST /drive 1 步），单按一下 = 1 步
-//   pad      浏览器 Gamepad：左摇杆向前或按住 × = 匀速，十字键上 = 单步（ShellOS 自己读的手柄不经过这里）
+//   pad      浏览器 Gamepad：左摇杆向前 = 匀速，十字键上 = 单步（ShellOS 自己读的手柄不经过这里）
 const CAMS = ['follow', 'front', 'side'];
 const Q = new URLSearchParams(location.search);
 window.__camMode = CAMS.includes(Q.get('cam')) ? Q.get('cam') : 'follow';
@@ -36,7 +36,7 @@ export function bindInput(post, isSim) {
     const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(p => p && p.connected) : null;
     if (!gp) { hold(false); return; }
     const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), up = b(12);
-    hold(b(0) || (gp.axes[1] || 0) < -0.5);
+    hold((gp.axes[1] || 0) < -0.5);   // 不用 ×：ShellOS 自己读的手柄里 × 是急停
     if (up && !padUp) drive();
     padUp = up;
   }, 50);

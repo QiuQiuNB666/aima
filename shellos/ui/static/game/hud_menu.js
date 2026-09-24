@@ -226,7 +226,7 @@ const HELP = `<div class="keys">
 <span>出力</span><span>操作台「按住 → 助力」</span><span class="pad">按住 R2（越深越大，松开即零）</span>
 <span>走路 / 爬山</span><span>按住 <kbd>空格</kbd>（模拟外骨骼时）</span><span class="pad">穿着原地踏步</span>
 <span>操作方式：键盘</span><span>按住 <kbd>↑</kbd> / <kbd>W</kbd> / <kbd>空格</kbd> 匀速走 · 单按 = 1 步</span><span class="pad">设置里切，腿上不出力</span>
-<span>操作方式：手柄</span><span>—</span><span class="pad">左摇杆向前 / 按住 × 匀速走 · 十字键上 = 1 步（浏览器读）</span>
+<span>操作方式：手柄</span><span>—</span><span class="pad">左摇杆向前匀速走 · 十字键上 = 1 步（浏览器读；× 是急停，不当前进键）</span>
 <span>步频 慢 / 中 / 快</span><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>（模拟时）</span><span class="pad">—</span>
 <span>换视角</span><span><kbd>V</kbd> 跟拍 → 正面 → 侧面</span><span class="pad">—</span>
 <span>换一座山</span><span><kbd>M</kbd></span><span class="pad">—</span>
