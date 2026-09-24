@@ -228,6 +228,7 @@ const HELP = `<div class="keys">
 const CREDITS = `<div class="cred">
 <b>球球</b> · 负责人：控制栈、步态、登山游戏、Agent 蜂群、真机调试与展位演示<br>
 <b>anni</b> · 队友<br>
+<b>艾玛</b> · 声音<br>
 ${FG ? '<b>峰哥</b> · 肖像、口吻、AI 复刻声音（9/23 本人当面同意）<br>' : ''}
 <small>硬件：Hypershell X MaxS（黑客松固件，没改一个螺丝）<br>
 素材：CesiumMan（Khronos glTF Sample，CC BY 4.0）· three.js（MIT）${FG ? ' · 峰哥照片 talk-to-fengge-live（MIT）· 口吻 feng-ge-skill（MIT）· 参考音频 talk-to-fengge（Apache-2.0）' : ''}<br>
