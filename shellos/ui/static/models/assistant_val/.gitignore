@@ -1,0 +1,3 @@
+# 游戏提取素材（Riot IP），不进 git、不上 GitHub；只由 deploy.sh 的 rsync 同步到展位机（同 models/jett/）
+*.glb
+*.png
