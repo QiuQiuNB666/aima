@@ -1,5 +1,73 @@
 # EYE OS · Emma0923 合并说明
 
+## 同事从这里开始：推荐合并路径
+
+先审阅 [PR #3：上肢、可选单/双套与穿戴教学](https://github.com/QiuQiuNB666/aima/pull/3)，合入 `codex/eye-os-Emma0924`；再审阅 [PR #2：Emma 控制台进入主项目](https://github.com/QiuQiuNB666/aima/pull/2)，合入 `main`。先合 #3 后，#2 会自动包含本次完整代码，无需重复复制文件或再挑选一次提交。
+
+```text
+emma0924/upper-limb-improvements -- PR #3 --> codex/eye-os-Emma0924 -- PR #2 --> main
+```
+
+两份 PR 当前均保留草稿，尚未执行合并。远程实机校准数据未回传，不在当前交付内；后续单独追加带来源和用途说明的数据/校准提交。页面演练、只读检查和软件力反馈内核可先评审，硬件启动与力反馈实测状态仍以验证记录为准。
+
+### 审阅范围与不能漏掉的依赖
+
+| 范围 | 在哪里看 | 合并选择 |
+| --- | --- | --- |
+| 穿戴流程、双杆画面、操作教学 | `EYE-OS-Emma0923/` | 保持整个目录的 HTML、脚本、服务、缓存及测试版本一致 |
+| 手部力反馈计算、姿态采集 | `shellos/hands/` | 与下列公共保护改动配套审阅；未开放网页电机输出 |
+| 设备身份和输出所有权 | `shellos/device/ownership.py`、`serial_link.py`、`shellos/safety/guard.py`、`shellos/ui/server.py` | 不能省略：负责串口独占、Guard 互斥、固定角色与状态声明 |
+| 对应回归测试 | `tests/test_device_ownership.py`、`test_hands_haptics.py`、`test_serial_ports.py` 及网页 `*.test.mjs` | 随实现一起合并 |
+
+如同事必须挑选提交，应在已包含 `86974dc` 的 Emma 基线上按顺序使用下表。推荐直接通过 PR 合并，避免重复引入提交。`5726a8d` 不是可直接贴进任意旧版本的独立补丁。
+
+| 顺序 | 提交 | 内容 | 依赖 |
+| --- | --- | --- | --- |
+| 1 | `6f711f0` | v0.5 双杆输入和独立游戏 | Emma 基线 `86974dc` |
+| 2 | `8f5a817` | v0.6 手部力反馈内核与采集 | 上一项 |
+| 3 | `d432055` | v0.7 单套/双套配置及控制隔离 | 前两项 |
+| 4 | `5726a8d` | v0.8 穿戴自查与每款游戏教学 | 前三项 |
+
+本节之后的版本记录仅用于追溯，历史文件数量和测试计数不是当前交付数量。当前目录为 50 个文件；当前 Node 全套为 118 项。
+
+### 2026-09-24 合并检查
+
+- GitHub PR #3 显示 `MERGEABLE / CLEAN`，目标确为 Emma 分支；没有修改 `main` 或实际执行合并。
+- 获取最新 `main` 的 `67e6783`，用 `git merge-tree --write-tree` 对完整开发分支 `5726a8d` 做虚拟合并：无文本冲突。生成的合并树为 `885b11111feb8e49bfbeaada8f10118beae8edbd`。虚拟合并不改工作区、分支或运行中的硬件。
+- 主分支相对共同基线已新增 83 个提交；双方涉及的公共文件中，主分支也修改了 `shellos/ui/server.py`。虚拟合并保留了主分支新功能与本分支 `link.role` 字段。
+- 从该合并树导出隔离的源代码和场景配置后，Node **118/118** 通过，Python 相关回归 **92 passed、2 subtests passed、2 deselected**（排除无关 stress）通过，均未连接真机。不是整个主项目所有测试或完整双设备端到端验收。
+- PR 文件清单没有新增录音、现场校准数据、虚拟环境、密钥配置、ZIP、海报或本机日志。GitHub 尚无自动 CI 检查结果；本地测试记录不能标为 GitHub CI 通过。
+
+### 合并后复验（不接外骨骼）
+
+在仓库根目录执行 Python 假设备/回放回归，在网页目录执行 Node 全套：
+
+```text
+python -m pytest tests/test_device_ownership.py tests/test_hands_haptics.py tests/test_guard.py tests/test_serial_ports.py tests/test_fault.py tests/test_app.py -q -k "not stress"
+cd EYE-OS-Emma0923
+npm test
+```
+
+网页需要 Node 22+，Python 依赖见仓库 `requirements.txt`。预览执行 `node server.mjs` 并打开 `http://127.0.0.1:4177/hands.html`；这不会启动 ShellOS 或打开串口。真机数据返回后继续在同一个 PR/Emma 分支追加，重新获取目标分支并检查差异，勿把本次无冲突结果视作永久保证。
+
+## v0.8 当前增量：穿戴准备与每款游戏的操作教学
+
+本目录现为 50 个文件。新增 `wear-core.js`、`tutorial-core.js`、两份对应测试及 [接入说明](WEAR-AND-TUTORIAL-Emma0924.md)。一起带入页面、控制器、只读 reader、服务、缓存清单和版本信息；Service Worker 为 v8。本轮相对 `d432055` 只改本目录，没有修改或运行硬件控制代码。
+
+共用穿戴流程按单套腿部、单套双手、双套分别展示 5 / 6 / 11 项。设备检查只查询所选角色的固定本机 `/state`，不打开串口。本人自查和新鲜连接数据只解锁画面演练，不授予真实动作权限。穿戴检测传感器仍未接入。
+
+当前已接入互动教学的游戏为本页靶场与挖掘机；原腿部游戏只提供穿戴引导及返回设备页入口，尚未改写其游戏入口。伙伴给其他游戏接入时，复用穿戴生命周期，再注册各自教学动作与判定，不能把教学完成用作硬件启动条件。Node 九套 118 项通过；本次没有重跑未改动的 Python 硬件测试，历史结果见下文。
+
+## v0.7 增量：单套 / 双套与控制隔离（历史）
+
+当前 `EYE-OS-Emma0923/` 为 45 个文件。新增 [DEVICE-MODES-Emma0924.md](DEVICE-MODES-Emma0924.md) 描述单套腿部、单套双手和双套配置；页面切换会清空旧输入与校准，后端只读取所选角色。双套 HTTP 服务端口和上报实体串口必须不同，手部服务必须声明 `link.role: hands`。
+
+本轮涉及公共硬件代码：新增 `shellos/device/ownership.py` 和 `tests/test_device_ownership.py`；修改 SerialLink 的端口独占/角色/重连、Guard 的互斥/关闭生命周期、`shellos/ui/server.py` 的角色字段，以及手部 bridge/capture。请与 v0.6 手部模块一起合并，不要只取网页。原腿部主入口保持 legs 角色，手部不能借用腿部自动 ENABLE 路径。
+
+Node 100 项通过；Python 核心 66 项 + 原腿部故障与 App 回归 26 项通过，另有 2 子测试通过、2 无关 stress 测试排除。全程仅假串口/回放，没有真机输出。合并包是覆盖文件集合，仍需基于现有 aima 仓库审阅，优先使用 PR diff。
+
+下文 v0.3–v0.6 为历史增量记录，旧版「未改 Guard / SerialLink」不适用于 v0.7。
+
 本交付标记为 **Emma0923**，用于区分眼镜伴随控制台与伙伴的外骨骼／游戏工程。它是独立网页应用，不是眼镜固件，也不是 EYEVUE 官方操作系统。
 
 交付目标是现有仓库 **`QiuQiuNB666/aima`** 的 **`EYE-OS-Emma0923/`** 子目录，不另建仓库。通过独立审阅分支和 PR 提交，供伙伴逐项评估；模块仍可在该子目录执行 `node server.mjs` 独立运行。是否进入主分支以 PR 的合并状态为准。
@@ -8,7 +76,19 @@
 
 **已于 2026-09-24 核对 `QiuQiuNB666/aima` 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`。** 本模块共 39 个文件，供团队独立审阅。仓库中另有 Windows `find_port` 窄改动及 8 项 mock 测试；只调整串口发现，不改变 Guard、控制循环或运动指令行为。
 
-## v0.4 增量
+## v0.6 增量
+
+新增仓库根目录 `shellos/hands/` 与 `tests/test_hands_haptics.py`。新增代码和 `EYE-OS-Emma0923/HAPTICS-Emma0924.md` 需一起审阅；未改写既有串口、Guard、腿部启动入口或腿部游戏。`EYE-OS-Emma0923/` 现为 44 个文件。
+
+独立 Python 控制内核产生力矩提案，显式本机 Guard 适配器可供后续台架接线；默认没有真实输出入口，网页仍只读。只读 capture 工具不调用普通 SerialLink 的握手、恢复或退出 DISABLE。现场接口/工程参数未核实前，不创建物理输出会话。见 [力反馈开发与校准说明](HAPTICS-Emma0924.md)。
+
+## v0.5 增量
+
+从 `codex/eye-os-Emma0924` 的 `86974dc` 继续完善双杆模块；保留 Emma0923 目录名。新增 `hands-input.js`、`hands-reader.js` 和对应输入/页面测试；修改原双手内核、控制器、页面、服务与缓存清单。仅本目录有改动，不涉及 ShellOS 控制代码。
+
+只读手部数据源必须通过独立 `SHELLOS_HANDS_PORT` 配置；不能把普通腿部控制器直接用作上肢控制器。两台设备实际身份绑定及力反馈执行仍待实现。前端可先复用三点归一化输入与左右枪/挖掘机逻辑，详见 [双杆说明](HANDS-MODE-Emma0923.md)。Service Worker 升级 v5，部署时一起更新两个新增前端文件。七套自动测试共 93 项通过。
+
+## v0.4 增量（历史）
 
 新增独立浏览器双手模式模拟器，详见 [HANDS-MODE-Emma0923.md](HANDS-MODE-Emma0923.md)。没有真机动作端点，没有修改 ShellOS/Guard；与 v0.3 只读设备面板并存。新增文件均带入本目录，Service Worker 升级 v4。
 

@@ -28,16 +28,19 @@ async function listen(t, listener) {
 const send = (res, value = report()) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(value)); };
 
 async function appFixture(t, overrides = {}) {
+  const { handsSource = false, ...serverOverrides } = overrides;
   const requests = [];
-  const upstream = await listen(t, (req, res) => { requests.push({ method: req.method, url: req.url, host: req.headers.host }); send(res); });
+  const upstream = await listen(t, (req, res) => { requests.push({ method: req.method, url: req.url, host: req.headers.host }); send(res, handsSource ? report({link:{port:'COM7',role:'hands',age_ms:15,enabled:true}}) : report()); });
   let probes = 0;
   let audioCalls = 0;
   const app = createConsoleServer({
-    platform: 'win32', now: () => NOW, shellosPort: upstream.port,
+    platform: 'win32', now: () => NOW, shellosPort: handsSource ? (upstream.port === 65535 ? 65534 : upstream.port+1) : upstream.port,
+    handsPort: handsSource ? upstream.port : '',
+    exoskeletonMode: handsSource ? 'single-hands' : 'single-legs',
     queryExoskeletonUsb: async () => { probes++; return native(); },
     queryDevice: async () => { throw new Error('Unexpected audio probe'); },
     queryDisplays: async () => { throw new Error('Unexpected display probe'); },
-    testAudio: async () => { audioCalls++; }, ...overrides,
+    testAudio: async () => { audioCalls++; }, ...serverOverrides,
   });
   await new Promise(resolve => app.listen(0, '127.0.0.1', resolve));
   t.after(async () => { app.closeAllConnections(); await new Promise(resolve => app.close(resolve)); });
@@ -56,6 +59,94 @@ async function appFixture(t, overrides = {}) {
   });
   return { request, requests, upstreamPort: upstream.port, origin: `http://127.0.0.1:${port}`, get probes() { return probes; }, get audioCalls() { return audioCalls; } };
 }
+
+test('hands telemetry bypasses USB discovery and old status caches using only fixed upstream GETs', async t => {
+  const app = await appFixture(t, {handsSource:true});
+  const first = await app.request('/api/hands-telemetry');
+  assert.equal(first.status,200); assert.equal(first.json.hardwareOutput,false);
+  assert.equal(first.json.shellos.mode,'hardware'); assert.equal(app.probes,0);
+  assert.equal(Object.hasOwn(first.json,'usb'),false);
+  await app.request('/api/hands-telemetry'); assert.equal(app.requests.length,2);
+  assert.ok(app.requests.every(item=>item.method==='GET' && item.url==='/state'));
+  assert.equal((await app.request('/api/hands-telemetry',{method:'POST'})).status,405);
+  assert.equal((await app.request('/api/hands-telemetry?port=22')).status,400);
+  assert.equal((await app.request('/api/hands-telemetry',{headers:{Origin:'https://evil.example'}})).status,403);
+  assert.equal(app.requests.length,2); assert.equal(app.audioCalls,0);
+});
+
+test('hand source is opt-in and cannot silently use the leg service',async t=>{
+  const app=await appFixture(t);const value=await app.request('/api/hands-telemetry');
+  assert.equal(value.json.error,'HANDS_ROLE_DISABLED');assert.equal(app.requests.length,0);
+  assert.throws(()=>createConsoleServer({shellosPort:18765,handsPort:18765,exoskeletonMode:'dual'}),/must differ/);
+});
+
+test('single hand mode can reuse the sole service port and never probes legs',async t=>{
+  const app=await appFixture(t,{handsSource:true});
+  assert.equal((await app.request('/api/exoskeleton')).json.error,'LEGS_ROLE_DISABLED');
+  assert.equal(app.probes,0);assert.equal(app.requests.length,0);
+  assert.equal((await app.request('/api/exoskeleton-layout')).json.layout,'single-hands');
+  assert.equal(app.requests.length,0);
+  const server=createConsoleServer({shellosPort:18765,handsPort:18765,exoskeletonMode:'single-hands'});
+  server.close();
+  assert.throws(()=>createConsoleServer({exoskeletonMode:'automatic'}),/EXOSKELETON_MODE/);
+});
+
+test('wear checks are read-only, inspect only active roles, and never invent strap or grip sensors',async t=>{
+  const app=await appFixture(t,{handsSource:true});
+  const value=(await app.request('/api/wear-check')).json;
+  assert.equal(value.schema,'aima.wear-check.v1');assert.equal(value.layout,'single-hands');
+  assert.equal(value.devices.length,1);assert.equal(value.devices[0].role,'hands');assert.equal(value.devices[0].roleVerified,true);
+  assert.equal(value.devices[0].source,'hardware');assert.equal(value.devices[0].fresh,true);
+  assert.deepEqual(value.sensorChecks,{straps:null,grip:null,mount:null});
+  assert.equal(value.wearVerified,false);assert.equal(value.hardwareOutput,false);
+  assert.equal(app.probes,0);assert.equal(app.audioCalls,0);assert.equal(app.requests.length,1);
+  assert.equal(app.requests[0].method,'GET');assert.equal(app.requests[0].url,'/state');
+  assert.equal((await app.request('/api/wear-check',{method:'POST'})).status,405);
+  assert.equal((await app.request('/api/wear-check?mode=dual')).status,400);
+  assert.equal((await app.request('/api/wear-check',{headers:{Origin:'https://evil.example'}})).status,403);
+  assert.equal(app.requests.length,1);
+});
+
+test('leg and dual wearing checks retain independent role evidence and no inferred verification',async t=>{
+  const single=await appFixture(t);
+  const legacy=(await single.request('/api/wear-check')).json;
+  assert.equal(legacy.devices.length,1);assert.equal(legacy.devices[0].role,'legs');assert.equal(legacy.devices[0].roleVerified,false,'Old unlabeled service cannot prove the role');
+  let legReads=0,handReads=0;
+  const leg=await listen(t,(_req,res)=>{legReads++;send(res,report({link:{port:'COM5',role:'legs',age_ms:10}}));});
+  const hand=await listen(t,(_req,res)=>{handReads++;send(res,report({link:{port:'COM6',role:'hands',age_ms:999}}));});
+  const dual=await appFixture(t,{shellosPort:leg.port,handsPort:hand.port,exoskeletonMode:'dual'});
+  const values=await Promise.all([dual.request('/api/wear-check'),dual.request('/api/wear-check')]);
+  const rows=values[0].json.devices;
+  assert.deepEqual(rows.map(row=>row.role),['legs','hands']);assert.equal(rows[0].fresh,true);assert.equal(rows[1].fresh,false);
+  assert.equal(rows[0].roleVerified,true);assert.equal(rows[1].roleVerified,true);
+  assert.equal(legReads,1);assert.equal(handReads,1);assert.equal(dual.probes,0);
+  assert.equal(values[0].json.wearVerified,false);
+});
+
+test('single legs ignores dormant hand port; single hands never falls back to legs',async t=>{
+  const legs=await appFixture(t,{handsSource:true,exoskeletonMode:'single-legs'});
+  assert.equal((await legs.request('/api/hands-telemetry')).json.error,'HANDS_ROLE_DISABLED');
+  assert.equal(legs.requests.length,0);
+  const hands=await appFixture(t,{exoskeletonMode:'single-hands'});
+  assert.equal((await hands.request('/api/hands-telemetry')).json.error,'HANDS_SOURCE_NOT_CONFIGURED');
+  assert.equal(hands.requests.length,0);
+});
+
+test('two HTTP ports cannot disguise one physical device or the wrong role',async t=>{
+  let handRole='hands',legRole='legs',handPort='COM7',legPort='com7',legAge=15;
+  const hand=await listen(t,(_req,res)=>send(res,report({link:{role:handRole,port:handPort,age_ms:15}})));
+  const leg=await listen(t,(_req,res)=>send(res,report({link:{role:legRole,port:legPort,age_ms:legAge}})));
+  const app=await appFixture(t,{handsPort:hand.port,shellosPort:leg.port,exoskeletonMode:'dual'});
+  const read=async()=>(await app.request('/api/hands-telemetry')).json;
+  assert.equal((await read()).error,'DEVICE_ROLE_CONFLICT');
+  legPort='COM8';assert.equal((await read()).available,true);
+  handRole='legs';assert.equal((await read()).error,'HANDS_ROLE_MISMATCH');
+  handRole=undefined;assert.equal((await read()).error,'HANDS_ROLE_MISMATCH');
+  handRole='hands';legRole='hands';assert.equal((await read()).error,'DUAL_BINDING_UNVERIFIED');
+  legRole='legs';legAge=999;assert.equal((await read()).error,'DUAL_BINDING_UNVERIFIED');
+  legAge=15;assert.equal((await read()).layout,'dual');
+  assert.equal(app.audioCalls,0);
+});
 
 test('reports hardware, simulation and replay as distinct sources without leaking raw state', () => {
   const value = report({ wearer: { name: 'private wearer' }, events: ['private events'], shots: 'private shots', raw: 'private data' });

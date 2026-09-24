@@ -5,7 +5,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { createExoskeletonReader } from './exoskeleton-core.mjs';
+import { createExoskeletonReader, readShellOSState, normalizeShellOSState, resolveShellOSPort } from './exoskeleton-core.mjs';
 
 const execute = promisify(execFile);
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -195,14 +195,70 @@ export function createConsoleServer({
   staticRoot = APP_ROOT, platform = process.platform, queryDevice = queryNativeDevice,
   queryDisplays = queryNativeDisplays, testAudio = playNativeAudio, now = Date.now,
   cacheMs = 15000, displayCacheMs = 3000,
-  queryExoskeletonUsb = queryNativeExoskeletonUsb, shellosPort,
+  queryExoskeletonUsb = queryNativeExoskeletonUsb, shellosPort, handsPort = process.env.SHELLOS_HANDS_PORT,
+  exoskeletonMode = process.env.EXOSKELETON_MODE,
   exoskeletonUsbCacheMs = 5000, shellosCacheMs = 500, shellosTimeoutMs = 1200,
 } = {}) {
   const rootPromise = realpath(staticRoot);
-  const exoskeletonState = createExoskeletonReader({
+  const legPort = resolveShellOSPort(shellosPort);
+  const handPort = handsPort === undefined || handsPort === '' ? null : resolveShellOSPort(handsPort);
+  const layout = exoskeletonMode || (handPort === null ? 'single-legs' : 'dual');
+  if (!['single-legs','single-hands','dual'].includes(layout)) throw new Error('EXOSKELETON_MODE must be single-legs, single-hands or dual.');
+  if (layout === 'dual' && handPort === legPort) throw new Error('In dual mode SHELLOS_HANDS_PORT must differ from SHELLOS_PORT.');
+  const handUnavailable = error => ({available:false, hardwareOutput:false, layout, error, role:'hands'});
+  let handPending = null;
+  function handTelemetry() {
+    if (layout === 'single-legs') return Promise.resolve(handUnavailable('HANDS_ROLE_DISABLED'));
+    if (handPort === null) return Promise.resolve(handUnavailable('HANDS_SOURCE_NOT_CONFIGURED'));
+    // No USB enumeration and no 500ms status cache in the interactive input path.
+    // Concurrent callers share a single bounded, read-only upstream request.
+    if (!handPending) handPending = (async () => {
+      const [value, legs] = await Promise.all([
+        readShellOSState({ port:handPort, timeoutMs:shellosTimeoutMs, now }),
+        layout === 'dual' ? readShellOSState({ port:legPort, timeoutMs:shellosTimeoutMs, now }) : null,
+      ]);
+      const hand = normalizeShellOSState(value, {now});
+      // A service port alone is not evidence that its device has the hand role.
+      if (hand.shellos.valid && value.report.link.role !== 'hands') return handUnavailable('HANDS_ROLE_MISMATCH');
+      if (layout === 'dual' && hand.shellos.mode === 'hardware') {
+        const leg = normalizeShellOSState(legs, {now});
+        if (!leg.telemetry?.fresh || leg.shellos.mode !== 'hardware' || legs.report.link.role !== 'legs') return handUnavailable('DUAL_BINDING_UNVERIFIED');
+        if (leg.telemetry.port.toLowerCase() === hand.telemetry.port.toLowerCase()) return handUnavailable('DEVICE_ROLE_CONFLICT');
+      }
+      return { available:true, checkedAt:new Date(now()).toISOString(), hardwareOutput:false, role:'hands', layout, ...hand };
+    })()
+      .finally(() => { handPending = null; });
+    return handPending;
+  }
+  const readLegState = createExoskeletonReader({
     platform, queryUsb: queryExoskeletonUsb, now, shellosPort,
     usbCacheMs: exoskeletonUsbCacheMs, shellosCacheMs, shellosTimeoutMs,
   });
+  const exoskeletonState = () => layout === 'single-hands'
+    ? Promise.resolve({available:false, hardwareOutput:false, role:'legs', layout, error:'LEGS_ROLE_DISABLED'})
+    : readLegState();
+  let wearPending = null;
+  function wearState() {
+    if (!wearPending) wearPending = (async () => {
+      const roles = layout === 'dual' ? ['legs','hands'] : [layout === 'single-legs' ? 'legs' : 'hands'];
+      const snapshots = await Promise.all(roles.map(role => {
+        const port = role === 'hands' ? handPort : legPort;
+        return port === null ? {reachable:false,error:'SOURCE_NOT_CONFIGURED'}
+          : readShellOSState({port,timeoutMs:shellosTimeoutMs,now});
+      }));
+      const devices = snapshots.map((value,index) => {
+        const state = normalizeShellOSState(value,{now}), role = roles[index];
+        return {role, source:state.shellos.mode, reachable:state.shellos.reachable,
+          roleVerified:state.shellos.valid && value.report?.link?.role === role,
+          port:state.telemetry?.port ?? null, fresh:state.telemetry?.fresh === true,
+          frameAgeMs:state.telemetry?.frameAgeMs ?? null, sourceTime:state.telemetry?.sourceTime ?? null};
+      });
+      // Existing firmware reports motion, not strap/grip/mount sensor evidence.
+      return {schema:'aima.wear-check.v1',layout,checkedAt:new Date(now()).toISOString(),devices,
+        sensorChecks:{straps:null,grip:null,mount:null},wearVerified:false,hardwareOutput:false};
+    })().finally(() => {wearPending=null;});
+    return wearPending;
+  }
   let cached;
   let cachedAt = 0;
   let pending;
@@ -291,10 +347,14 @@ export function createConsoleServer({
       }
       if (pathname === '/api/device') { json(res, 200, await state()); return; }
       if (pathname === '/api/displays') { json(res, 200, await displayState()); return; }
-      if (pathname === '/api/exoskeleton') {
+      if (['/api/exoskeleton','/api/hands-telemetry','/api/exoskeleton-layout','/api/wear-check'].includes(pathname)) {
         if (req.headers.origin && req.headers.origin !== `http://${host}`) throw new RequestError(403, 'ORIGIN_REJECTED', '外骨骼状态必须从本机控制台页面读取。');
         if ((req.url || '').includes('?')) throw new RequestError(400, 'INVALID_REQUEST', '外骨骼状态接口不接受目标地址或其他查询参数。');
-        json(res, 200, await exoskeletonState()); return;
+        if (pathname === '/api/exoskeleton-layout') {
+          json(res,200,{layout, hardwareOutput:false, roles:{legs:layout !== 'single-hands', hands:layout !== 'single-legs'}}); return;
+        }
+        if (pathname === '/api/wear-check') { json(res,200,await wearState()); return; }
+        json(res, 200, await (pathname === '/api/hands-telemetry' ? handTelemetry() : exoskeletonState())); return;
       }
       if (pathname.startsWith('/api/')) throw new RequestError(404, 'NOT_FOUND', '未找到接口。');
       await serveStatic(req, res, await rootPromise, pathname);

@@ -1,13 +1,13 @@
 {
   "name": "eye-os-emma0923",
   "displayName": "EYE OS - Emma0923",
-  "version": "0.4.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "EYE OS - Emma0923：音频眼镜、通用外接屏与 ShellOS 外骨骼只读实时状态控制台",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test backend.test.mjs display.test.mjs exoskeleton.test.mjs exoskeleton-ui.test.mjs hands.test.mjs"
+    "test": "node --test backend.test.mjs display.test.mjs exoskeleton.test.mjs exoskeleton-ui.test.mjs hands.test.mjs hands-input.test.mjs hands-ui.test.mjs wear.test.mjs tutorial.test.mjs"
   },
   "engines": {
     "node": ">=22"

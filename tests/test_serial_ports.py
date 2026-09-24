@@ -71,16 +71,17 @@ class SerialPortDiscoveryTests(unittest.TestCase):
         fake_serial = self.serial.return_value
         with patch.object(SL, "find_port") as find_port:
             link = SL.SerialLink("COM42")
+            self.addCleanup(link.close)
         self.assertEqual(link.port, "COM42")
         self.assertIs(link.ser, fake_serial)
         self.serial.assert_called_once_with("COM42", SL.BAUD, timeout=0.05)
         find_port.assert_not_called()
-        self.comports.assert_not_called()
+        self.comports.assert_called_once_with()  # Read USB identity, not automatic selection.
         self.glob.assert_not_called()
         fake_serial.write.assert_not_called()
         self.thread.return_value.start.assert_called_once_with()
 
-    def test_macos_and_linux_keep_sorted_glob_discovery(self):
+    def test_macos_and_linux_multiple_candidates_require_explicit_selection(self):
         paths = {
             "/dev/cu.usbmodem*": ["/dev/cu.usbmodem2"],
             "/dev/cu.usbserial*": ["/dev/cu.usbserial1"],
@@ -91,7 +92,8 @@ class SerialPortDiscoveryTests(unittest.TestCase):
             with self.subTest(platform=platform), patch.object(SL.sys, "platform", platform):
                 self.glob.reset_mock()
                 self.glob.side_effect = paths.__getitem__
-                self.assertEqual(SL.find_port(), "/dev/cu.usbmodem2")
+                with self.assertRaisesRegex(RuntimeError, '--port'):
+                    SL.find_port()
                 self.assertEqual(self.glob.call_args_list, [call(pattern) for pattern in paths])
         self.comports.assert_not_called()
         self.serial.assert_not_called()

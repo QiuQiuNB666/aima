@@ -30,7 +30,7 @@ test('initial state is inert, snapshots are detached, and all methods return the
   const simulation = createHandSimulation();
   const value = simulation.snapshot();
   assert.deepEqual(Object.keys(value).sort(), ['stage', 'released', 'calibrated', 'holding', 'raiseProgress', 'scene', 'damping',
-    'left', 'right', 'feedbackLeft', 'feedbackRight', 'shots', 'excavator', 'hardwareOutput'].sort());
+    'left', 'right', 'feedbackLeft', 'feedbackRight', 'shots', 'shotsLeft', 'shotsRight', 'lastShot', 'excavator', 'hardwareOutput'].sort());
   assert.equal(value.stage, 'legs'); assert.equal(value.released, false); zeroFeedback(value);
   value.stage = 'ready'; value.hardwareOutput = true; value.excavator.boom = 100;
   assert.equal(simulation.snapshot().stage, 'legs'); assert.equal(simulation.snapshot().excavator.boom, 0.5);
@@ -80,6 +80,7 @@ test('calibration neutralizes inputs and requires a new explicit lift', () => {
 
 test('damping opposes virtual handle velocity on both sides and vanishes when stationary', () => {
   const simulation = ready(); simulation.dispatch({ type: 'damping', value: 0.7 });
+  simulation.dispatch({ type: 'scene', value: 'excavator' });
   simulation.dispatch({ type: 'input', left: 0.2, right: -0.3 });
   let value = simulation.tick(0.05);
   assert.ok(value.feedbackLeft < 0); assert.ok(value.feedbackRight > 0);
@@ -110,6 +111,40 @@ test('shots require ready grip and range scene, have cooldown, and return to zer
   advance(simulation, 2); zeroFeedback(simulation.snapshot()); assert.equal(simulation.snapshot().shots, 2);
   simulation.dispatch({ type: 'scene', value: 'excavator' }); simulation.dispatch({ type: 'fire' });
   assert.equal(simulation.snapshot().shots, 2); zeroFeedback(simulation.snapshot());
+});
+
+test('each gun has an independent pulse and cooldown with detached game-only feedback metadata', () => {
+  const simulation = ready();
+  let value = simulation.dispatch({type:'fire',side:'left'});
+  assert.equal(value.shotsLeft,1); assert.equal(value.shotsRight,0);
+  assert.ok(value.feedbackLeft<0); assert.equal(value.feedbackRight,0);
+  assert.deepEqual(value.lastShot.sides,['left']); assert.equal(value.lastShot.role,'hands');
+  assert.equal(value.lastShot.unit,'normalized-preview');
+  value.lastShot.sides.push('legs'); value.lastShot.strength=100;
+  assert.deepEqual(simulation.snapshot().lastShot.sides,['left']);
+  assert.equal(simulation.snapshot().lastShot.strength,.35);
+  value=simulation.dispatch({type:'fire',side:'right'});
+  assert.equal(value.shotsLeft,1); assert.equal(value.shotsRight,1);
+  assert.ok(value.feedbackLeft<0); assert.ok(value.feedbackRight<0);
+  simulation.dispatch({type:'fire',side:'left'}); assert.equal(simulation.snapshot().shotsLeft,1);
+  advance(simulation,.5); zeroFeedback(simulation.snapshot());
+  value=simulation.dispatch({type:'fire',side:'right'});
+  assert.equal(value.feedbackLeft,0); assert.ok(value.feedbackRight<0);
+  value=simulation.dispatch({type:'fire',side:'legs'}); assert.equal(value.stage,'paused'); zeroFeedback(value);
+});
+
+test('pushing a rod fires its own gun once, requires returning below the rearm threshold, and supports both rods', () => {
+  const simulation=ready();
+  simulation.dispatch({type:'input',left:.64,right:0}); assert.equal(simulation.snapshot().shots,0);
+  simulation.dispatch({type:'input',left:.7,right:0});
+  for(let i=0;i<30;i++){ simulation.tick(.05); simulation.dispatch({type:'input',left:.9,right:0}); }
+  assert.equal(simulation.snapshot().shotsLeft,1); assert.equal(simulation.snapshot().shotsRight,0);
+  simulation.dispatch({type:'input',left:.3,right:0}); simulation.dispatch({type:'input',left:.9,right:0});
+  assert.equal(simulation.snapshot().shotsLeft,1);
+  simulation.dispatch({type:'input',left:0,right:0}); simulation.dispatch({type:'input',left:1,right:1});
+  assert.equal(simulation.snapshot().shotsLeft,2); assert.equal(simulation.snapshot().shotsRight,1);
+  simulation.dispatch({type:'scene',value:'excavator'}); advance(simulation,.5);
+  simulation.dispatch({type:'input',left:1,right:1}); assert.equal(simulation.snapshot().shotsRight,1);
 });
 
 test('grip loss and suspend instantly clear axes, damping and pulses without automatic recovery', () => {
@@ -170,14 +205,20 @@ test('re-attaching legs and reset clear calibration, grip, axes, pulses and all 
   assert.deepEqual(simulation.dispatch({ type: 'reset' }), createHandSimulation().snapshot());
 });
 
-test('tick clips background time to 50ms, negative time cannot move, and nonfinite time fails closed', () => {
+test('short frames clip to 50ms, while a stalled page pauses instead of resuming old input', () => {
   const simulation = configured(); simulation.dispatch({ type: 'raise' });
   const initial = simulation.snapshot(); assert.deepEqual(simulation.tick(-5), initial);
-  const moved = simulation.tick(3600); assert.ok(moved.raiseProgress > 0 && moved.raiseProgress < 0.05);
+  const moved = simulation.tick(0.1); assert.ok(moved.raiseProgress > 0 && moved.raiseProgress < 0.05);
   const comparison = configured(); comparison.dispatch({ type: 'raise' });
   assert.deepEqual(moved, comparison.tick(0.05));
   const excavator = ready(); excavator.dispatch({ type: 'scene', value: 'excavator' }); excavator.dispatch({ type: 'input', left: 1, right: 1 });
-  assert.equal(excavator.tick(3600).excavator.boom, 0.5225);
+  const frozen = excavator.snapshot().excavator;
+  assert.equal(excavator.tick(3600).stage, 'paused');
+  assert.deepEqual(excavator.snapshot().excavator, frozen);
+  assert.equal(excavator.snapshot().holding, false); zeroFeedback(excavator.snapshot());
+  const lifting = configured(); lifting.dispatch({type:'raise'});
+  assert.equal(lifting.tick(0.251).stage, 'paused');
+  assert.equal(lifting.snapshot().raiseProgress, 0);
   for (const invalid of [NaN, Infinity, -Infinity, '0.05', undefined, null]) {
     const active = ready(); active.dispatch({ type: 'fire' });
     const stopped = active.tick(invalid); assert.equal(stopped.stage, 'paused'); assert.equal(stopped.holding, false); zeroFeedback(stopped);

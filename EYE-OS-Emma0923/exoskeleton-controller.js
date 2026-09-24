@@ -105,6 +105,15 @@ function render() {
     : error ? '本机桥接不可用。手机或静态页面请回到连接设备的电脑，启动本机版本后重试。'
     : reading && !visible() ? '页面不可见，读取已挂起；返回后继续。'
     : note || (reading ? '每秒读取一次；暂停读取不会改变外骨骼运行状态。' : '点击「开始读取」，每秒检查一次本机状态。'));
+  if (error === 'LEGS_ROLE_DISABLED') {
+    badge.textContent = '单套双手 · 腿部关闭';
+    set('exo-shellos-state','当前配置未启用腿部');
+    set('exo-usb-state','未请求 USB 检查');
+    set('exo-usb-note','此配置只使用手部外骨骼。');
+    set('exo-shellos-note','腿部服务未读取；请在双手模式页读取已绑定的设备。');
+    set('exo-data-state','腿部未启用');
+    set('exo-status','本机服务选择了单套双手配置。这是正常状态，可进入双手模式试玩。');
+  }
 }
 function cancelRequest() {
   ++generation;
@@ -122,6 +131,11 @@ async function refresh() {
     if (!response.ok) throw new Error('bridge unavailable');
     const value = await response.json();
     if (controller.signal.aborted) throw new Error('request expired');
+    if (id !== generation || !visible() || !online()) return;
+    if (value?.error === 'LEGS_ROLE_DISABLED' && value?.layout === 'single-hands') {
+      reading = false; stopTimer(); snapshot = null; receivedAt = null; arrivalFrameAgeMs = null;
+      error = 'LEGS_ROLE_DISABLED'; renderPorts(); return;
+    }
     if (!validSnapshot(value)) throw new Error('invalid bridge response');
     if (id !== generation || !visible() || !online()) return;
     snapshot = value; receivedAt = Date.now(); arrivalFrameAgeMs = frameAgeOnArrival(value, receivedAt); error = '';
