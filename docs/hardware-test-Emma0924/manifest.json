@@ -1,0 +1,330 @@
+{
+  "schema": "aima.hardware-test-distribution.v1",
+  "label": "Hardware test handoff - Emma0924",
+  "date": "2026-09-24",
+  "deviceAlias": "device-Emma0924-A",
+  "baselineCommit": "8f5a817dab9c576a5aa7046d0fa09888168f6812",
+  "hardwareCalibrationAccepted": false,
+  "files": [
+    {
+      "name": "connectivity-20260924-085919.json",
+      "archive": "connectivity-20260924-085919.json.gz",
+      "sha256": "0bc879482e0312a973778efa3d8ae60ad234e030be8ffe56acbb99bb6489c817",
+      "archiveSha256": "307de27b75ad7d3963ba8669b275273bc9a0811f62fe068385027d961a251df6",
+      "bytes": 612,
+      "archiveBytes": 396,
+      "frameCount": null,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "guided-center-session2.json",
+      "archive": "guided-center-session2.json.gz",
+      "sha256": "b0e5c3e0bed4f0c42ade59e0882fc311fca0e4599c757a9d721bb07d2703d409",
+      "archiveSha256": "9eb352bf9c541c1dca52b90361a60e19a4eee0bcbe622f0f3f753f3e4b7fd1d6",
+      "bytes": 58976,
+      "archiveBytes": 6165,
+      "frameCount": 543,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "guided-center.json",
+      "archive": "guided-center.json.gz",
+      "sha256": "a11022028a444b6aaac044bbd7320f4490155fa3ce8bb9f28627c3b77176f51a",
+      "archiveSha256": "a984e510116d21d6ca6f7ff2ddd29056067839739f1d8e5d4fd6eb6b2ebdd37d",
+      "bytes": 59098,
+      "archiveBytes": 4561,
+      "frameCount": 540,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "guided-upper-retry-session2.json",
+      "archive": "guided-upper-retry-session2.json.gz",
+      "sha256": "4e6fd8d20409b5676934b2cf4226bd44cdd6274ec53d8b0aecb93b93e3c9acfc",
+      "archiveSha256": "39fc78704c7bd00b7b180926594a6cd367251c0fa4e9b2cd4bf31595680e9ced",
+      "bytes": 58966,
+      "archiveBytes": 4718,
+      "frameCount": 542,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "guided-upper-session2.json",
+      "archive": "guided-upper-session2.json.gz",
+      "sha256": "d437d5fbce5327eaac3b3b750a47e0871ccac1bf448a3a98a54a0ca4495e2057",
+      "archiveSha256": "fe9b4283e2dcbdcef5b5f5c18d5bc127dcd36b165e4ce81bf35380d0cf1d6919",
+      "bytes": 59551,
+      "archiveBytes": 5211,
+      "frameCount": 542,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "guided-upper-static-095042.json",
+      "archive": "guided-upper-static-095042.json.gz",
+      "sha256": "0390f687992978f507066c0a55c0651b037e679798b7f3cf665f9a6a74d61cc7",
+      "archiveSha256": "59df1328720a97d9f18ecbf15a98b087fed8ad46c5a981c93b8039852efc355b",
+      "bytes": 60390,
+      "archiveBytes": 4928,
+      "frameCount": 545,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "lift-left-center-095432.json",
+      "archive": "lift-left-center-095432.json.gz",
+      "sha256": "4c8c2c5e73762922cdc49d36df0b24d88d33fa969346a0b8bb0850472f971322",
+      "archiveSha256": "ae7a5b9f4b9eea4cc275b65beaf7a9c590fb6d4a539ab4cd2b401c8b303477ea",
+      "bytes": 58665,
+      "archiveBytes": 5114,
+      "frameCount": 544,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "lift-left-upper-095528.json",
+      "archive": "lift-left-upper-095528.json.gz",
+      "sha256": "9024e137f6380ecbb25806716fe2f1ffac325a5263b5f9e9d9a60a5ea421fe63",
+      "archiveSha256": "19d281e40e47652c868c069850a5432f9a069608a6429b388f68c9fa35b97411",
+      "bytes": 59063,
+      "archiveBytes": 4720,
+      "frameCount": 546,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "single-left-094302.json",
+      "archive": "single-left-094302.json.gz",
+      "sha256": "13bfcba6e2a7d96ab6ef3d7a77d23bfef1aabf566dcc310b76b3486925d88922",
+      "archiveSha256": "e76709eb6869103b096ce93f565ea7255c6b85ce3d2d2cdf2db0574cf660e164",
+      "bytes": 3096,
+      "archiveBytes": 1497,
+      "frameCount": null,
+      "samplesUnchanged": null
+    },
+    {
+      "name": "single-left-094820.json",
+      "archive": "single-left-094820.json.gz",
+      "sha256": "dac85acb2a6c2382939780cd1c932c8c6190be1765b9fa0ec04dbb1206375f7e",
+      "archiveSha256": "06642199d437c23a233fd01a0f8dd0e9831c3acecf17ef5e84c5a108e95f1851",
+      "bytes": 3020,
+      "archiveBytes": 1423,
+      "frameCount": null,
+      "samplesUnchanged": null
+    },
+    {
+      "name": "telemetry-10s-20260924-090201.json",
+      "archive": "telemetry-10s-20260924-090201.json.gz",
+      "sha256": "793cbbf7d207dad2f655a62c09480f20cc5efebada7390ce3daa14cb36a7af01",
+      "archiveSha256": "9f6e529d34ed798d3ebe8a946907d43c8d32d34a817d96206aa7fb3c9be867c6",
+      "bytes": 378321,
+      "archiveBytes": 34210,
+      "frameCount": 1820,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-090350.json",
+      "archive": "telemetry-10s-20260924-090350.json.gz",
+      "sha256": "ec2e7c811d208c9bba7369bee7ad07a1530c69d309d4e86375628cbb588154d9",
+      "archiveSha256": "1380df4b794e9d821433b93b8f309e6864eceb95727906e4ce36514669991c00",
+      "bytes": 382819,
+      "archiveBytes": 40539,
+      "frameCount": 1804,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-090449.json",
+      "archive": "telemetry-10s-20260924-090449.json.gz",
+      "sha256": "e4e663abed07e296c38c8ab0e8b3c4dc89a91e9546020faf7dbded5a53a74f45",
+      "archiveSha256": "8631c4081ce63e6322e8e9a582b92abef6632b7e523c391744251f2ccbe75bc7",
+      "bytes": 382799,
+      "archiveBytes": 56697,
+      "frameCount": 1801,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-091558.json",
+      "archive": "telemetry-10s-20260924-091558.json.gz",
+      "sha256": "a97d74d0101c35af52e1853acc941348aae36c8de9ee9018137832fb16e4efdf",
+      "archiveSha256": "60f4a3bcbd4e4118ee13f6406a2e8cf4080cade82ac416b34ca1d22bd3ef39bb",
+      "bytes": 379308,
+      "archiveBytes": 47419,
+      "frameCount": 1833,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-091734.json",
+      "archive": "telemetry-10s-20260924-091734.json.gz",
+      "sha256": "3c08575d4cbc01c19ceae6c0dbc1904f0a16a9c43244268cbbb4c6f357c8ea03",
+      "archiveSha256": "204c386a8c5b04426ba4cde9ef4a3007af5c82b6d82a5482eca348d2617af4be",
+      "bytes": 387693,
+      "archiveBytes": 60110,
+      "frameCount": 1804,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-091836.json",
+      "archive": "telemetry-10s-20260924-091836.json.gz",
+      "sha256": "50a6c6d43aed3929fc8fc86a095856f07715d41011519dc8db49ea55183e702e",
+      "archiveSha256": "c310db820b3ec10345dea89a48462d7e7bb8242ed27c8e4fe33f21f4b9518e52",
+      "bytes": 387668,
+      "archiveBytes": 61038,
+      "frameCount": 1807,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-091949.json",
+      "archive": "telemetry-10s-20260924-091949.json.gz",
+      "sha256": "ee354b2ddd1bd46dc657a1223c514c5e6a63631886b57be9068b0e91cac521af",
+      "archiveSha256": "3f855f487687365cdfc181eedf621db96fab2765cb8cd1b3e3461785a50907ca",
+      "bytes": 386673,
+      "archiveBytes": 43707,
+      "frameCount": 1805,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-092355.json",
+      "archive": "telemetry-10s-20260924-092355.json.gz",
+      "sha256": "addce8e65b623be9a7d14ac0fa42180474da6b10d35b6c86b29bae8763730193",
+      "archiveSha256": "c11286e1c70f4da4686e90e04f9285d378864cc17a35794066d8798b55a1caa1",
+      "bytes": 389144,
+      "archiveBytes": 51403,
+      "frameCount": 1802,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-092837.json",
+      "archive": "telemetry-10s-20260924-092837.json.gz",
+      "sha256": "2c444df4727e7eee151e392d8b948f04d939ce0b7b2d00e64fc313327c087e57",
+      "archiveSha256": "0af19db68dad0358dfe958ded8ebf78135b1d8831b7ed87ace02c4267fa612e1",
+      "bytes": 376659,
+      "archiveBytes": 47221,
+      "frameCount": 1826,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-092933.json",
+      "archive": "telemetry-10s-20260924-092933.json.gz",
+      "sha256": "3e7f99384c8b037b318d12fb6f3b426c79944fef8bfa5f16f973d0e31d85c640",
+      "archiveSha256": "3c7ce382b4828a7f84034d22c768bc4f59872ff7d3b78d728ac1883b638fe1ea",
+      "bytes": 375025,
+      "archiveBytes": 35946,
+      "frameCount": 1809,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-093129.json",
+      "archive": "telemetry-10s-20260924-093129.json.gz",
+      "sha256": "0286460b754a746026a01137564d53fa0a65837cc32d38fbf20aa966c3d3f167",
+      "archiveSha256": "8ea93718aa75e1e51c76848d228e4dde292265e126b1080e2ee3a31cb43b1805",
+      "bytes": 385321,
+      "archiveBytes": 41099,
+      "frameCount": 1807,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-093219.json",
+      "archive": "telemetry-10s-20260924-093219.json.gz",
+      "sha256": "de6b9a537ac1dcbc912b143aee44995e9de58df8902f3dbcfb01ee5b0fa99923",
+      "archiveSha256": "a5a310cb48e9217fd15fe26c3082e1d95aeaff0daf7708e8d3d5233230b79d03",
+      "bytes": 386199,
+      "archiveBytes": 43449,
+      "frameCount": 1810,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-093317.json",
+      "archive": "telemetry-10s-20260924-093317.json.gz",
+      "sha256": "6b77ea6a3d918650e8e9c713d32271642d2021f66cad2534cd3632d65ef90233",
+      "archiveSha256": "ad6bd0cde47b28213357fe95e7a4669231848c8abac56caee85d939e181295de",
+      "bytes": 385764,
+      "archiveBytes": 46675,
+      "frameCount": 1802,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-093449.json",
+      "archive": "telemetry-10s-20260924-093449.json.gz",
+      "sha256": "59bba3bed567e6c8ce025f36f2168ab3d528842db8a10a5a483309066b6c4c68",
+      "archiveSha256": "e758fd6016fb694b32c8510e41861a5b6ea2c597479a151e39778809df92c9ac",
+      "bytes": 388430,
+      "archiveBytes": 39398,
+      "frameCount": 1807,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-094048.json",
+      "archive": "telemetry-10s-20260924-094048.json.gz",
+      "sha256": "840ee115329df3e06a0a0628ac7d07759443d41f62881f90b1d6691767ea7a54",
+      "archiveSha256": "fc22cf0e18b2ca77c188203f50bde41096bc8b746aa9abb022db696ecf12c65c",
+      "bytes": 369852,
+      "archiveBytes": 46396,
+      "frameCount": 1837,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-094225.json",
+      "archive": "telemetry-10s-20260924-094225.json.gz",
+      "sha256": "a15bf277d53f9b9d784544ffb098c37de9b1ee12b30a5aba95f0de982bfdb8ee",
+      "archiveSha256": "6147128a7f2f9d3bdbdd5ce5fe1e4d5e435103cc73d94f967b38082568fef25f",
+      "bytes": 385836,
+      "archiveBytes": 39626,
+      "frameCount": 1815,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-094302.json",
+      "archive": "telemetry-10s-20260924-094302.json.gz",
+      "sha256": "b39b47398dcecfb8598c9e3f314154b620c6e39ac785d00414413ea1fd5c98ec",
+      "archiveSha256": "56dfdee77c45123efba63d5c487a16cc31b38855b0825625e3cf5681cc79a89a",
+      "bytes": 386358,
+      "archiveBytes": 49500,
+      "frameCount": 1800,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-095042.json",
+      "archive": "telemetry-10s-20260924-095042.json.gz",
+      "sha256": "3229e84855f2a0c826391b8add10302a53440dd325637a8601f03df9b563c985",
+      "archiveSha256": "892750a24c6d69eeff159172385ebb95b93917a7e77a3ca3c8cde9675e56c64d",
+      "bytes": 390745,
+      "archiveBytes": 33441,
+      "frameCount": 1810,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-095244.json",
+      "archive": "telemetry-10s-20260924-095244.json.gz",
+      "sha256": "7ecd4cc15d01fbc7ef1c62c81cddb84fd68588067528f016b7e36c7d684aa5e5",
+      "archiveSha256": "82df7041d5dd08cc01b7a3960497af17ac4211dc8903f448066ef38a99f29927",
+      "bytes": 77015,
+      "archiveBytes": 8099,
+      "frameCount": 366,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-095432.json",
+      "archive": "telemetry-10s-20260924-095432.json.gz",
+      "sha256": "0082249a4ffea3d7d4192d9f0a539445c17f9159d9ea6d5c7bc6d6f6a2fcf48e",
+      "archiveSha256": "1ff1f298eead8c77f0836896d53ad77135ce123dd67175ca92812984cfaf753c",
+      "bytes": 384349,
+      "archiveBytes": 35903,
+      "frameCount": 1809,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-10s-20260924-095528.json",
+      "archive": "telemetry-10s-20260924-095528.json.gz",
+      "sha256": "b878cd524785b51d190b2e7170841ad5a76b05c705db4dc4b9255e059e0fe0c2",
+      "archiveSha256": "e0eb0cd1b5f88fb8c8b04120855a5d340910880fd0666b3b4bb6bec9db426883",
+      "bytes": 387158,
+      "archiveBytes": 35964,
+      "frameCount": 1815,
+      "samplesUnchanged": true
+    },
+    {
+      "name": "telemetry-20s-20260924-094820.json",
+      "archive": "telemetry-20s-20260924-094820.json.gz",
+      "sha256": "d7fbf10ba12c2d405028f1000ea2d5c46fc8418c2416e7b7ea4444dd266ee36f",
+      "archiveSha256": "ba4919b5460229a59d75e155f2ceadd2f23b26cbe33dcda0949c3e6ad93cb5e6",
+      "bytes": 772289,
+      "archiveBytes": 67510,
+      "frameCount": 3602,
+      "samplesUnchanged": true
+    }
+  ]
+}

@@ -33,8 +33,10 @@ class PoseRecorder:
                 raise ValueError('Device clock reset during capture; discard and start a new observation')
             if frame.ms == self._last_sequence:
                 return False
-            if frame.t_host <= self.rows[-1]['at']:
-                raise ValueError('Host clock did not advance')
+            # Coarse host clocks can timestamp several new device frames alike.
+            # Preserve those timestamps; only a backwards host clock is invalid.
+            if frame.t_host < self.rows[-1]['at']:
+                raise ValueError('Host clock moved backwards')
         self._last_sequence = frame.ms
         self.rows.append({'at': frame.t_host, 'sequence': frame.ms, 'left_deg': frame.l_deg,
                           'right_deg': frame.r_deg, 'left_dps': frame.l_dps, 'right_dps': frame.r_dps})

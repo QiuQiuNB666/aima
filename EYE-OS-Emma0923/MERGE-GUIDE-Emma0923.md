@@ -1,5 +1,7 @@
 # EYE OS · Emma0923 合并说明
 
+**现场数据追加：** [PR #4](https://github.com/QiuQiuNB666/aima/pull/4) 提供已去标识的遥测、时间戳修复和便携诊断工具，并纳入本分支 v0.8 更新。先合 #4 到上肢分支，再走下述 #3 → #2。数据已回传，但行程标定未通过；详见 [交接说明](../docs/hardware-test-Emma0924/README.md)。下文“数据待回传”为本次追加前的历史状态。
+
 ## 同事从这里开始：推荐合并路径
 
 先审阅 [PR #3：上肢、可选单/双套与穿戴教学](https://github.com/QiuQiuNB666/aima/pull/3)，合入 `codex/eye-os-Emma0924`；再审阅 [PR #2：Emma 控制台进入主项目](https://github.com/QiuQiuNB666/aima/pull/2)，合入 `main`。先合 #3 后，#2 会自动包含本次完整代码，无需重复复制文件或再挑选一次提交。
