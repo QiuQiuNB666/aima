@@ -1,6 +1,6 @@
 // 跑酷（R 线）的纯逻辑：关卡生成、物理、腿 → 跳 / 滑铲、腿上的力该是什么。不依赖 three，tests/test_parkour.py 用 node 直接跑。
 // 坐标：前进 = +x（米），车道 = z（右 = +z），高度 = y。三条道 z = −LANE, 0, +LANE。
-// 一局：无尽城市屋顶，撞 3 次结束（障碍 / 掉楼缝 / 被捷风追上都算一次）。跑速只看步频。
+// 一局：无尽城市屋顶，撞 3 次结束（障碍 / 掉楼缝 / 被机甲追上都算一次）。跑速只看步频。
 
 export const LANE = 1.6;
 export const TUNE = {                  // 现场调这里（也可以 URL 覆盖：?jump=45&slide=35&vjump=80）
@@ -16,15 +16,15 @@ export const TUNE = {                  // 现场调这里（也可以 URL 覆盖
   HOLD_S: 0.3,     // 免手换道（?lane=knee）：一条腿抬到高抬腿阈值并保持这么久 = 往那边换一道
   PEAK_DROP: 8,    // 免手模式里「膝盖开始往下落」= 从这次抬腿的最高点落下 8°（没保持够就落 = 跳）；不用角速度：抬到顶一停，滤波后的角速度会短暂过冲成负的
   LIFT_LIT: 0.68,  // lift 脉冲中心在文献相位 68%（摆动早期，terrain.py pulse('lift')）；估计器相位 = (hs_phase + 0.68) % 1，自动驾驶把起跳对到这一拍
-  CAD_V: 0.075,    // 步频 → 跑速：100 步/分 = 7.5 m/s，200 = 15 m/s（夸张一点才有跑酷感）
-  V_MIN: 4, V_MAX: 15,
+  CAD_V: 0.075, CAD_RUN: 120, CAD_V2: 0.1,   // 步频 → 跑速：120 步/分以下 0.075（100 = 7.5 m/s、120 = 9 m/s），以上按更陡的 0.1 涨（160 = 13、180 = 15、200 = 17 m/s）
+  V_MIN: 4, V_MAX: 17,                       //   9/24 球球「没有奔跑的感觉」：真机 150–180 步/分要跑得起来
   G: 20,           // 自由落体（从楼沿走下去、弧线走完还没着地）
   JUMP_H: 1.3, JUMP_STEPS: 2, SLIDE_STEPS: 2,   // 第 8 轮：跳高 1.3 m、跳 / 滑都占 2 步的路程（= 一个步态周期）
   ARC_VMIN: 3, JUMP_MIN: 3,   // 弧线路程至少按 3 m/s 走、最短 3 m（站着跳）
   LOW_H: 0.85,     // 低障碍（空调外机 / 矮墙）高度：脚离地要超过它
   HIGH_Y: 1.0,     // 高障碍（晾衣杆）下沿：滑铲时身高 0.8 能钻过去
   LIVES: 3, INVULN: 1.5,
-  JF_GAP0: 1.5, JF_WAIT: 3, JF_RESET: 7, JF_V0: 6.3, JF_ACC: 0.004, JF_VMAX: 13.5, JF_GAPMAX: 16,   // 捷风：开局站你身边，「你先跑三秒」后才追；速度随跑的距离涨（1000 m 时 10.3 m/s ≈ 步频 137）
+  JF_GAP0: 1.5, JF_WAIT: 3, JF_RESET: 7, JF_V0: 6.3, JF_ACC: 0.004, JF_VMAX: 13.5, JF_GAPMAX: 16,   // 追兵：开局在你身边，3 s 后才追；速度随跑的距离涨（1000 m 时 10.3 m/s ≈ 步频 137）
 };
 
 // ---------- 随机数（固定种子：同一局路一样，测试可复现） ----------
@@ -184,7 +184,11 @@ export function makeKneeLegs(T = TUNE) {
   };
 }
 
-export const speedFor = (cadence, moving, T = TUNE) => moving && cadence > 0 ? Math.max(T.V_MIN, Math.min(T.V_MAX, cadence * T.CAD_V)) : 0;
+export const speedFor = (cadence, moving, T = TUNE) => {
+  if (!moving || !(cadence > 0)) return 0;
+  const v = cadence <= T.CAD_RUN ? cadence * T.CAD_V : T.CAD_RUN * T.CAD_V + (cadence - T.CAD_RUN) * T.CAD_V2;
+  return Math.max(T.V_MIN, Math.min(T.V_MAX, v));
+};
 
 // ---------- 一局 ----------
 export function makeRun(level, T = TUNE) {
@@ -260,7 +264,7 @@ export function makeRun(level, T = TUNE) {
     // 障碍
     const foot = S.y - (g ?? S.y);
     for (const o of level.obs) if (!o.hit && S.invuln <= 0 && boxHit(o, S.x, S.z, foot, S.slideT > 0)) { o.hit = true; hit(o.type); }   // 第 7 轮：盒子相交
-    // 捷风：速度随距离涨；你比她快就拉开，慢就被追上
+    // 追兵（9/24 起是四脚机甲，mech.js）：速度随距离涨；你比它快就拉开，慢就被追上
     if (S.started) {
       S.jfV = S.t - S.startT < T.JF_WAIT ? 0 : Math.min(T.JF_VMAX, T.JF_V0 + S.dist * T.JF_ACC);
       S.jfGap = Math.min(T.JF_GAPMAX, S.jfGap + (S.speed - S.jfV) * dt);

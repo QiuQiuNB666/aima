@@ -1,7 +1,7 @@
 // 峰哥屋顶跑酷（R 线）：/parkour。只读 /state（10 Hz）；唯一会写的控制接口是 POST /terrain/force（改腿上力的「形状」，大小仍归 Guard + R2；非 null 带 ttl 1 s 每 300 ms 续），
 //   模拟模式下另外发 /sim（空格走路）。页面失焦 / 隐藏 / 关掉 / 一局结束 → force 设回 null。
 // 操作：步频 = 跑速；高抬腿（一条腿屈髋 > 45° 且还在抬）= 跳；双腿下蹲 = 滑铲；← → 换道。键盘备份：↑/W 跳、↓/S 滑、←→/AD 换道、回车再来一局。
-//   模拟：按住空格走，1/2/3/4 = 步频 80/105/130/140。
+//   模拟：按住空格走，1/2/3/4 = 步频 100/130/160/180；页面在 sim 开着时自己把步频提到 160（缺省 100 是走路，没奔跑感），离开页面还原。
 // URL：?fx=low 降画质；?auto=0.8 自动驾驶（每个障碍 80% 概率躲过去，模拟模式下自己按空格；截图 / 展位待机用）；?seed=；?fengge=0；?voice=0；
 //   ?jump= ?slide= ?vjump= 现场调高抬腿 / 下蹲阈值。
 // 动作预览（调动作 / 截图用，确定性）：?demo=1 不连 ShellOS、不发任何请求，髋角用 A2 的 synthHip 合成（10 Hz 喂，和真机一样），自动驾驶用固定种子；
@@ -9,11 +9,12 @@
 import * as THREE from 'three';
 import { loadAvatar, preloadAvatar } from '/game/avatar.js';
 import { dressFengge } from '/game/fengge.js';
-import { makeJifeng } from '/game/npc_jifeng.js';
+import { makeMech } from './mech.js';
 import { PALETTE, UI, applyCssVars } from '/game/style.js';
 import { synthHip } from '/game/anim.js';
 import { makeRunner, damp } from './runner.js';
 import { makeCloth } from './cloth.js';
+import { makeSpeedLines, makeAudio } from './fx.js';
 import { TUNE, TIERS, tierAt, jumpLen, rng, H4, atLeg, yawOf, makeLevel, makeRun, makeLegs, makeKneeLegs, speedFor, forceKind, nextThreat } from './logic.js';
 import { makeCity } from './city.js';
 import { makeRiso } from './riso.js';
@@ -21,8 +22,13 @@ import { makeRiso } from './riso.js';
 applyCssVars(); document.documentElement.style.setProperty('--acc0', PALETTE.parkour.accent[0]);   // 颜色按 ART 范式，不另写一套
 const Q = new URLSearchParams(location.search);
 const DEMO = Q.has('demo'), MANUAL = DEMO && Q.has('manual'), CAM = Q.get('cam'), CAD_DEMO = +(Q.get('cad') || 150);
+// 模拟器（--sim）缺省步频 100 = 走路：跑酷页自己把它提到 160（只在 sim 开着时；离开页面还原成原来的），?simcad= 可改
+const SIM_CAD = +(Q.get('simcad') || 160);
+let simCad0 = null;
+const simRestore = () => { if (simCad0 != null && !DEMO) navigator.sendBeacon('/sim', JSON.stringify({ cadence: simCad0 })); simCad0 = null; };
+addEventListener('pagehide', simRestore);
+addEventListener('beforeunload', simRestore);
 const KNEE = Q.get('lane') === 'knee';   // 免手换道：抬一条腿保持 0.3 s = 往那边换一道 / 路口往那边转；快速抬腿仍是跳（缺省 = 手柄 / 键盘换道）
-const TALK = Q.get('npctalk') === '1';   // 9/24 球球「跑酷还是有捷风的废话」：和主游戏一样缺省不说话（不出气泡不出声），?npctalk=1 才开
 const LOW = Q.get('fx') === 'low', AUTO = Q.has('auto') ? +(Q.get('auto') || 0.85) : DEMO ? 1 : 0, MUTE = Q.get('voice') === '0' || DEMO;
 for (const [k, q] of [['JUMP_FLEX', 'jump'], ['SLIDE_FLEX', 'slide'], ['JUMP_VEL', 'vjump']]) if (Q.has(q)) TUNE[k] = +Q.get(q);
 const LEG_READY_S = 5;          // 走满 5 s（anim.js 学完零点）才认高抬腿 / 下蹲：零点没学出来时穿戴偏屈 15–20°，正常走路会被当成高抬腿
@@ -30,7 +36,6 @@ const $ = id => document.getElementById(id);
 const post = (p, b) => DEMO ? Promise.resolve(null) : fetch(p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json()).catch(() => null);   // 预览一个请求都不发
 const err = (m, e) => { console.error(m, e); if (window.__err) window.__err(`${m}${e ? '：' + (e.stack || e) : ''}`); };
 const best = { get: () => { try { return +localStorage.getItem('pk_best') || 0; } catch { return 0; } }, set: v => { try { localStorage.setItem('pk_best', v); } catch {} } };
-const JF = { start: '가자！你先跑三秒。', dash: '就这？빨리빨리！', caught: '逮到了，慢死了。', lost: '哟，跑挺快嘛。' };   // 都在 voice.py NPC_LINES 白名单里
 
 // ---------- 腿上的力 ----------
 // 非 null 的力带 ttl 发、每 300 ms 续一次：页面崩了 / 卡死（续不上）服务端 1 s 内自己回 null。设回 null 不带 ttl
@@ -67,15 +72,16 @@ async function main() {
   if (Q.get('fengge') !== '0') try { await dressFengge(av); } catch (e) { err('峰哥头加载失败，用原头盔', e); }
   scene.add(av.group);
   const runner = Q.get('runner') === '0' ? null : makeRunner(av);
+  const speedLines = makeSpeedLines(scene, { n: LOW ? 32 : 64 }), sfx = makeAudio(!MUTE && !AUTO);   // 速度线 / 风声（fx=low 线减半）
   const cloth = runner ? makeCloth(scene, av) : null;             // 在第一次摆姿势之前建：按绑定姿态找挂点
   const avLook = av.mats[0] && av.mats[0].userData.look, rim0 = avLook && avLook.uRim.value.clone(), rimK0 = avLook && avLook.uRimK.value, DANGER = new THREE.Color(UI.danger), TS = { t: 0, yaw: 0 };   // 峰哥衣服 / 头共用这组 uniform
-  const jf = await makeJifeng(scene);
+  const jf = makeMech(scene);                                          // 9/24：追兵 = 四脚机甲（mech.js），不加载任何 NPC 模型
   if (Q.get('hud') === '0') document.body.classList.add('clean');
   if (Q.get('look') === 'riso') makeRiso({ renderer, scene, camera, av, jf, low: LOW, level: () => level, run: () => run });   // L 线：三墨一纸孔版后期（接管 renderer.render）
   if (KNEE) document.body.classList.add('knee');
 
   // ---------- 一局 ----------
-  let level, run, legs = KNEE ? makeKneeLegs() : makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', bubbleUntil = 0, autoWalk = false;
+  let level, run, legs = KNEE ? makeKneeLegs() : makeLegs(), shake = 0, flash = 0, overAt = 0, jfSaid = '', autoWalk = false;
   const seed0 = +(Q.get('seed') || (DEMO ? 5 : Date.now() % 100000));
   const rand = DEMO ? rng(7) : Math.random;
   let seed = seed0;
@@ -90,11 +96,12 @@ async function main() {
   let pend = { jump: false, slide: false, lane: 0, turn: 0, slideHold: false };
 
   // ---------- /state ----------
-  let S = null, sAt = 0, lastT = null, legWalk = 0, audio = null;
+  let S = null, sAt = 0, lastT = null, legWalk = 0;
   async function poll() {
     const t0 = performance.now();
     try {
       S = await fetch('/state', { cache: 'no-store' }).then(r => r.json()); sAt = performance.now() / 1000;
+      if (S.sim && S.sim.on && simCad0 == null) { simCad0 = S.sim.cadence || 100; if (simCad0 !== SIM_CAD) post('/sim', { cadence: SIM_CAD }); }
       $('banner').style.display = 'none';
       const f = S.frame;
       if (f && S.t !== lastT) {
@@ -120,19 +127,17 @@ async function main() {
     const pl = ((demoPh - G_MIN) % 1 + 1) % 1;                     // 估计器相位 0 = 髋最伸（屈曲最小），和 shellos/gait 一样
     S = { t: clock, frame: { l: -a, r: -b, ldps: -va * f, rdps: -vb * f }, gait: { moving: on, cadence: on ? CAD_DEMO : 0, phase_l: pl, phase_r: (pl + 0.5) % 1 }, sim: { on: false }, terrain: { hs_phase: 0.5 } };
   }
+  // 追兵事件（开追 / 逼近 / 追上 / 被甩开）：不说话，右上角小图标亮一下；逼近和追上时机甲低鸣一声
   const say = key => {
     jfSaid = key;
-    const ic = $('jfIcon'); ic.classList.remove('ping'); void ic.offsetWidth; ic.classList.add('ping');   // 不说话时只剩右上角小图标亮一下
-    if (!TALK) return;
-    $('jfSay').textContent = JF[key]; bubbleUntil = clock + 2.5;
-    if (MUTE || AUTO) return;
-    if (audio) audio.pause();
-    audio = new Audio('/voice/npc.wav?t=' + encodeURIComponent(JF[key])); audio.play().catch(() => {});
+    const ic = $('jfIcon'); ic.classList.remove('ping'); void ic.offsetWidth; ic.classList.add('ping');
+    if (key === 'dash' || key === 'caught') sfx.hum();
   };
+
 
   // ---------- 键盘 ----------
   const isSim = () => !!(S && S.sim && S.sim.on);
-  const CAD = { Digit1: 80, Digit2: 105, Digit3: 130, Digit4: 140 };
+  const CAD = { Digit1: 100, Digit2: 130, Digit3: 160, Digit4: 180 };   // 模拟：1–4 = 走 / 慢跑 / 跑（缺省）/ 冲刺
   let walking = false;
   const walk = on => { if (on === walking || !isSim()) return; walking = on; post('/sim', { walk: on }); };
   addEventListener('keydown', e => {
@@ -177,7 +182,7 @@ async function main() {
   };
   let dtNow = 1 / 60, liPrev = 9;
   function autopilot() {
-    if (isSim() && !autoWalk) { autoWalk = true; post('/sim', { walk: true, cadence: 130 }); }
+    if (isSim() && !autoWalk) { autoWalk = true; post('/sim', { walk: true, cadence: SIM_CAD }); }
     if (run.over) { if (clock - overAt > 8) newRun(); return; }
     const th = nextThreat(run, level, 6);
     if (!th) return;
@@ -205,7 +210,7 @@ async function main() {
   const PW = {}, CW = {}, LW = {};
   av.group.rotation.order = jf.group.rotation.order = 'YXZ';          // 先转朝向（路口 90°），再侧倾 / 前后倾——转弯以后侧倾还是绕身体自己的轴
   const legFor = s => s >= run.leg.s0 ? run.leg : level.legAt(s);   // 镜头在身后：还没过路口的那段用老腿
-  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, jfPhase = 0, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, lastZ = 0, clock = DEMO ? 0 : last / 1000;
+  let last = performance.now(), frames = 0, fpsT = last, camY = run.y, tilt = 0, jfZ = 1.8, sideY = run.y, lastG = run.y, lastZ = 0, clock = DEMO ? 0 : last / 1000;
   const HINT = { jump: '高抬腿 · 跳！', slide: '下蹲 · 滑铲！', lane: '← → 换道！', turnL: '← 左转（A / L1）', turnR: '右转 →（D / R1）' };
   function frame(dtFix) {
     if (!MANUAL) requestAnimationFrame(() => frame());
@@ -229,8 +234,8 @@ async function main() {
     for (const ev of run.events.splice(0)) {
       if (ev === 'start') { document.body.classList.remove('title'); say('start'); }
       if (ev === 'turn' || ev === 'turnMiss') lastZ = run.z;               // 转弯时横向坐标换了一套，别当成横向速度
-      if (['low', 'high', 'block', 'fall', 'wall', 'caught', 'corner'].includes(ev)) { shake = 0.5; flash = 1; $('hitWhy').textContent = { low: '撞上空调外机', high: '被晾衣杆拦住', block: '撞上水箱', fall: '掉下楼缝', wall: '撞上楼沿', caught: '被捷风追上', corner: '没转弯，撞上路口的墙' }[ev]; if (ev === 'caught') { say('caught'); jf.burst(); } }
-      if (ev === 'over') { overAt = t; $('goT').textContent = $('hitWhy').textContent === '被捷风追上' ? '被捷风抓住了' : '峰哥倒下了'; const b = best.get(), d = Math.floor(run.dist); if (d > b) best.set(d); $('goDist').textContent = d; $('goBest').textContent = Math.max(b, d); $('goNew').style.display = d > b ? 'block' : 'none'; document.body.classList.add('over'); }
+      if (['low', 'high', 'block', 'fall', 'wall', 'caught', 'corner'].includes(ev)) { shake = 0.5; flash = 1; $('hitWhy').textContent = { low: '撞上空调外机', high: '被晾衣杆拦住', block: '撞上水箱', fall: '掉下楼缝', wall: '撞上楼沿', caught: '被机甲追上', corner: '没转弯，撞上路口的墙' }[ev]; if (ev === 'caught') { say('caught'); jf.burst(); } }
+      if (ev === 'over') { overAt = t; $('goT').textContent = $('hitWhy').textContent === '被机甲追上' ? '被机甲抓住了' : '峰哥倒下了'; const b = best.get(), d = Math.floor(run.dist); if (d > b) best.set(d); $('goDist').textContent = d; $('goBest').textContent = Math.max(b, d); $('goNew').style.display = d > b ? 'block' : 'none'; document.body.classList.add('over'); }
     }
     if (run.jfGap > 14 && jfSaid !== 'lost' && run.started) say('lost');
     else if (run.jfGap < 4 && jfSaid !== 'dash' && jfSaid !== 'caught' && run.started && !run.over) say('dash');
@@ -244,6 +249,8 @@ async function main() {
     // 场景
     atLeg(run.leg, run.x, run.z, PW);
     city.sync(level, PW);
+    const vk = Math.max(0, Math.min(1, (run.speed - 6) / 9));           // 速度感 0..1：6 m/s 以下 0，15 m/s 满（FOV / 镜头颠 / 速度线 / 风声 / 地面流光都用它）
+    city.flow(dtR, run.speed, vk);                                         // 屋顶流光条按速度往后流
     const seg = level.seg(run.x), gy = level.ground(run.x);
     P.set(PW.x, run.y, PW.z);
     av.group.position.copy(P);
@@ -275,27 +282,24 @@ async function main() {
     }
     av.animate(dtR, t, { state: S && S.frame ? S : null, fl: 5, fr: 5, kind: run.air ? 'stairs_up' : seg && seg.kind === 'ramp' ? 'up' : 'flat', summit: false });
 
-    // 捷风：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
-    //   jfGap ≤ 1.8（离镜头 ≥ 2.5）才现身；再远只留右上角距离条。STL 雕像四肢不能动：和登山游戏一样风系飘行（npc.js）
+    // 机甲追兵：在身后 jfGap 米。构图（ART §8）：离镜头横向固定 1.8（站到峰哥另一侧，不在左下前景被切一半、不压左下腿力面板），
+    //   jfGap ≤ 1.8（离镜头 ≥ 2.5）才现身；再远只留右上角距离条。逼近时只有红色轮廓光 + 一声低鸣，不说话
     const jx = run.x - run.jfGap, jy = level.ground(jx) ?? run.y, camZ = run.z * 0.55, chasing = run.jfV > 0, jleg = legFor(jx);
     jfZ += ((camZ <= 0 ? camZ + 1.8 : camZ - 1.8) - jfZ) * (1 - Math.exp(-dtR * 4));
-    atLeg(jleg, jx, jfZ, LW); jfP.set(LW.x, jy, LW.z); dir.set(H4[jleg.dir][0], 0, H4[jleg.dir][1]);
+    atLeg(jleg, jx, jfZ, LW); jfP.set(LW.x, jy, LW.z);
     jf.group.position.copy(jfP);
-    jfPhase += dtR * Math.PI * Math.max(1.5, (run.jfV || 6) / 2.2);
-    const jfLean = jf.statue ? (chasing ? 0.13 + (run.jfGap < 5 ? 0.32 : 0) : 0.03) : chasing ? 0.25 : 0;
-    jf.group.rotation.set(0, yawOf(jleg.dir), -jfLean);
-    if (jf.statue) { jf.group.position.y += chasing ? 0.1 + 0.05 * Math.sin(jfPhase * 2) : 0.07 + 0.03 * Math.sin(t * 2.2); jf.group.scale.y = 1 + 0.012 * Math.sin(t * 1.8); }
-    if (chasing) jf.pose(38 * Math.sin(jfPhase), 38 * Math.sin(jfPhase + Math.PI)); else jf.pose(-4, 6);
+    jf.group.rotation.set(0, yawOf(jleg.dir), 0);
     jf.visible = run.jfGap <= 1.8;
-    jf.update(dtR, jfP, dir, run.jfGap < 5 ? 1 : 0.3);
+    jf.update(dtR, chasing ? run.jfV : 0, chasing ? Math.max(0, Math.min(1, (4 - run.jfGap) / 3)) : 0);
 
     // 镜头：身后偏上；跳的时候不跟满，落地有顿挫；撞了抖
     camY += ((gy ?? run.y) - camY) * (1 - Math.exp(-dtR * 4));
     const dip = runner ? runner.comp * runner.RUN.CAM_DIP : 0;   // 落地那一下镜头跟着沉
-    const fov = 60 + Math.min(10, run.speed * 0.6);
+    const fov = 60 + 12 * vk;                                             // FOV 60 → 72
     if (CAM !== 'side' && CAM !== 'top' && Math.abs(camera.fov - fov) > 0.2) { camera.fov += (fov - camera.fov) * 0.1; camera.updateProjectionMatrix(); }
     shake = Math.max(0, shake - dtR); flash = Math.max(0, flash - dtR * 2.5);
-    const sh = shake * 0.4;
+    const sh = shake * 0.4, stepF = (g && g.cadence > 30 ? g.cadence : 150) / 60, bob = vk * vk * 0.035;   // 跑得快时镜头按步点轻轻颠（每步一下）
+    const stepY = bob * Math.abs(Math.sin(Math.PI * stepF * clock)), stepX = bob * 0.6 * Math.sin(Math.PI * stepF * clock);
     if (CAM === 'side') {                        // 侧面（调动作用）：站在跑道右边平视，跟着人平移
       sideY += (run.y - sideY) * (1 - Math.exp(-dtR * 12));
       atLeg(run.leg, run.x + 0.2, run.z + 3.0, CW); camera.position.set(CW.x, sideY + 0.95, CW.z); look.set(PW.x, sideY + 0.8, PW.z);
@@ -305,7 +309,7 @@ async function main() {
       if (camera.fov !== 55) { camera.fov = 55; camera.updateProjectionMatrix(); }
     } else {
       const cs = run.x - 4.3; atLeg(legFor(cs), cs, run.z * 0.55, CW);   // 过路口时镜头先在老腿上，跟着甩过去（lerp 平滑）
-      camP.set(CW.x + (rand() - 0.5) * sh, Math.max(camY, run.y - 1) + 2.0 + dip + (rand() - 0.5) * sh, CW.z);
+      camP.set(CW.x + (rand() - 0.5) * sh, Math.max(camY, run.y - 1) + 2.0 + dip + stepY + (rand() - 0.5) * sh, CW.z);
       camera.position.lerp(camP, 1 - Math.exp(-dtR * 10));
       atLeg(run.leg, run.x + 7, run.z * 0.3, LW); look.set(LW.x, Math.max(camY, run.y - 0.5) + 1.0 + dip, LW.z);
       // 看的点也平滑追（过路口时朝向 90° 一下子换了；只平滑水平面，高度照旧跟手，落地下沉不打折）
@@ -314,6 +318,9 @@ async function main() {
     }
     camera.lookAt(look);
     if (cloth) cloth.update(dtR, camera.position, true, fwd.set(Math.cos(TS.yaw), 0, -Math.sin(TS.yaw)));
+    if (CAM !== 'side' && CAM !== 'top') camera.position.addScaledVector(fwd.set(Math.sin(TS.yaw), 0, Math.cos(TS.yaw)), stepX * 0.5);   // 左右一点点晃（不进 lerp，直接加）
+    speedLines.update(dtR, camera, run.speed, CAM === 'side' || CAM === 'top' ? 0 : vk * vk);
+    sfx.wind(run.over ? 0 : vk);
     moonL.position.set(PW.x - 30, 60, PW.z - 40); moonL.target.position.set(PW.x, 0, PW.z);
     renderer.render(scene, camera);
 
@@ -332,7 +339,6 @@ async function main() {
     $('jfBar').style.width = `${(1 - gp) * 100}%`; $('jfM').textContent = `${run.jfGap.toFixed(1)} m`;
     document.body.classList.toggle('danger', run.started && run.jfGap < 4);
     $('flash').style.opacity = flash * 0.55;
-    document.body.classList.toggle('talk', t < bubbleUntil);
     const th = run.started && !run.over ? nextThreat(run, level, run.speed * 1.4 + 3) : null;
     const hk = th ? (th.what === 'turn' ? (th.o.d < 0 ? 'turnL' : 'turnR') : th.what) : '';
     $('hint').textContent = hk ? HINT[hk] : ''; $('hint').className = 'hud ' + (th ? th.what : '');

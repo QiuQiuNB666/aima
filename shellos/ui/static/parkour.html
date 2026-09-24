@@ -11,8 +11,8 @@
 </script>
 <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/"}}</script>
 <style>
-/* 颜色全从 game/style.js 来（main.js 开头 applyCssVars()，覆盖这里的缺省值）：--ui-* / --acc = HUD，--seg-* = 路段，--who-jett = 捷风；--acc0 = 跑酷色板品红 */
-:root{--fg:var(--ui-fg,#f4f7fa);--dim:var(--ui-dim,#a9b3bf);--panel:var(--ui-panel,rgba(8,10,16,.86));--line:var(--ui-line,rgba(255,255,255,.12));--acc:#b48cff;--acc0:#ff2e88;--jf:var(--who-jett,#2f7fe0);--bad:var(--ui-danger,#ff4d4f)}
+/* 颜色全从 game/style.js 来（main.js 开头 applyCssVars()，覆盖这里的缺省值）：--ui-* / --acc = HUD，--seg-* = 路段；--jf = 追兵机甲的红；--acc0 = 跑酷色板品红 */
+:root{--fg:var(--ui-fg,#f4f7fa);--dim:var(--ui-dim,#a9b3bf);--panel:var(--ui-panel,rgba(8,10,16,.86));--line:var(--ui-line,rgba(255,255,255,.12));--acc:#b48cff;--acc0:#ff2e88;--jf:#ff2a2a;--bad:var(--ui-danger,#ff4d4f)}
 html{font-size:clamp(13px,1.04vw,44px)}
 *{box-sizing:border-box}
 body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif;user-select:none}
@@ -37,16 +37,14 @@ body{margin:0;overflow:hidden;background:#05060a;color:var(--fg);font-family:-ap
 #tr .big small{font-size:1rem;color:var(--dim);margin-left:.3rem}
 #jf{margin-top:.6rem;font-size:1rem;text-align:left}
 #jf b{color:var(--jf)}
-/* 追兵提示：只留一个小图标（钴蓝风纹圆点），她开追 / 逼近 / 追上 / 被甩开时亮一下（单次 1.2 s，不闪） */
-#jfIcon{display:inline-block;width:.9rem;height:.9rem;border-radius:50%;margin-right:.4rem;vertical-align:-.1rem;background:radial-gradient(circle at 35% 35%,#fff 0 18%,var(--jf) 40%,transparent 72%);opacity:.55}
+/* 追兵提示：只留一个小图标（四脚机甲剪影 + 红色单眼），开追 / 逼近 / 追上 / 被甩开时亮一下（单次 1.2 s，不闪）；机甲本身逼近时红色轮廓光 + 低鸣 */
+#jfIcon{display:inline-block;width:1.4rem;height:1rem;margin-right:.35rem;vertical-align:-.15rem;opacity:.7}
+#jfIcon svg{width:100%;height:100%;display:block;fill:var(--fg)}#jfIcon .eye{fill:var(--jf)}
 #jfIcon.ping{animation:jfPing 1.2s ease-out}
-@keyframes jfPing{0%{opacity:1;box-shadow:0 0 0 0 var(--jf)}100%{opacity:.55;box-shadow:0 0 0 .9rem transparent}}
+@keyframes jfPing{0%{opacity:1;filter:drop-shadow(0 0 .5rem var(--jf))}100%{opacity:.7;filter:drop-shadow(0 0 0 transparent)}}
 #jfTrack{height:.55rem;border-radius:.3rem;background:rgba(255,255,255,.14);overflow:hidden;margin-top:.3rem}
 #jfBar{height:100%;width:0;background:linear-gradient(90deg,var(--jf),var(--bad));transition:width .2s}
 body.danger #tr{border-color:var(--bad);box-shadow:0 0 1.2rem var(--bad)}
-#jfSay{right:1.4rem;top:12.5rem;font-size:1.3rem;font-weight:800;color:var(--fg);border-color:var(--jf);opacity:0;transform:translateY(-.4rem);transition:opacity .25s,transform .25s}
-#jfSay::before{content:"捷风";display:block;font-size:.75rem;letter-spacing:.2em;color:var(--jf)}
-body.talk #jfSay{opacity:1;transform:none}
 #hint{left:50%;top:38%;transform:translate(-50%,-50%);font-size:2.6rem;font-weight:900;letter-spacing:.1em;text-shadow:0 0 1rem rgba(0,0,0,.8)}
 #hint.jump{color:var(--seg-stairs-up)}#hint.slide{color:var(--acc0)}#hint.lane,#hint.turn{color:var(--acc)}   /* 跳 = 台阶黄（起跳前给 lift，和台阶同类） */
 #bl{left:1.4rem;bottom:1.4rem;width:24rem;display:flex;flex-direction:column;gap:.45rem;font-size:1rem}
@@ -87,14 +85,13 @@ body.knee #knees{display:flex}
 </style></head><body class="title">
 <canvas id="c"></canvas>
 <div class="hud" id="flash"></div>
-<div class="hud" id="tl"><a id="back" href="/game">← 回登山</a><div class="panel"><div id="name">屋顶跑酷<small>峰哥亡命天涯 · 捷风在追</small></div><div id="lives"></div></div></div>
+<div class="hud" id="tl"><a id="back" href="/game">← 回登山</a><div class="panel"><div id="name">屋顶跑酷<small>峰哥亡命天涯 · 机甲在追</small></div><div id="lives"></div></div></div>
 <div class="hud panel" id="tc"><span id="dist">0</span><small>m</small><div id="tier"></div></div>
 <div class="hud panel" id="tr">
   <div class="big"><span id="spd">0</span><small>km/h</small></div>
   <div class="big" style="font-size:1.4rem"><span id="cad">—</span><small>步/分</small></div>
-  <div id="jf"><i id="jfIcon"></i><b>捷风</b> 在身后 <span id="jfM">—</span><div id="jfTrack"><div id="jfBar"></div></div></div>
+  <div id="jf"><i id="jfIcon"><svg viewBox="0 0 28 20"><path d="M3 6h17l4 3v3H3z"/><path d="M6 12l-3 7h2l3-6zM11 12l-1 7h2l1-6zM16 12l1 7h2l-1-6zM21 12l3 7h-2l-3-6z"/><circle class="eye" cx="22" cy="9" r="1.6"/></svg></i><b>机甲</b> 在身后 <span id="jfM">—</span><div id="jfTrack"><div id="jfBar"></div></div></div>
 </div>
-<div class="hud panel" id="jfSay"></div>
 <div class="hud" id="hint"></div>
 <div class="hud" id="knees"><div id="kneeL"><i></i><span>左膝</span></div><div id="kneeR"><i></i><span>右膝</span></div></div>
 <div class="hud panel" id="bl">
@@ -105,7 +102,7 @@ body.knee #knees{display:flex}
   <div id="legs">—</div>
 </div>
 <div class="hud panel" id="keys">步频越快跑越快<br>高抬腿 <kbd>↑</kbd> 跳 · 下蹲 <kbd>↓</kbd> 滑铲 · <kbd>←</kbd><kbd>→</kbd> 换道 · <kbd>A</kbd><kbd>D</kbd> / L1 R1 转弯<span id="simHint" style="display:none"><br>模拟：按住 <kbd>空格</kbd> 走 · <kbd>1</kbd>–<kbd>4</kbd> 步频</span></div>
-<div class="hud panel" id="title"><div class="t">屋顶跑酷</div><div class="s">迈开腿就开跑 —— <b>别让捷风追上</b></div>
+<div class="hud panel" id="title"><div class="t">屋顶跑酷</div><div class="s">迈开腿就开跑 —— <b>别让机甲追上</b></div>
   <div class="d">步频 = 速度 · 高抬腿跳过空调和楼缝 · 下蹲钻晾衣杆 · ← → 绕开水箱<br>撞 3 次结束</div></div>
 <div class="hud panel" id="over"><div class="t" id="goT">峰哥倒下了</div><div class="w" id="hitWhy"></div><div class="n"><span id="goDist">0</span><small> m</small></div>
   <div id="goNew">★ 新纪录</div><div class="d">最好成绩 <b id="goBest">0</b> m · <b>高抬腿</b> 或 <b>回车</b> 再来一局</div></div>
