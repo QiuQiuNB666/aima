@@ -52,3 +52,30 @@ def test_pick_mode_no_flicker(tmp_path):
     assert o["forced"] == "idle", o
     assert o["title"] == "title", o                 # 开始界面开着：不进游戏中（导游也不抢镜头）
     assert o["titleEstop"] == "ready", o            # 急停压过开始界面：红字「急停中」不能被盖住
+
+
+LINES = r"""
+import { summitLines } from './hud_flow.js';
+const base = { total: 40, ghostPos: 40 };
+console.log(JSON.stringify({
+  noBest: summitLines({ ...base, lap: 30.6, prevBest: null, ghostDone: 30.0, ghostWho: '甲', wearer: '乙' }),        // 预览 / 第一圈：best=null 不算新纪录
+  selfFast: summitLines({ ...base, lap: 28.8, prevBest: 30.0, ghostDone: null, ghostWho: '乙', wearer: '乙', prevLap: 30.0 }),
+  selfSlow: summitLines({ ...base, lap: 30.6, prevBest: 30.0, ghostDone: 30.0, ghostWho: '乙', wearer: '乙', prevLap: 30.0 }),
+  recButSlower: summitLines({ ...base, lap: 30.6, prevBest: 31.0, ghostDone: 30.0, ghostWho: '甲', wearer: '乙' }),   // 内存说是新纪录，但比影子慢：慢胜出
+}));
+"""
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="没装 node")
+def test_summit_lines_exclusive(tmp_path):
+    f = tmp_path / "lines.mjs"
+    f.write_text(LINES.replace("'./hud_flow.js'", json.dumps("file://" + os.path.abspath(os.path.join(STATIC, "hud_flow.js")))))
+    r = subprocess.run(["node", str(f)], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    o = json.loads(r.stdout.strip().splitlines()[-1])
+    assert o["noBest"] == {"rec": False, "ghost": "比影子（甲）慢 0.6 s"}, o
+    assert o["selfFast"] == {"rec": True, "ghost": "比上一圈快 1.2 s"}, o
+    assert o["selfSlow"] == {"rec": False, "ghost": "比上一圈慢 0.6 s"}, o
+    assert o["recButSlower"] == {"rec": False, "ghost": "比影子（甲）慢 0.6 s"}, o
+    for v in o.values():                                    # 「新纪录」和「…慢」永远不同框
+        assert not (v["rec"] and "慢" in v["ghost"]), o

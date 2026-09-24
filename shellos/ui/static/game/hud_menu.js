@@ -61,8 +61,8 @@ html.nosub #fg .bub{display:none!important}
 html.fg-low #fg.ev-seg,html.fg-low #fg.ev-fast,html.fg-low #fg.ev-idle,html.fg-low #fg.ev-ghost{visibility:hidden}`;
 
 const LINES = ['来都来了，穿上试试，这是个好事儿啊。', '站着看有什么用，腿是自己的。', '按住扳机，原地踏步，山就归你了。', '上一个人的影子还在山上等你。', '说一句话就能造一座山，恰恰相反，爬上去才难。'];
-const MAIN = [['start', '开始爬山'], ['maps', '选择地图'], ['settings', '设置'], ['help', '玩法说明'], ['credits', '制作团队']];
-const PAUSE = [['resume', '继续'], ['restart', '重新开始（回山脚）'], ['maps', '换地图'], ['settings', '设置'], ['title', '退出到标题']];
+const MAIN = [['start', '开始爬山'], ['maps', '选择地图'], ['parkour', '跑酷闯关'], ['settings', '设置'], ['help', '玩法说明'], ['credits', '制作团队']];
+const PAUSE = [['resume', '继续'], ['restart', '重新开始（回山脚）'], ['maps', '换地图'], ['parkour', '跑酷闯关'], ['settings', '设置'], ['title', '退出到标题']];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export function makeMenu(world, { preview, cut, poke }) {
@@ -148,6 +148,7 @@ export function makeMenu(world, { preview, cut, poke }) {
     if (k === 'back' || k === 'resume') return back();
     if (k === 'start') return closeTitle();
     if (k === 'maps') { location.href = '/worlds'; return; }
+    if (k === 'parkour') { location.href = '/parkour'; return; }
     if (k === 'settings' || k === 'help' || k === 'credits') return open(k);
     if (k === 'title') { stack = []; sels = []; titleOpen = true; sel = 0; render(); return; }
     if (k === 'restart') {                        // 替用户按一下 R：回山脚走的还是 input.js 原来那条路
@@ -229,5 +230,8 @@ const CREDITS = `<div class="cred">
 <b>anni</b> · 队友<br>
 ${FG ? '<b>峰哥</b> · 肖像、口吻、AI 复刻声音（9/23 本人当面同意）<br>' : ''}
 <small>硬件：Hypershell X MaxS（黑客松固件，没改一个螺丝）<br>
-素材：CesiumMan（Khronos glTF Sample，CC BY 4.0）· three.js（MIT）${FG ? ' · 峰哥照片 talk-to-fengge-live（MIT）· 口吻 feng-ge-skill（MIT）· 参考音频 talk-to-fengge（Apache-2.0）' : ''}，详见 docs/提交/素材授权.md<br>
+素材：CesiumMan（Khronos glTF Sample，CC BY 4.0）· three.js（MIT）${FG ? ' · 峰哥照片 talk-to-fengge-live（MIT）· 口吻 feng-ge-skill（MIT）· 参考音频 talk-to-fengge（Apache-2.0）' : ''}<br>
+MechQuadruped · 3Donimus · CC BY 3.0<br>
+Vita · VRoid β3 · CC0<br>
+详见 docs/提交/素材授权.md<br>
 EvoTavern 深圳站 · 2026-09-24</small></div>`;
