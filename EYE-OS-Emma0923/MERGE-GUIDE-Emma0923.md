@@ -8,7 +8,13 @@
 
 **已于 2026-09-24 核对 `QiuQiuNB666/aima` 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`。** 本模块共 39 个文件，供团队独立审阅。仓库中另有 Windows `find_port` 窄改动及 8 项 mock 测试；只调整串口发现，不改变 Guard、控制循环或运动指令行为。
 
-## v0.4 增量
+## v0.5 增量
+
+从 `codex/eye-os-Emma0924` 的 `86974dc` 继续完善双杆模块；保留 Emma0923 目录名。新增 `hands-input.js`、`hands-reader.js` 和对应输入/页面测试；修改原双手内核、控制器、页面、服务与缓存清单。仅本目录有改动，不涉及 ShellOS 控制代码。
+
+只读手部数据源必须通过独立 `SHELLOS_HANDS_PORT` 配置；不能把普通腿部控制器直接用作上肢控制器。两台设备实际身份绑定及力反馈执行仍待实现。前端可先复用三点归一化输入与左右枪/挖掘机逻辑，详见 [双杆说明](HANDS-MODE-Emma0923.md)。Service Worker 升级 v5，部署时一起更新两个新增前端文件。七套自动测试共 93 项通过。
+
+## v0.4 增量（历史）
 
 新增独立浏览器双手模式模拟器，详见 [HANDS-MODE-Emma0923.md](HANDS-MODE-Emma0923.md)。没有真机动作端点，没有修改 ShellOS/Guard；与 v0.3 只读设备面板并存。新增文件均带入本目录，Service Worker 升级 v4。
 

@@ -2,7 +2,7 @@
   "name": "EYE-OS-Emma0923",
   "displayName": "EYE OS - Emma0923",
   "contributionTag": "Emma0923",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "kind": "independent-glasses-companion-console",
   "integrationStatus": "read-only-shellos-state-integrated-pending-hardware-acceptance",
   "targetProject": "QiuQiuNB666/aima",
@@ -17,12 +17,16 @@
   "exoskeletonAdapter": "fixed-loopback-shellos-state-read-only",
   "exoskeletonHardwareVerified": false,
   "exoskeletonGuide": "EXOSKELETON-Emma0923.md",
-  "moduleFileCount": 39,
+  "moduleFileCount": 43,
   "entryPoint": "index.html",
   "localBridge": "server.mjs",
   "mergeGuide": "MERGE-GUIDE-Emma0923.md",
   "validation": "VALIDATION.md",
-  "handsAdapter": "browser-only-unitless-simulation",
+  "handsAdapter": "independent-read-only-angle-input-and-unitless-game-preview",
   "handsHardwareOutput": false,
-  "handsGuide": "HANDS-MODE-Emma0923.md"
+  "handsGuide": "HANDS-MODE-Emma0923.md",
+  "handsDeviceRole": "hands",
+  "handsHardwareVerified": false,
+  "continuedFromBranch": "codex/eye-os-Emma0924",
+  "continuedFromCommit": "86974dce2e3a63d12735ec0d5c39990d0cc60620"
 }

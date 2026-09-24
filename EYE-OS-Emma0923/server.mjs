@@ -5,7 +5,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { createExoskeletonReader } from './exoskeleton-core.mjs';
+import { createExoskeletonReader, readShellOSState, normalizeShellOSState, resolveShellOSPort } from './exoskeleton-core.mjs';
 
 const execute = promisify(execFile);
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -195,10 +195,25 @@ export function createConsoleServer({
   staticRoot = APP_ROOT, platform = process.platform, queryDevice = queryNativeDevice,
   queryDisplays = queryNativeDisplays, testAudio = playNativeAudio, now = Date.now,
   cacheMs = 15000, displayCacheMs = 3000,
-  queryExoskeletonUsb = queryNativeExoskeletonUsb, shellosPort,
+  queryExoskeletonUsb = queryNativeExoskeletonUsb, shellosPort, handsPort = process.env.SHELLOS_HANDS_PORT,
   exoskeletonUsbCacheMs = 5000, shellosCacheMs = 500, shellosTimeoutMs = 1200,
 } = {}) {
   const rootPromise = realpath(staticRoot);
+  const legPort = resolveShellOSPort(shellosPort);
+  const handPort = handsPort === undefined || handsPort === '' ? null : resolveShellOSPort(handsPort);
+  if (handPort === legPort) throw new Error('SHELLOS_HANDS_PORT must differ from SHELLOS_PORT: hands and legs require separate sources.');
+  let handPending = null;
+  function handTelemetry() {
+    if (handPort === null) return Promise.resolve({ available:false, hardwareOutput:false,
+      error:'HANDS_SOURCE_NOT_CONFIGURED', role:'hands' });
+    // No USB enumeration and no 500ms status cache in the interactive input path.
+    // Concurrent callers share a single bounded, read-only upstream request.
+    if (!handPending) handPending = readShellOSState({ port: handPort, timeoutMs: shellosTimeoutMs, now })
+      .then(value => ({ available: true, checkedAt: new Date(now()).toISOString(), hardwareOutput: false, role:'hands',
+        ...normalizeShellOSState(value, { now }) }))
+      .finally(() => { handPending = null; });
+    return handPending;
+  }
   const exoskeletonState = createExoskeletonReader({
     platform, queryUsb: queryExoskeletonUsb, now, shellosPort,
     usbCacheMs: exoskeletonUsbCacheMs, shellosCacheMs, shellosTimeoutMs,
@@ -291,10 +306,10 @@ export function createConsoleServer({
       }
       if (pathname === '/api/device') { json(res, 200, await state()); return; }
       if (pathname === '/api/displays') { json(res, 200, await displayState()); return; }
-      if (pathname === '/api/exoskeleton') {
+      if (pathname === '/api/exoskeleton' || pathname === '/api/hands-telemetry') {
         if (req.headers.origin && req.headers.origin !== `http://${host}`) throw new RequestError(403, 'ORIGIN_REJECTED', '外骨骼状态必须从本机控制台页面读取。');
         if ((req.url || '').includes('?')) throw new RequestError(400, 'INVALID_REQUEST', '外骨骼状态接口不接受目标地址或其他查询参数。');
-        json(res, 200, await exoskeletonState()); return;
+        json(res, 200, await (pathname === '/api/hands-telemetry' ? handTelemetry() : exoskeletonState())); return;
       }
       if (pathname.startsWith('/api/')) throw new RequestError(404, 'NOT_FOUND', '未找到接口。');
       await serveStatic(req, res, await rootPromise, pathname);

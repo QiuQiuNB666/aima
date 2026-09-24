@@ -1,6 +1,6 @@
 # EYE OS - Emma0923 · 眼镜控制台
 
-**提交标识：`Emma0923` · 目标仓库：`QiuQiuNB666/aima` · 目标目录：`EYE-OS-Emma0923/` · 版本：`0.4.0`**
+**提交标识：`Emma0923` · 目标仓库：`QiuQiuNB666/aima` · 目标目录：`EYE-OS-Emma0923/` · 版本：`0.5.0`**
 
 供技术伙伴独立评估的待合并模块。请先阅读 [合并指南](MERGE-GUIDE-Emma0923.md) 和 [验证记录](VALIDATION.md)。2026-09-24 已核对 `aima` 的 ShellOS / Three.js 主分支基线 `c4f465b8e3d7afd400ebfaafccfebb251c9f63b2`；本模块独立运行，已实现固定本机 `/state` 的只读状态桥接，游戏事件与声音联动仍待接入。
 
@@ -12,9 +12,9 @@ v0.3 增加**外骨骼实时状态**：分开显示 CP210x USB 枚举、ShellOS 
 
 **这是独立开发的网页控制台，不是眼镜内部操作系统，也不是 EYEVUE 官方 App。不会替换或刷写眼镜固件。** 首页眼镜图为 UI 示意图，不代表该型号的精确工业设计。设备名称、S30301、硬件 V2、蓝牙固件字段 V1.4.9 和 ISP V1.3.6 来自用户提供的截图，不是实时查询结果。
 
-## v0.4 双手模式预览
+## v0.5 外骨骼双杆与角度输入
 
-在设备页点击“双手模式预览”，体验模拟解绑、校准、抬起就位、双杆靶场与挖掘机交互。**本页仅驱动画面，不发送硬件命令**；真实自动抬杆与阻尼等待手持结构、行程及握持检测验证。详见 [双手模式说明](HANDS-MODE-Emma0923.md)。
+从 Emma 分支 `codex/eye-os-Emma0924` 的 `86974dc` 继续开发：独立手部角度源、三点舒适位置校准、左右枪分别触发、挖掘机双杆操作、断流与页面停顿暂停。双设备方案将腿部行走与手部操作分开，手部使用独立 `SHELLOS_HANDS_PORT`，未配置时不会读取腿部服务。**本页仅驱动画面，不发送硬件命令**；真实抬杆、保持、阻尼和脉冲尚待专用控制器与台架验证。详见 [双杆接入说明](HANDS-MODE-Emma0923.md)。
 
 ## 直接运行
 
@@ -61,7 +61,7 @@ node server.mjs
 
 手机版本的目标连接方式是：**手机运行页面，手机通过系统蓝牙连接眼镜，眼镜播放声音；麦克风路由须在目标手机上实测。** 当前交付包尚未部署公网。
 
-1. 将以下静态文件部署到支持 HTTPS 的站点：`index.html`、`app.js`、`styles.css`、`app.css`、`icon.svg`、`manifest.webmanifest`、`sw.js`、`exoskeleton-controller.js`，以及 `display.html`、`display.css`、`display-core.js`、`display-controller.js`、`display-receiver.js`。v0.4 还需部署 `hands.html`、`hands.css`、`hands-core.js`、`hands-controller.js`。此操作不需要部署 Windows 桥接脚本。
+1. 将以下静态文件部署到支持 HTTPS 的站点：`index.html`、`app.js`、`styles.css`、`app.css`、`icon.svg`、`manifest.webmanifest`、`sw.js`、`exoskeleton-controller.js`，以及 `display.html`、`display.css`、`display-core.js`、`display-controller.js`、`display-receiver.js`。v0.5 还需部署 `hands.html`、`hands.css`、`hands-core.js`、`hands-controller.js`、`hands-input.js`、`hands-reader.js`。此操作不需要部署 Windows 桥接脚本。
 2. 用手机浏览器打开 HTTPS 地址，并在手机系统中将 E06 设为蓝牙音频设备。
 3. 按需授权麦克风。选择、确认输入音源，再开始录音；手机浏览器可能把音源选择交给系统。
 4. 浏览器支持时可添加到主屏幕。录音等接口需要安全上下文，直接打开本地 HTML 文件不能替代 HTTPS 部署。
@@ -88,6 +88,7 @@ HTTPS 静态部署后没有本地 `/api` 是正常状态，应显示桥接不可
 | `GET /api/device` | 目标眼镜音频端点快照 | `checkedAt` 标记查询时间；`playback` / `microphone` 各含 `detected`、`active`、`muted`、`volume` |
 | `GET /api/displays` | Windows 桌面显示器几何诊断 | 只读、缓存 3 秒；浏览器选屏仍需用户授权 |
 | `GET /api/exoskeleton` | USB / ShellOS / 遥测三层状态 | USB 缓存 5 秒、上游缓存 500ms；无查询参数、无运动写入；详见外骨骼指南 |
+| `GET /api/hands-telemetry` | 独立手部角度输入 | 需配置独立手部端口，无旧快照缓存或 USB 枚举；硬件输出恒 false；详见双杆指南 |
 | `POST /api/audio/test` | 向指定眼镜播放提示音 | 同源、`Content-Type: application/json`、请求体 `{}`；返回 `requiresConfirmation` 要求使用者确认听感 |
 
 音量或静音不可读时为 `null`，不要将它们显示成 0 或“未静音”。`capabilities` 表示当前适配器已接通的能力，并不推断眼镜完整硬件规格。服务端的 `audibility: "unverified"` 不能擅自改为“听到了”。错误响应有 `error` 与 `message`；设备未连接、静音、桥接读取失败等都应如实显示。

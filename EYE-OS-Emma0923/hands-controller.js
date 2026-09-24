@@ -1,40 +1,110 @@
 import { createHandSimulation } from './hands-core.js';
+import { createHandAngleInput } from './hands-input.js';
+import { createHandReader } from './hands-reader.js';
 
-// Local animation only. No fetch, device API, command bus or hardware adapter.
+// All outputs remain local animation. The optional reader only obtains angles.
 const sim = createHandSimulation();
 const $ = id => document.getElementById(id);
 const canvas = $('scene'), ctx = canvas.getContext('2d');
 const names = {legs:'腿部模式', released:'模拟已解绑', calibrated:'中位已校准', raising:'正在模拟抬起', ready:'双手模式 · 就位', paused:'模拟已暂停'};
-let raf = null, previous = performance.now(), lastShots = 0, flash = 0;
+let raf = null, previous = performance.now();
+const lastShots = {left:0, right:0}, flash = {left:0, right:0};
 const keys = new Set();
+const angleInput = createHandAngleInput();
+let inputSource = 'keyboard', telemetryNote = '读取单独配置的手部数据服务；配置方法见本页底部接入说明。';
+const sourceNames = { hardware:'真实设备', simulation:'模拟器数据', replay:'回放数据' };
+const reader = createHandReader({
+  onSample(report) {
+    if(report?.error === 'HANDS_SOURCE_NOT_CONFIGURED') {
+      reader.stop(); angleInput.reset(); suspend(); telemetryNote='请配置独立的 SHELLOS_HANDS_PORT，手部不能复用腿部服务端口'; return;
+    }
+    const result = angleInput.ingest(report, Date.now(), performance.now());
+    if (!result.ok) { reader.stop(); suspend(); telemetryNote = result.reason + '；请重新开始读取'; }
+    else if (result.changed) { suspend(); telemetryNote = '数据来源改变，请重新记录三个位置'; }
+    else if (telemetryNote === '正在读取本机 ShellOS…') telemetryNote = '';
+  },
+  onError(message) { angleInput.reset(); suspend(); telemetryNote = message; },
+});
+
+function stopReading(message) {
+  reader.stop(); angleInput.reset(); suspend(); telemetryNote = message;
+}
+$('input-source').onchange = () => {
+  stopReading('输入来源已切换，请重新准备'); inputSource = $('input-source').value;
+  action({ type:'reset' }); render();
+};
+$('telemetry-start').onclick = () => {
+  if (inputSource !== 'telemetry' || document.hidden) return;
+  stopReading('正在读取本机 ShellOS…'); reader.start(); render();
+};
+$('telemetry-stop').onclick = () => { stopReading('读取已停止，重新开始后需要校准'); render(); };
+for (const name of ['center','back','forward']) $('capture-'+name).onclick = () => {
+  suspend();
+  const result = angleInput.capture(name, performance.now());
+  telemetryNote = result.reason || (result.complete ? '三点已记录。回到中位，应用校准后开始试玩' : '位置已记录，请继续记录其余位置');
+  render();
+};
+$('export-calibration').onclick = () => {
+  const record = angleInput.exportCalibration(performance.now()); if (!record) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(record,null,2)], {type:'application/json'}));
+  const link = document.createElement('a'); link.href=url; link.download='Emma0923-hand-screen-calibration.json';
+  link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+function renderInput() {
+  const enabled = inputSource === 'telemetry', status = angleInput.status(performance.now());
+  $('telemetry-controls').hidden = !enabled;
+  $('telemetry-start').disabled = reader.running;
+  $('telemetry-stop').disabled = !reader.running;
+  $('telemetry-source').textContent = status.source ? `${sourceNames[status.source.mode]} · ${status.source.port || '无实体串口'} · 只读` : '未连接';
+  $('telemetry-status').textContent = telemetryNote || (!status.live ? '等待新鲜数据，画面保持暂停' : !status.calibrated ? '角度正在更新，请记录三个舒适位置' : !status.centered && sim.snapshot().stage !== 'ready' ? '请回到中位，再点击画面就位' : '角度输入已就绪，仅驱动画面');
+  $('angle-left').textContent = status.angles ? `${status.angles.left.toFixed(1)}°` : '—';
+  $('angle-right').textContent = status.angles ? `${status.angles.right.toFixed(1)}°` : '—';
+  $('capture-quality').textContent = status.stable ? '已稳定，可以记录' : '等待稳住约一秒';
+  for (const name of ['center','back','forward']) {
+    $('capture-'+name).disabled = !status.stable;
+    $('capture-'+name).classList.toggle('recorded',Boolean(status.poses[name]));
+  }
+  $('calibration-summary').textContent = Object.entries(status.poses).map(([name,pose]) => `${{center:'中位',back:'后拉',forward:'前推'}[name]}：${pose.left.toFixed(1)}° / ${pose.right.toFixed(1)}°`).join(' · ') || '尚未记录。三点校准只用于画面映射。';
+  $('export-calibration').disabled = !status.live || !status.calibrated;
+  return status;
+}
 
 function action(value) { sim.dispatch(value); render(); }
 function zeroInputs() { keys.clear(); $('left').value = $('right').value = '0'; }
 function suspend() { zeroInputs(); action({type:'suspend'}); }
-function inputs() { action({type:'input',left:Number($('left').value)/100,right:Number($('right').value)/100}); }
+function inputs() { if(inputSource === 'keyboard') action({type:'input',left:Number($('left').value)/100,right:Number($('right').value)/100}); }
 $('release').onchange = () => { zeroInputs(); action({type:'set-release',value:$('release').checked}); };
-$('calibrate').onclick = () => { zeroInputs(); action({type:'calibrate'}); };
+$('calibrate').onclick = () => { if(inputSource === 'telemetry' && !angleInput.status(performance.now()).calibrated) return; zeroInputs(); action({type:'calibrate'}); };
 $('grip').onchange = () => { if (!$('grip').checked) zeroInputs(); action({type:'hold',value:$('grip').checked}); };
-$('raise').onclick = () => action({type:'raise'});
+$('raise').onclick = () => { if(inputSource === 'telemetry' && !angleInput.status(performance.now()).centered) return; telemetryNote=''; action({type:'raise'}); };
 $('pause').onclick = suspend;
-$('reset').onclick = () => { zeroInputs(); flash = 0; action({type:'reset'}); };
+$('reset').onclick = () => { stopReading('已复位，重新读取后需要校准'); flash.left = flash.right = 0; action({type:'reset'}); };
 $('damping').oninput = () => action({type:'damping',value:Number($('damping').value)/100});
 $('left').oninput = $('right').oninput = inputs;
-$('fire').onclick = () => action({type:'fire'});
+$('fire').onclick = () => action({type:'fire',side:'left'});
+$('fire-right').onclick = () => action({type:'fire',side:'right'});
 for (const scene of ['range','excavator']) $('scene-'+scene).onclick = () => {
-  zeroInputs(); flash = 0; action({type:'scene',value:scene}); action({type:'input',left:0,right:0});
+  zeroInputs(); flash.left = flash.right = 0;
+  // A held physical handle must not become a shot/motion on a scene switch.
+  if(inputSource === 'telemetry') suspend();
+  action({type:'scene',value:scene}); action({type:'input',left:0,right:0});
 };
 
 function render() {
   const s = sim.snapshot(), ready = s.stage === 'ready' && s.holding;
+  const sourceStatus = renderInput(), measured = inputSource === 'telemetry';
   $('release').checked = s.released; $('grip').checked = s.holding;
   $('grip').disabled = !s.calibrated;
-  $('calibrate').disabled = !s.released || s.stage === 'raising' || s.stage === 'ready';
-  $('raise').disabled = !s.calibrated || !s.holding || s.stage === 'raising' || s.stage === 'ready';
+  $('calibrate').textContent = measured ? '应用角度校准' : '校准模拟中位';
+  $('calibrate').disabled = !s.released || s.stage === 'raising' || s.stage === 'ready' || (measured && !sourceStatus.calibrated);
+  $('raise').textContent = measured ? '画面就位，开始角度试玩' : '抬起到握持位置';
+  $('raise').disabled = !s.calibrated || !s.holding || s.stage === 'raising' || s.stage === 'ready' || (measured && !sourceStatus.centered);
   $('pause').disabled = !s.holding && s.stage !== 'raising';
-  $('left').disabled = $('right').disabled = !ready;
+  $('left').disabled = $('right').disabled = !ready || measured;
+  if (measured) { $('left').value=String(s.left*100); $('right').value=String(s.right*100); }
   $('fire').disabled = !ready || s.scene !== 'range';
   $('fire').hidden = s.scene !== 'range';
+  $('fire-right').disabled = $('fire').disabled; $('fire-right').hidden = $('fire').hidden;
   $('stage-badge').textContent = names[s.stage] || '模拟已停止';
   $('raise-progress').style.width = `${s.raiseProgress*100}%`;
   $('step-release').classList.toggle('done',s.released);
@@ -45,7 +115,7 @@ function render() {
     : !s.calibrated ? '校准两个虚拟输入的中位，准备切换手部模式。'
     : !s.holding ? '勾选模拟双手握持，再主动点击抬起就位。'
     : s.stage === 'raising' ? '支撑正在画面中缓慢抬起。取消握持可随时停止。'
-    : ready ? '已就位。拖动左右输入，或使用键盘操作。'
+    : ready ? measured ? '已就位。前推或后拉两根支撑杆，分别操控左右输入。' : '已就位。拖动左右输入，或使用键盘操作。'
     : '点击抬起到握持位置，继续模拟。';
   if ($('status').textContent !== status) $('status').textContent = status;
   $('damping-value').textContent = `${Math.round(s.damping*100)}%`;
@@ -57,17 +127,19 @@ function render() {
   const range = s.scene === 'range';
   $('scene-range').classList.toggle('selected',range); $('scene-range').setAttribute('aria-pressed',String(range));
   $('scene-excavator').classList.toggle('selected',!range); $('scene-excavator').setAttribute('aria-pressed',String(!range));
-  $('left-label').textContent = range ? '左手 · 横向瞄准' : '左手 · 动臂升降';
-  $('right-label').textContent = range ? '右手 · 纵向瞄准' : '右手 · 铲斗收放';
+  $('left-label').textContent = range ? '左操作杆 · 左枪' : '左操作杆 · 动臂升降';
+  $('right-label').textContent = range ? '右操作杆 · 右枪' : '右操作杆 · 铲斗收放';
   $('scene-title').textContent = range ? '让每一次触发，都有回应。' : '把整台机器，握在双手里。';
-  $('scene-hint').textContent = range ? '两手输入控制虚拟准星；触发后显示短促反馈。这里不会让真实支撑震动。'
+  $('scene-hint').textContent = range ? '前推哪侧操作杆，就触发哪侧枪；回拉后可再次前推。左右脉冲独立，仅显示反馈。'
     : '左杆升降动臂，右杆收放铲斗。回到中位即停止操作；旋转和行走留给后续模式扩展。';
-  $('metric-label').textContent = range ? '脉冲次数' : '动臂 / 铲斗';
-  $('metric-value').textContent = range ? String(s.shots) : `${Math.round(s.excavator.boom*100)} / ${Math.round(s.excavator.bucket*100)}`;
-  if (s.shots > lastShots && range && ready) flash = 1;
-  lastShots = s.shots;
-  if (!ready) flash = 0;
-  draw(s);
+  $('metric-label').textContent = range ? '左枪 / 右枪' : '动臂 / 铲斗';
+  $('metric-value').textContent = range ? `${s.shotsLeft} / ${s.shotsRight}` : `${Math.round(s.excavator.boom*100)} / ${Math.round(s.excavator.bucket*100)}`;
+  for(const side of ['left','right']) {
+    const count = s[side === 'left' ? 'shotsLeft' : 'shotsRight'];
+    if(count > lastShots[side] && range && ready) flash[side] = 1;
+    lastShots[side] = count;
+    if(!ready) flash[side] = 0;
+  }
 }
 
 function line(points, color, width=3) {
@@ -100,14 +172,15 @@ function draw(s) {
   label('双路支撑 · 虚拟姿态',164,471,15,'#6f835d');
   line([[430,80],[430,435]],'#dbe3d2',1);
   if(s.scene==='range') {
-    const tx=735,ty=240;
-    line([[tx,ty+90],[tx,420]],'#a2b291',9);
-    for(const [r,color] of [[99,'#d7e0cc'],[75,'#edf2e6'],[49,'#adc18e'],[25,'#f4f7ec'],[9,'#6d8b49']]) circle(tx,ty,r,color);
-    const x=tx+s.left*145,y=ty-s.right*120;
-    line([[x-20,y],[x-7,y]],'#263f2b',2);line([[x+7,y],[x+20,y]],'#263f2b',2);
-    line([[x,y-20],[x,y-7]],'#263f2b',2);line([[x,y+7],[x,y+20]],'#263f2b',2);
-    if(flash>0){ctx.globalAlpha=flash;line([[600,415],[x,y]],'#b6d581',5);circle(x,y,8+22*(1-flash),'#b4cd80');ctx.globalAlpha=1;}
-    label('PULSE RANGE',661,470,14,'#70805f');
+    for(const [side,tx,tint] of [['left',600,'#88a95b'],['right',830,'#b18958']]) {
+      const ty=220, y=260-s[side]*60;
+      line([[tx,ty+70],[tx,410]],'#a2b291',8);
+      for(const [r,color] of [[72,'#d7e0cc'],[52,'#edf2e6'],[31,tint],[10,'#f4f7ec']])circle(tx,ty,r,color);
+      line([[tx-19,y],[tx+19,y]],'#263f2b',2);line([[tx,y-19],[tx,y+19]],'#263f2b',2);
+      line([[tx-20,430],[tx+12,400]],tint,16);
+      if(flash[side]>0){ctx.globalAlpha=flash[side];line([[tx,405],[tx,y]],tint,5);circle(tx,y,8+22*(1-flash[side]),tint);ctx.globalAlpha=1;}
+      label(side==='left'?'LEFT / 左枪':'RIGHT / 右枪',tx-43,470,13,'#70805f');
+    }
   } else {
     const baseX=640,baseY=350;
     line([[565,408],[720,408]],'#344932',39);line([[574,408],[712,408]],'#7d9365',20);
@@ -124,28 +197,41 @@ function draw(s) {
   }
 }
 
-function keyboardInput() {
-  $('left').value=String((Number(keys.has('d'))-Number(keys.has('a')))*100);
-  $('right').value=String((Number(keys.has('l'))-Number(keys.has('j')))*100); inputs();
+function keyboardInput(key) {
+  // Editing one keyboard axis must not wipe the other hand's slider input.
+  if (['a','d'].includes(key)) $('left').value=String((Number(keys.has('d'))-Number(keys.has('a')))*100);
+  if (['j','l'].includes(key)) $('right').value=String((Number(keys.has('l'))-Number(keys.has('j')))*100);
+  inputs();
 }
 window.addEventListener('keydown',event=>{
   const key=event.key.toLowerCase();
   if(key==='escape'){event.preventDefault();suspend();return;}
-  if(event.ctrlKey||event.metaKey||event.altKey||!['a','d','j','l','f'].includes(key))return;
+  if(event.ctrlKey||event.metaKey||event.altKey||!['a','d','j','l','f','h'].includes(key))return;
+  if(event.target?.closest?.('select,textarea,input:not([type=range])') || event.target?.isContentEditable)return;
+  if(inputSource === 'telemetry' && !['f','h'].includes(key))return;
   if(sim.snapshot().stage!=='ready')return;
   event.preventDefault();if(event.repeat)return;
-  if(key==='f')action({type:'fire'});else{keys.add(key);keyboardInput();}
+  if(['f','h'].includes(key))action({type:'fire',side:key==='f'?'left':'right'});else{keys.add(key);keyboardInput(key);}
 });
-window.addEventListener('keyup',event=>{const key=event.key.toLowerCase();if(keys.delete(key))keyboardInput();});
+window.addEventListener('keyup',event=>{const key=event.key.toLowerCase();if(keys.delete(key))keyboardInput(key);});
 function frame(now) {
   raf=null; if(document.hidden)return;
   const dt=Math.max(0,(now-previous)/1000);previous=now;
-  sim.tick(dt);flash=Math.max(0,flash-Math.min(dt,.05)*4);render();raf=requestAnimationFrame(frame);
+  if(inputSource === 'telemetry') {
+    const input=angleInput.axes(now,dt), s=sim.snapshot();
+    if(!input && ['raising','ready'].includes(s.stage)) { suspend(); telemetryNote='数据已过期或校准失效，画面暂停；恢复后回到中位并重新就位'; }
+    else if(input && s.stage==='ready') sim.dispatch({type:'input',...input});
+  }
+  const state=sim.tick(dt);
+  if(dt>0.25){zeroInputs();telemetryNote='页面更新中断，旧输入已清除，请重新就位';}
+  for(const side of ['left','right']) flash[side]=Math.max(0,flash[side]-Math.min(dt,.05)*4);
+  render();draw(state);raf=requestAnimationFrame(frame);
 }
 function startFrames(){previous=performance.now();if(raf===null&&!document.hidden)raf=requestAnimationFrame(frame);}
-function stopFrames(){if(raf!==null)cancelAnimationFrame(raf);raf=null;suspend();}
+function stopFrames(){if(raf!==null)cancelAnimationFrame(raf);raf=null;stopReading('离开页面后读取已停止，请重新开始并校准');}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopFrames();else startFrames();});
 window.addEventListener('blur',suspend);
+window.addEventListener('offline',()=>stopReading('网络不可用，读取已停止'));
 window.addEventListener('pagehide',stopFrames);
 window.addEventListener('pageshow',startFrames);
-render();startFrames();
+render();draw(sim.snapshot());startFrames();

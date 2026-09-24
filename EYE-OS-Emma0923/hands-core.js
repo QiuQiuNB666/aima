@@ -11,34 +11,39 @@ const inRange = (value, low, high) => finite(value) && value >= low && value <= 
 const ACTION_KEYS = {
   'set-release': ['type', 'value'], calibrate: ['type'], hold: ['type', 'value'],
   raise: ['type'], input: ['type', 'left', 'right'], scene: ['type', 'value'],
-  damping: ['type', 'value'], fire: ['type'], reset: ['type'], suspend: ['type'],
+  damping: ['type', 'value'], fire: ['type', 'side'], reset: ['type'], suspend: ['type'],
 };
 
 export function createHandSimulation() {
   let state;
-  let sampledLeft = 0, sampledRight = 0, pulseRemaining = 0, cooldown = 0;
+  let sampledLeft = 0, sampledRight = 0;
+  let pulseRemaining, cooldown, triggerArmed;
 
   function reset() {
     state = {
       stage: 'legs', released: false, calibrated: false, holding: false,
       raiseProgress: 0, scene: 'range', damping: 0.4,
       left: 0, right: 0, feedbackLeft: 0, feedbackRight: 0, shots: 0,
+      shotsLeft: 0, shotsRight: 0, lastShot: null,
       excavator: { boom: 0.5, bucket: 0.5 },
     };
-    sampledLeft = 0; sampledRight = 0; pulseRemaining = 0; cooldown = 0;
+    sampledLeft = 0; sampledRight = 0;
+    pulseRemaining = { left:0, right:0 }; cooldown = { left:0, right:0 }; triggerArmed = { left:true, right:true };
   }
   reset();
 
   function snapshot() {
-    return { ...state, excavator: { ...state.excavator }, hardwareOutput: false };
+    return { ...state, lastShot:state.lastShot ? { ...state.lastShot, sides:[...state.lastShot.sides] } : null,
+      excavator: { ...state.excavator }, hardwareOutput: false };
   }
   function clearFeedback() {
-    pulseRemaining = 0;
+    pulseRemaining.left = pulseRemaining.right = 0;
     state.feedbackLeft = 0; state.feedbackRight = 0;
   }
   function neutralize() {
     clearFeedback();
     state.left = 0; state.right = 0; sampledLeft = 0; sampledRight = 0;
+    triggerArmed.left = triggerArmed.right = true;
   }
   function suspend() {
     state.holding = false;
@@ -55,11 +60,26 @@ export function createHandSimulation() {
     const leftDamping = clamp(-state.damping * velocityLeft * 0.08, -1, 1);
     const rightDamping = clamp(-state.damping * velocityRight * 0.08, -1, 1);
     // A shot is a separate, short visual cue, not a claim of passive damping.
-    const pulse = state.scene === 'range' ? -0.35 * (pulseRemaining / PULSE_DURATION) : 0;
-    state.feedbackLeft = clamp(leftDamping + pulse, -1, 1) || 0;
-    state.feedbackRight = clamp(rightDamping + pulse, -1, 1) || 0;
+    const pulse = side => state.scene === 'range' ? -0.35 * (pulseRemaining[side] / PULSE_DURATION) : 0;
+    state.feedbackLeft = clamp(leftDamping + pulse('left'), -1, 1) || 0;
+    state.feedbackRight = clamp(rightDamping + pulse('right'), -1, 1) || 0;
   }
   function deny() { clearFeedback(); }
+  function fire(side) {
+    if (!ready() || state.scene !== 'range') return;
+    const sides = (side === 'both' ? ['left','right'] : [side]).filter(item => cooldown[item] <= 0);
+    if (!sides.length) return;
+    for (const item of sides) {
+      state[item === 'left' ? 'shotsLeft' : 'shotsRight']++;
+      pulseRemaining[item] = PULSE_DURATION; cooldown[item] = FIRE_COOLDOWN;
+    }
+    state.shots++;
+    // Game feedback intent only. A future local hand-device adapter must own
+    // validated control limits; these unitless cues are never motor commands.
+    state.lastShot = { id:state.shots, role:'hands', sides, kind:'game-pulse',
+      strength:0.35, durationMs:PULSE_DURATION*1000, unit:'normalized-preview' };
+    feedback(0,0);
+  }
 
   function dispatch(action) {
     try {
@@ -99,6 +119,12 @@ export function createHandSimulation() {
           if (!inRange(action.left, -1, 1) || !inRange(action.right, -1, 1)) { suspend(); break; }
           if (!ready()) { neutralize(); break; }
           state.left = action.left; state.right = action.right;
+          for (const side of ['left','right']) {
+            if (state[side] <= 0.2) triggerArmed[side] = true;
+            if (state[side] >= 0.65 && triggerArmed[side] && state.scene === 'range') {
+              triggerArmed[side] = false; fire(side);
+            }
+          }
           feedback(0, 0);
           break;
         case 'scene':
@@ -111,10 +137,8 @@ export function createHandSimulation() {
           clearFeedback();
           break;
         case 'fire':
-          if (!ready() || state.scene !== 'range' || cooldown > 0) { deny(); break; }
-          state.shots++;
-          pulseRemaining = PULSE_DURATION; cooldown = FIRE_COOLDOWN;
-          feedback(0, 0);
+          if (action.side !== undefined && !['left','right','both'].includes(action.side)) { suspend(); break; }
+          fire(action.side || 'both');
           break;
         case 'reset': reset(); break;
         case 'suspend': suspend(); break;
@@ -127,9 +151,10 @@ export function createHandSimulation() {
   }
 
   function tick(dtSeconds) {
-    if (!finite(dtSeconds)) { suspend(); return snapshot(); }
+    // A stalled foreground tab must not resume an old held input after waking.
+    if (!finite(dtSeconds) || dtSeconds > 0.25) { suspend(); return snapshot(); }
     const dt = clamp(dtSeconds, 0, MAX_DT);
-    cooldown = Math.max(0, cooldown - dt);
+    for (const side of ['left','right']) cooldown[side] = Math.max(0, cooldown[side] - dt);
     if (!state.released || !state.calibrated || !state.holding) {
       neutralize(); return snapshot();
     }
@@ -143,7 +168,7 @@ export function createHandSimulation() {
     }
     if (!ready()) { neutralize(); return snapshot(); }
 
-    pulseRemaining = Math.max(0, pulseRemaining - dt);
+    for (const side of ['left','right']) pulseRemaining[side] = Math.max(0, pulseRemaining[side] - dt);
     const velocityLeft = dt > 0 ? (state.left - sampledLeft) / dt : 0;
     const velocityRight = dt > 0 ? (state.right - sampledRight) / dt : 0;
     feedback(velocityLeft, velocityRight);

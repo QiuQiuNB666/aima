@@ -28,16 +28,18 @@ async function listen(t, listener) {
 const send = (res, value = report()) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(value)); };
 
 async function appFixture(t, overrides = {}) {
+  const { handsSource = false, ...serverOverrides } = overrides;
   const requests = [];
   const upstream = await listen(t, (req, res) => { requests.push({ method: req.method, url: req.url, host: req.headers.host }); send(res); });
   let probes = 0;
   let audioCalls = 0;
   const app = createConsoleServer({
-    platform: 'win32', now: () => NOW, shellosPort: upstream.port,
+    platform: 'win32', now: () => NOW, shellosPort: handsSource ? (upstream.port === 65535 ? 65534 : upstream.port+1) : upstream.port,
+    handsPort: handsSource ? upstream.port : '',
     queryExoskeletonUsb: async () => { probes++; return native(); },
     queryDevice: async () => { throw new Error('Unexpected audio probe'); },
     queryDisplays: async () => { throw new Error('Unexpected display probe'); },
-    testAudio: async () => { audioCalls++; }, ...overrides,
+    testAudio: async () => { audioCalls++; }, ...serverOverrides,
   });
   await new Promise(resolve => app.listen(0, '127.0.0.1', resolve));
   t.after(async () => { app.closeAllConnections(); await new Promise(resolve => app.close(resolve)); });
@@ -56,6 +58,26 @@ async function appFixture(t, overrides = {}) {
   });
   return { request, requests, upstreamPort: upstream.port, origin: `http://127.0.0.1:${port}`, get probes() { return probes; }, get audioCalls() { return audioCalls; } };
 }
+
+test('hands telemetry bypasses USB discovery and old status caches using only fixed upstream GETs', async t => {
+  const app = await appFixture(t, {handsSource:true});
+  const first = await app.request('/api/hands-telemetry');
+  assert.equal(first.status,200); assert.equal(first.json.hardwareOutput,false);
+  assert.equal(first.json.shellos.mode,'hardware'); assert.equal(app.probes,0);
+  assert.equal(Object.hasOwn(first.json,'usb'),false);
+  await app.request('/api/hands-telemetry'); assert.equal(app.requests.length,2);
+  assert.ok(app.requests.every(item=>item.method==='GET' && item.url==='/state'));
+  assert.equal((await app.request('/api/hands-telemetry',{method:'POST'})).status,405);
+  assert.equal((await app.request('/api/hands-telemetry?port=22')).status,400);
+  assert.equal((await app.request('/api/hands-telemetry',{headers:{Origin:'https://evil.example'}})).status,403);
+  assert.equal(app.requests.length,2); assert.equal(app.audioCalls,0);
+});
+
+test('hand source is opt-in and cannot silently use the leg service',async t=>{
+  const app=await appFixture(t);const value=await app.request('/api/hands-telemetry');
+  assert.equal(value.json.error,'HANDS_SOURCE_NOT_CONFIGURED');assert.equal(app.requests.length,0);
+  assert.throws(()=>createConsoleServer({shellosPort:18765,handsPort:18765}),/must differ/);
+});
 
 test('reports hardware, simulation and replay as distinct sources without leaking raw state', () => {
   const value = report({ wearer: { name: 'private wearer' }, events: ['private events'], shots: 'private shots', raw: 'private data' });
