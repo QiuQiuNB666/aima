@@ -1,0 +1,14 @@
+# 片段 | 场景 | 章节 | 旁白（空格分隔）| 最短秒数（可选）   —— cut_swarm.sh 和 workflow_data.py 都读这张表
+W01|open|开场|sw01 sw02 sw03
+W03|arch|① 怎么搭|sw04 sw05 sw06 sw07
+W04|brief|② 怎么派活|sw08 sw09 sw10
+W05|three|③ 怎么不撞车|sw11 sw12 sw13 sw14
+W06|board|④ 怎么收活|sw15 sw16 sw17
+W07|gantt|⑤ 两天摊开看|sw18 sw19
+W07b|tokens|⑥ 花了多少 token|sw19t sw19u
+W08|human|⑦ 人管什么|sw20 sw21 sw22
+W09|fails|⑧ 翻车|sw23 sw24 sw25
+W10|evomap|⑨ 对照 EvoMap|sw26 sw27 sw28
+W11|hermes|⑩ 对照 Hermes Agent|sw29 sw30
+W12|table|⑪ 三方对比|sw31|14
+W13|end|收尾|sw32 sw33

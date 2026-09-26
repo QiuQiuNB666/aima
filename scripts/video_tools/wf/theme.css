@@ -1,0 +1,41 @@
+/* 工作流拆解视频的视觉系统（方向 C「瑞士数据新闻」+ A 的线路编号圆标和字幕黑条）。
+   纸灰底、墨黑字、唯一强调色朱红：只用来标「总指挥做的事」——它的节点和泳道、合并进 main、冲突、Chrome 闸门。
+   网格：1920×1080，左右边距 96，12 栏（栏宽 122、槽 24）；y ≥ 926 只给字幕。 */
+:root {
+  --paper: #F1F1EC; --ink: #121211; --g1: #5C5C57; --g2: #A6A69F; --g3: #D4D4CD; --red: #E8411A;
+  --sans: "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --num: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: Menlo, "SF Mono", monospace;
+  --m: 96px; --col: 122px; --gut: 24px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+#root { position: absolute; inset: 0; }
+.abs { position: absolute; }
+.mono { font-family: var(--mono); }
+.num { font-family: var(--num); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 0.9; }
+.red { color: var(--red); }
+.g1 { color: var(--g1); } .g2 { color: var(--g2); }
+
+/* 字号阶梯（px）：H1 128 / H2 72 / H3 56 / 正文 34 / 标签 24 / 注 22；数字 170–250 */
+.h1 { font-size: 128px; font-weight: 600; line-height: 1.08; letter-spacing: -0.01em; }
+.h2 { font-size: 72px; font-weight: 600; line-height: 1.1; }
+.h3 { font-size: 56px; font-weight: 600; line-height: 1.15; }
+.body { font-size: 34px; font-weight: 500; line-height: 1.45; }
+.label { font-size: 24px; font-weight: 500; line-height: 1.35; }
+.note { font-size: 22px; font-weight: 400; line-height: 1.35; color: var(--g1); }
+
+/* 顶部 running header：3 px 墨线 + 左「工作流拆解 / 章节」+ 右日期 */
+.run { position: absolute; left: var(--m); right: var(--m); top: 40px; height: 34px; border-top: 3px solid var(--ink); padding-top: 8px; font-size: 20px; font-weight: 500; display: flex; justify-content: space-between; }
+.run .r { font-family: var(--mono); font-size: 18px; color: var(--g1); }
+
+/* 每块内容挂在一条 2 px 上边线下面，不用框 */
+.rule { border-top: 2px solid var(--ink); padding-top: 14px; }
+.hair { border-top: 1px solid var(--g3); }
+
+/* 线路编号圆标（来自方向 A，只用墨色；总指挥那一个用朱红） */
+.bullet { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 7px; border-radius: 17px; background: var(--ink); color: var(--paper); font-family: var(--num); font-weight: 700; font-size: 18px; letter-spacing: 0; }
+.bullet.cmd { background: var(--red); }
+
+/* 字幕：底部居中的墨色方块，白字 38 px，两行时上下对半 */
+.sub { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); width: max-content; max-width: 1560px; background: var(--ink); color: #FAFAF7; font-size: 38px; font-weight: 500; line-height: 1.42; padding: 12px 30px 14px; text-align: center; white-space: pre-line; }
