@@ -6,11 +6,13 @@
 from __future__ import annotations
 import glob
 import queue
+import sys
 import threading
 import time
 from collections import deque
 
 import serial
+from serial.tools import list_ports
 
 from .frame import Frame, parse_line
 from .convention import R_SIGN
@@ -19,6 +21,17 @@ BAUD = 3_000_000
 
 
 def find_port() -> str:
+    if sys.platform == "win32":
+        # VID/PID 只识别 CP210x 串口桥候选；设备协议仍需原有握手确认。
+        cands = sorted(p.device for p in list_ports.comports()
+                       if p.vid == 0x10C4 and p.pid == 0xEA60)
+        if not cands:
+            raise RuntimeError("没找到 CP210x 串口候选：请检查外骨骼电源、USB 数据线，"
+                               "以及 Silicon Labs 官方 CP210x 驱动是否已安装")
+        if len(cands) > 1:
+            raise RuntimeError(f"发现多个 CP210x 串口候选：{', '.join(cands)}；"
+                               "请确认设备后用 --port COMx 明确指定端口")
+        return cands[0]
     cands = sorted(glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/cu.usbserial*")
                    + glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*"))
     if not cands:

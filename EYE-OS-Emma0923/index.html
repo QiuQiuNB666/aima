@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f5f1"><meta name="description" content="EYE OS：轻量、手机优先的眼镜控制台。">
+  <title>EYE OS - Emma0923 · 眼镜控制台</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="app.css">
+  <script src="app.js" defer></script>
+  <script src="display-controller.js" type="module"></script>
+  <script src="exoskeleton-controller.js" type="module"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#overview" aria-label="EYE OS 概览"><span class="brand-symbol" aria-hidden="true">e</span><span>EYE<span class="brand-os"> OS</span><small>YOUR EVERYDAY COMPANION</small></span></a>
+      <nav aria-label="主要导航">
+        <button class="nav-button active" data-page="overview" aria-current="page"><i data-icon="grid"></i><span>概览</span></button>
+        <button class="nav-button" data-page="lab"><i data-icon="wave"></i><span>声音实验室</span></button>
+        <button class="nav-button" data-page="library"><i data-icon="folder"></i><span>资料库</span><span class="nav-count" id="nav-count">0</span></button>
+        <button class="nav-button" data-page="device"><i data-icon="sliders"></i><span>设备与能力</span></button>
+      </nav>
+      <div class="sidebar-foot"><span class="tiny-orbit"></span><strong>少一点操作。<br>多一点生活。</strong><p>声音与画面，按需连接</p><span class="version">COMPANION CONSOLE / 0.4 · Emma0923</span></div>
+    </aside>
+    <main class="content">
+      <header class="topbar"><div><span class="kicker" id="page-kicker">MAKE ROOM FOR THE WORLD</span><h1 id="page-title">轻装，出发<span class="title-dot">。</span></h1></div><div class="header-actions"><span class="local-pill"><span class="status-dot"></span>本地优先</span><button class="icon-button" id="help-button" aria-label="使用说明"><i data-icon="help"></i></button><span class="avatar" aria-label="个人工作空间">E</span></div></header>
+
+      <section class="page" id="page-overview" aria-label="概览">
+        <div class="overview-grid">
+          <article class="device-card">
+            <div class="device-copy"><span class="eyebrow">YOUR GLASSES</span><h2>E06<span class="device-suffix"> / 003B</span></h2><p>让声音，陪你看世界。</p></div>
+            <span class="connection-pill" id="connection-pill"><span class="status-dot"></span><span id="connection-label">正在检查设备</span></span>
+            <div class="device-illustration" aria-label="无屏音频眼镜示意图">
+              <svg viewBox="0 0 560 210" role="img" aria-label="E06 音频眼镜轮廓示意"><defs><linearGradient id="frame" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#4b5850"/><stop offset=".5" stop-color="#1c2923"/><stop offset="1" stop-color="#0b1711"/></linearGradient><linearGradient id="lens" x1="0" y1="0" x2=".4" y2="1"><stop stop-color="#abbcaf" stop-opacity=".75"/><stop offset="1" stop-color="#dae5d4" stop-opacity=".35"/></linearGradient><filter id="shadow"><feGaussianBlur stdDeviation="8"/></filter></defs><ellipse cx="280" cy="180" rx="183" ry="12" fill="#394d37" opacity=".12" filter="url(#shadow)"/><g transform="rotate(-8 280 100)"><path d="M91 84L164 22Q170 16 183 19L215 26" fill="none" stroke="#36433a" stroke-width="14" stroke-linecap="round"/><path d="M454 87L393 22Q386 14 374 17L346 23" fill="none" stroke="#27342c" stroke-width="13" stroke-linecap="round"/><path d="M86 80Q101 64 179 65Q216 65 239 80L312 80Q335 64 390 65Q440 65 461 80L457 97L448 99Q441 150 412 160Q367 174 331 151Q318 139 311 100Q275 87 242 101Q234 148 211 159Q165 177 126 155Q104 142 97 101L86 98Z" fill="url(#frame)"/><path d="M112 88Q162 76 215 88Q231 94 224 116Q219 145 205 149Q158 164 132 146Q116 136 112 103Z" fill="url(#lens)" stroke="#637367" stroke-width="2"/><path d="M327 91Q375 75 435 87L435 105Q431 137 411 148Q371 160 343 143Q333 135 327 109Z" fill="url(#lens)" stroke="#637367" stroke-width="2"/><path d="M131 93L156 144M146 89L170 148M346 95L367 144" stroke="#fff" opacity=".12" stroke-width="10"/><path d="M89 86L102 86M449 87L460 87" stroke="#b7c4ad" stroke-width="3" stroke-linecap="round"/><circle cx="451" cy="81" r="3" fill="#14201a"/><circle cx="451" cy="81" r="1" fill="#758b8c"/></g></svg>
+            </div>
+            <div class="device-stats"><div class="stat"><i data-icon="bluetooth"></i><span>连接方式<strong>蓝牙音频</strong></span></div><div class="stat"><i data-icon="battery"></i><span>眼镜电量<strong>暂不可读取</strong></span></div><div class="stat"><i data-icon="volume"></i><span>系统输出音量<strong id="device-volume">—</strong></span></div></div>
+            <div class="card-bottom"><span id="device-footnote">手机负责画面，眼镜负责声音。</span><button class="btn ghost compact" data-action="refresh"><i data-icon="refresh"></i>检查连接</button></div>
+          </article>
+          <div class="side-stack">
+            <article class="panel connection-panel"><div class="section-heading"><h3>连接，一目了然</h3><span class="tag" id="bridge-badge">检查中</span></div><div class="status-row"><span><i data-icon="volume"></i>声音输出</span><strong id="output-state">检查中</strong></div><div class="status-row"><span><i data-icon="mic"></i>麦克风</span><strong id="input-state">检查中</strong></div><div class="status-row"><span><i data-icon="check"></i>实际听感</span><strong id="hearing-state">待你确认</strong></div><button class="mini-action" data-action="connect-help">手机如何连接<i data-icon="arrow"></i></button></article>
+            <article class="panel quiet-note"><span class="eyebrow">LESS SCREEN. MORE WORLD.</span><h3>戴上，就轻松一点。</h3><p>从一声问候，到一段旅程。<br>把常用操作，留在最顺手的位置。</p><button class="mini-action" data-page="device">探索设备能力<i data-icon="arrow"></i></button></article>
+          </div>
+        </div>
+        <article class="panel display-panel" aria-labelledby="display-heading">
+          <div class="section-heading"><div><span class="eyebrow">ONE VIEW. MORE POSSIBILITIES.</span><h2 id="display-heading">换副眼镜，继续出发。</h2></div><span class="tag" id="display-mode">自动适配</span></div>
+          <p class="hint">有屏眼镜、电视与普通外接屏，都从这里打开画面。E06 继续负责声音。</p>
+          <div class="display-grid">
+            <div class="display-visual" aria-hidden="true"><div class="display-mini-sun"></div><div class="display-mini-mountain"></div><span>YOUR WORLD, ANY SCREEN</span><strong>画面随屏幕，自然展开。</strong><small>2D · 等比例 · 自动布局</small></div>
+            <div class="display-controls">
+              <p id="display-detection" class="hint">正在检查显示能力…</p>
+              <label class="field" for="display-target">画面去哪里<select class="select" id="display-target" disabled><option value="">自动选择唯一外接屏</option></select></label>
+              <div class="button-row"><button class="btn secondary" id="display-authorize">授权自动识别</button><button class="btn primary" id="display-open">打开本机预览</button></div>
+              <div class="button-row display-share-row"><button class="btn secondary" id="display-share" disabled>共享游戏画面</button><button class="btn ghost" id="display-stop" disabled>停止共享</button><button class="btn ghost" id="display-close" disabled>关闭画面</button></div>
+              <p class="hint" id="display-capture-note">共享时选择游戏窗口；不要选择本控制台或输出窗口，以免出现画面循环。共享不录制、不上传，声音由系统输出。</p>
+              <details class="display-options"><summary>画面与连接说明</summary><label class="field" for="display-inset">画面边距 <output id="display-inset-value">4%</output><input id="display-inset" type="range" min="0" max="12" value="4" step="1"></label><p class="hint">画面需要眼镜支持的视频连接：USB-C 视频、适配的 HDMI，或系统 / 厂商无线投屏。蓝牙配对不会自动传送游戏画面。</p><p class="hint">默认通用 2D，不自动开启左右眼 3D；头部追踪、瞳距与屈光度读取需要具体型号接口。手机能否镜像由手机和眼镜共同决定。</p></details>
+            </div>
+          </div>
+          <div class="display-bottom"><span id="display-live">尚未打开画面</span><p id="display-status" role="status">首次授权并打开后，自动跟随屏幕尺寸变化。断开目标屏幕会停止共享。</p></div>
+        </article>
+        <div class="section-header"><div><h2>一触即达</h2><p>每天会用到的，刚刚好。</p></div><span class="section-index">01 — ESSENTIALS</span></div>
+        <div class="quick-grid">
+          <button class="action-card" data-action="test-audio"><span class="icon-wrap"><i data-icon="volume"></i></span><strong>听一听</strong><span>轻柔提示音 · 测试输出</span><i class="arrow" data-icon="arrow"></i></button>
+          <button class="action-card" data-action="open-record"><span class="icon-wrap"><i data-icon="mic"></i></span><strong>记一段</strong><span>录音 · 回听 · 本地保存</span><i class="arrow" data-icon="arrow"></i></button>
+          <button class="action-card" data-action="open-speak"><span class="icon-wrap"><i data-icon="text"></i></span><strong>读给我听</strong><span>文字朗读 · 多语言语音</span><i class="arrow" data-icon="arrow"></i></button>
+          <button class="action-card" data-action="import"><span class="icon-wrap"><i data-icon="upload"></i></span><strong>放进口袋</strong><span>导入照片、音频和视频</span><i class="arrow" data-icon="arrow"></i></button>
+        </div>
+        <div class="bottom-grid">
+          <article class="tour-card"><div class="tour-card-copy"><span class="eyebrow">A LITTLE ESCAPE</span><h2>给耳朵，一场小旅行。</h2><p>从京都的小巷开始，听一段风景。</p><button class="btn primary" data-action="open-tour">打开声音导览<i data-icon="arrow"></i></button><span class="tour-disclaimer">预设示例讲解 · 非实时街景</span></div><div class="landscape" aria-hidden="true"><div class="landscape-sun"></div><div class="landscape-hill one"></div><div class="landscape-hill two"></div><div class="landscape-line"></div></div></article>
+          <article class="panel session-card"><div class="section-heading"><span class="eyebrow">YOUR OWN PACE</span><i data-icon="clock"></i></div><h3>按自己的节奏</h3><div class="timer-display" id="timer-display">00:00</div><div class="button-row"><button class="btn secondary" id="timer-toggle"><i data-icon="play"></i><span>开始计时</span></button><button class="icon-button" id="timer-reset" aria-label="重置计时"><i data-icon="refresh"></i></button></div><p class="hint">轻运动计时，不控制外骨骼。</p></article>
+        </div>
+      </section>
+
+      <section class="page hidden" id="page-lab" aria-label="声音实验室">
+        <div class="tabs" role="tablist" aria-label="声音工具"><button class="tab active" data-lab="record" role="tab" aria-selected="true">录音与回听</button><button class="tab" data-lab="speak" role="tab" aria-selected="false">文字朗读</button><button class="tab" data-lab="tour" role="tab" aria-selected="false">声音导览</button></div>
+        <div id="lab-record" class="lab-panel">
+          <div class="tool-grid"><article class="panel recorder-panel"><div class="section-heading"><h2>留住这一刻的声音</h2><span class="tag">本地录音</span></div><p class="hint">先确认音源，再开始。录音不会上传。</p><div class="record-orb" id="record-orb"><i data-icon="mic"></i></div><div class="record-time" id="record-time">00:00</div><div class="level-meter" role="meter" aria-label="麦克风输入电平" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="level-meter"><div class="level-fill" id="level-fill"></div></div><p class="hint centered" id="record-status" role="status">准备好时，按下开始。</p><div class="recording-controls"><button class="btn primary" id="record-start"><i data-icon="mic"></i>开始录音</button><button class="btn danger hidden" id="record-stop"><i data-icon="stop"></i>结束并保存</button></div><p class="hint centered">最长 5 分钟；切换应用内页面会保存。关页前请先结束录音。</p></article>
+          <article class="panel"><div class="section-heading"><h3>声音从哪里来</h3><i data-icon="sliders"></i></div><label class="field" for="input-select">录音设备<select class="select" id="input-select"><option value="">系统默认麦克风（未确认眼镜）</option></select></label><button class="btn secondary full" id="refresh-inputs"><i data-icon="refresh"></i>授权并识别麦克风</button><p class="hint" id="input-detail">请选择含 E06 的音源，才能验证眼镜麦克风。部分手机由系统管理蓝牙输入。</p><div class="divider"></div><h3>让每一次测试有答案</h3><p class="hint">系统识别设备不等于声音已到耳边。先试听，再确认；录完后到资料库回听。</p><button class="btn secondary full" data-action="test-audio"><i data-icon="volume"></i>测试声音输出</button><button class="mini-action" data-page="library">打开资料库<i data-icon="arrow"></i></button></article></div>
+        </div>
+        <div id="lab-speak" class="lab-panel hidden"><div class="tool-grid"><article class="panel"><div class="section-heading"><h2>让文字，有声音</h2><span class="tag">系统语音</span></div><label class="field" for="speech-text">想听的文字<textarea id="speech-text" class="input" rows="8" maxlength="5000">你好，欢迎来到 EYE OS。戴上眼镜，把双手留给生活。现在，让我们轻装出发。</textarea></label><div class="speech-controls"><button class="btn primary" id="speak-start"><i data-icon="play"></i>开始朗读</button><button class="btn secondary" id="speak-pause" disabled><i data-icon="pause"></i>暂停</button><button class="icon-button" id="speak-stop" disabled aria-label="停止朗读"><i data-icon="stop"></i></button></div><p class="hint" id="speech-status" role="status">经由系统当前音频输出播放。</p></article><article class="panel"><h3>选一个喜欢的声音</h3><label class="field" for="voice-select">语音<select class="select" id="voice-select"><option value="">系统默认</option></select></label><label class="field" for="speech-rate">语速 <output id="rate-value">1.0×</output><input type="range" min="0.6" max="1.5" step="0.1" value="1" id="speech-rate"></label><label class="field" for="speech-volume">朗读音量 <output id="speech-volume-value">60%</output><input type="range" min="0" max="1" step="0.05" value="0.6" id="speech-volume"></label><p class="hint">请在手机或电脑的声音设置中选择眼镜。这里使用系统文字转语音，不是 AI 对话或翻译。</p></article></div></div>
+        <div id="lab-tour" class="lab-panel hidden"><div class="tour-layout"><article class="panel"><span class="eyebrow">CHOOSE A MOOD</span><h2>下一站，听哪里？</h2><div class="route-list" id="route-list"></div><p class="hint">预设讲解样例；不读取定位，不代表已接入 Google Maps。</p></article><article class="panel tour-script"><span class="eyebrow" id="tour-region">KYOTO, JAPAN</span><h2 id="tour-title">京都 · 巷间慢行</h2><p id="tour-body"></p><div class="tour-meta"><i data-icon="headphones"></i><span>使用系统语音朗读 · 中文</span></div><div class="button-row"><button class="btn primary" id="tour-play"><i data-icon="play"></i>听这段风景</button><button class="btn secondary" id="tour-stop"><i data-icon="stop"></i>停止</button></div><p class="hint" id="tour-status" role="status">准备出发。</p></article></div></div>
+      </section>
+
+      <section class="page hidden" id="page-library" aria-label="资料库"><div class="section-header"><div><h2>你的随身口袋</h2><p>录音和导入的媒体，仅保存在当前浏览器。</p></div><button class="btn primary" data-action="import"><i data-icon="plus"></i>导入文件</button></div><div class="tabs library-tabs" aria-label="资料筛选"><button class="tab active" data-filter="all">全部 <span id="library-total">0</span></button><button class="tab" data-filter="audio">音频</button><button class="tab" data-filter="image">照片</button><button class="tab" data-filter="video">视频</button></div><div id="library-list" class="media-grid"></div><div class="empty-state" id="library-empty"><span class="empty-icon"><i data-icon="folder"></i></span><h3>美好的片段，还在路上。</h3><p>录一段声音，或导入第一份文件。<br>眼镜内部文件的自动同步，仍需厂商接口。</p><button class="btn secondary" data-action="import">导入第一份文件<i data-icon="arrow"></i></button><button class="btn ghost" data-action="sample-media">先试用示例文件</button></div><p class="footer-note">清理浏览器数据会删除本地资料。重要片段请及时下载备份。若内嵌预览无法选择文件，请在 Chrome、Edge 或 Safari 中打开。</p></section>
+
+      <section class="page hidden" id="page-device" aria-label="设备与能力">
+        <article class="panel exo-panel" id="exoskeleton-panel" aria-labelledby="exo-heading">
+          <div class="section-heading exo-heading"><div><span class="eyebrow">MOVE AT YOUR OWN PACE</span><h2 id="exo-heading">外骨骼，状态在这里。</h2><p class="hint">从本机端口到每一帧数据，分开看清楚。</p></div><span class="exo-badge" id="exo-badge" data-tone="quiet">尚未读取</span></div>
+          <div class="exo-toolbar"><div class="button-row"><button class="btn primary" id="exo-start">开始读取</button><button class="btn secondary" id="exo-pause" disabled>暂停</button><button class="btn ghost" id="exo-refresh">刷新状态</button></div><span class="exo-readonly"><a href="hands.html">双手模式预览 ↗</a></span></div>
+          <div class="exo-layers">
+            <section class="exo-layer" aria-labelledby="exo-usb-heading"><span class="exo-step">01 / USB PORT</span><h3 id="exo-usb-heading">USB 端口</h3><strong id="exo-usb-state">尚未检查</strong><p class="hint" id="exo-usb-note">检查本机是否枚举到 CP210x 串口。</p><ul class="exo-port-list" id="exo-ports" aria-label="本机外骨骼串口"></ul></section>
+            <section class="exo-layer" aria-labelledby="exo-shellos-heading"><span class="exo-step">02 / LOCAL SERVICE</span><h3 id="exo-shellos-heading">ShellOS 服务</h3><strong id="exo-shellos-state">尚未检查</strong><p class="hint" id="exo-shellos-note">默认本机 127.0.0.1:8765，设备连接由 ShellOS 完成。</p><span class="exo-source" id="exo-source">数据来源：—</span></section>
+            <section class="exo-layer" aria-labelledby="exo-data-heading"><span class="exo-step">03 / TELEMETRY</span><h3 id="exo-data-heading">实时数据</h3><strong id="exo-data-state">等待读取</strong><p class="hint" id="exo-data-note">找到 COM 端口后，仍需有效且新鲜的设备帧。</p><span class="exo-source" id="exo-frame-age">采样时帧龄：—</span></section>
+          </div>
+          <div class="exo-telemetry" id="exo-telemetry" data-live="false">
+            <div class="exo-angles"><div class="exo-angle"><span>左髋角</span><strong id="exo-angle-left">—</strong><small id="exo-velocity-left">角速度 —</small></div><div class="exo-angle"><span>右髋角</span><strong id="exo-angle-right">—</strong><small id="exo-velocity-right">角速度 —</small></div></div>
+            <dl class="exo-metrics"><div><dt>步频</dt><dd id="exo-cadence">—</dd></div><div><dt>运动状态</dt><dd id="exo-moving">—</dd></div><div><dt>设备使能 / 只读</dt><dd id="exo-enabled">—</dd></div><div><dt>Guard 状态 / 只读</dt><dd id="exo-guard">—</dd></div><div><dt>实际已发 · 左力矩</dt><dd id="exo-torque-left">—</dd></div><div><dt>实际已发 · 右力矩</dt><dd id="exo-torque-right">—</dd></div></dl>
+          </div>
+          <div class="exo-foot"><p id="exo-status" role="status" aria-live="polite">点击「开始读取」，每秒检查一次本机状态。</p><span id="exo-checked">最近检查：—</span></div>
+          <details class="exo-help"><summary>连接与读取说明</summary><p>请在连接外骨骼的电脑上打开本机控制台，并启动 ShellOS（默认 127.0.0.1:8765）。由现有 ShellOS 完成真实设备连接；CP210x 被枚举到，只说明系统发现了串口。</p><p>此面板只读取 USB、服务与遥测状态，不设置使能、力矩或急停。Guard 与使能字段是设备上报状态。暂停读取只停止刷新页面，不改变外骨骼运行状态。</p><p>手机静态页面不能直接读取电脑的 USB；显示「本机桥接不可用」时，请回到连接设备的电脑打开本机版本。</p></details>
+        </article><div class="settings-grid"><article class="panel"><div class="section-heading"><h2>E06-003B</h2><span class="tag">无屏音频眼镜</span></div><dl class="device-detail"><div><dt>设备类型</dt><dd>S30301</dd></div><div><dt>硬件版本</dt><dd>V2</dd></div><div><dt>蓝牙固件字段</dt><dd>V1.4.9</dd></div><div><dt>ISP 版本</dt><dd>V1.3.6</dd></div><div><dt>配套 App</dt><dd>EYEVUE</dd></div><div><dt>电量</dt><dd>未开放读取</dd></div></dl><p class="hint">型号与版本来自你提供的设备截图，未进行实时固件查询。</p><button class="btn secondary full" data-action="connect-help"><i data-icon="bluetooth"></i>连接手机与眼镜</button></article><article class="panel"><div class="section-heading"><h2>连接诊断</h2><button class="icon-button" data-action="refresh" aria-label="刷新设备状态"><i data-icon="refresh"></i></button></div><div id="device-diagnostics" class="capability-list"></div><p class="hint" id="diagnostic-time">还没有检测记录。</p><div class="divider"></div><p class="hint">本地桥接仅用于这台 Windows 电脑。手机使用系统蓝牙音频；网页不能代替系统配对，也不刷写眼镜固件。</p></article></div><div class="section-header"><div><h2>功能，全都摆在明处</h2><p>能用的直接用；需要硬件接口的，清楚标明。</p></div><span class="section-index">CAPABILITY MAP</span></div><div class="feature-grid" id="feature-grid"></div><div class="status-banner">此版本是独立开发的眼镜控制台。设备拍摄、图库同步、电量和固件控制，需要厂商接口确认后接入。</div></section>
+      <footer class="app-footer"><span>EYE OS <b>·</b> 少一点操作，多一点世界。</span><span>EYE OS / Emma0923</span></footer>
+    </main>
+  </div>
+  <input type="file" id="file-input" accept="audio/*,image/*,video/*" multiple hidden>
+  <dialog class="modal" id="app-dialog"><div class="modal-card"><button class="icon-button modal-close" id="dialog-close" aria-label="关闭"><i data-icon="close"></i></button><div id="dialog-body"></div></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript><p>请开启 JavaScript 以使用音频与本地资料功能。</p></noscript>
+</body>
+</html>
